@@ -51,3 +51,6 @@ data/question-bank/normalized/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# local tooling metadata
+*.qoder.site
