@@ -567,7 +567,7 @@ data: {"ts":"2026-11-07T09:40:10Z"}
 `POST /interviews/{id}/finish` → `202`
 
 ```json
-{"reportId": "60001", "status": "GENERATING", "estimatedReadyInMs": 20000}
+{"reportId": "60001", "status": "GENERATING", "estimatedReadyInMs": 5000}
 ```
 
 要求至少完成 1 题；否则返回 `409 STATE_CONFLICT`。

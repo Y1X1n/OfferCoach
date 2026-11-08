@@ -32,7 +32,6 @@ public class RefreshTokenService {
     private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
     private static final int TOKEN_BYTES = 32;
     private static final String USED_SEPARATOR = "|";
-    private static final Duration REVOKED_FAMILY_TTL = Duration.ofHours(1);
     private static final DefaultRedisScript<String> CONSUME_SCRIPT = new DefaultRedisScript<>(
             """
             local value = redis.call('GET', KEYS[1])
@@ -64,15 +63,24 @@ public class RefreshTokenService {
     /**
      * 在既有家族内签发新 Refresh Token（刷新），家族未知时退化为新家族。
      *
-     * <p>家族墓碑存在时拒绝签发：登出/改密与刷新并发时，吊销必须先于补发生效。</p>
+     * <p>家族墓碑存在时拒绝签发；签发后复查墓碑，覆盖“检查通过后恰逢登出”的竞态。</p>
      */
     public IssuedRefresh issueInFamily(long userId, String familyId) {
         String family =
                 familyId == null || familyId.isBlank() ? UUID.randomUUID().toString() : familyId;
-        if (Boolean.TRUE.equals(redisTemplate.hasKey(RedisKeys.refreshFamilyRevoked(family)))) {
+        if (isRevoked(family)) {
             throw new BizException(ErrorCode.REFRESH_INVALID);
         }
-        return issue(userId, family);
+        IssuedRefresh issued = issue(userId, family);
+        if (isRevoked(family)) {
+            revokeFamilyByFamilyId(family);
+            throw new BizException(ErrorCode.REFRESH_INVALID);
+        }
+        return issued;
+    }
+
+    private boolean isRevoked(String familyId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(RedisKeys.refreshFamilyRevoked(familyId)));
     }
 
     /**
@@ -167,7 +175,12 @@ public class RefreshTokenService {
     }
 
     private void revokeFamilyByFamilyId(String familyId) {
-        redisTemplate.opsForValue().set(RedisKeys.refreshFamilyRevoked(familyId), "1", REVOKED_FAMILY_TTL);
+        redisTemplate
+                .opsForValue()
+                .set(
+                        RedisKeys.refreshFamilyRevoked(familyId),
+                        "1",
+                        properties.getRefreshTokenTtl().plus(Duration.ofHours(1)));
         String familyKey = RedisKeys.refreshFamily(familyId);
         Set<String> tokenHashes = redisTemplate.opsForSet().members(familyKey);
         if (tokenHashes != null && !tokenHashes.isEmpty()) {

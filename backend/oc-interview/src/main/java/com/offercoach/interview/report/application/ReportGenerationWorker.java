@@ -52,13 +52,21 @@ public class ReportGenerationWorker {
 
     /**
      * 立即触发一次生成；进程内去重，跨实例靠数据库 claim 条件更新。
+     * 触发失败只记录日志：会话/报告状态已提交，5 秒轮询会兜底，不应把接口变成 500。
      */
     public void kick(long reportId) {
         if (running.contains(reportId)) {
             return;
         }
-        if (reportRepository.claim(reportId, 0)) {
-            submit(reportId);
+        try {
+            if (reportRepository.claim(reportId, 0)) {
+                submit(reportId);
+            }
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "报告即时触发失败，等待轮询：reportId={} reason={}",
+                    reportId,
+                    exception.getClass().getSimpleName());
         }
     }
 

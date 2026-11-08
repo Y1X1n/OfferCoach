@@ -7,7 +7,7 @@
 
 | 问题 | 位置 | 修复与验证 |
 |---|---|---|
-| 登出/改密与刷新并发时，宽限补发可能重建已吊销家族 | `RefreshTokenService` | 吊销先写 1 小时家族墓碑，`issueInFamily` 检查墓碑；复测登出后旧/新 Token 均 401 |
+| 登出/改密与刷新并发时，宽限补发可能重建已吊销家族 | `RefreshTokenService` | 吊销先写家族墓碑（TTL 覆盖 Refresh 生命周期），签发前后各检查一次，竞态补发会被回收；复测登出后旧/新 Token 均 401 |
 | 管理员引导按邮箱直接提升 ADMIN，不校验配置密码，先抢注邮箱者可提权 | `AdminDataInitializer` | 已存在账号必须与 `oc.admin.password` 匹配才提升，否则拒绝并告警 |
 | 1 题 + MIXED 时难度分配出现负数，`nCopies(-1)` 抛异常，出题必失败 | `QuestionPlan` | 难度分配改为非负递减；新增 `QuestionPlanTest`；真实接口 1 题会话 READY |
 | 闲置 24h 自动放弃时只看回答数，题目已生成也退款，与手动放弃口径相反 | `SessionIdleAbandoner` | 回答与题目均为 0 才退款 |
