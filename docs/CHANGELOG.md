@@ -41,7 +41,7 @@
 - 发布验证：演示/管理员登录、me/quota、刷新宽限补发（200）、登出后旧 Token 与新 Token 均 401、公共端点与 HTTPS 首页 200。
 - 修复引导误报：已存在账号为 ADMIN 时不再要求配置密码匹配；非 ADMIN 存量邮箱仍需凭证匹配才提升。
 - 清理 ECS 上的 `newapi`、`9router`：删除容器、`newapi-data`/`9router-data` 卷、两个镜像与 `/root/9r-backup` 备份（21 个文件）；保留 `ofm` 与其他服务。
-- 回滚基线：保留 `offercoach-app:0.8.1`、`0.8.0` 镜像与 `compose.yaml.bak-before-0.8.2`，jar 备份在 `build/app/target/*.prev-0.8.1`。
+- 回滚基线：保留 `offercoach-app:0.8.1`、`0.8.0` 镜像与 `compose.yaml.bak-before-0.8.2`，jar 备份在服务器 `/opt/offercoach/build/app/target/oc-app-0.1.0-SNAPSHOT.jar.prev-0.8.1`。
 
 ### v2.9（2026-11-08）——四路代码审计与第二批修复
 
