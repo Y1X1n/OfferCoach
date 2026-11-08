@@ -120,7 +120,9 @@ public class AnswerService {
         if (!questionRepository.markAnswered(questionId)) {
             throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "QUESTION_CLOSED"));
         }
-        sessionRepository.advanceAfterAnswer(sessionId);
+        if (!sessionRepository.advanceAfterAnswer(sessionId)) {
+            throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "STATE_CHANGED"));
+        }
         questionRepository.markAsked(sessionId, Math.min(session.currentSeq() + 1, session.questionCount()));
 
         String token = newToken();

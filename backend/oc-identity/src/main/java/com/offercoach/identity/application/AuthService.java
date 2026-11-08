@@ -146,16 +146,16 @@ public class AuthService {
 
     @Transactional
     public AuthSession login(String account, String password, String ip) {
-        authAttemptService.checkLoginAllowed(account, ip);
         if (account == null || account.isBlank() || password == null || password.isEmpty()) {
             throw new BizException(ErrorCode.UNAUTHENTICATED);
         }
+        AuthAttemptService.LoginAttempt attempt = authAttemptService.reserveLoginAttempt(account, ip);
         UserAccount user = findByEmail(account).filter(UserAccount::isActive).orElse(null);
         if (user == null || !passwordMatches(password, user)) {
-            authAttemptService.onLoginFailure(account, ip);
+            authAttemptService.onLoginFailure(attempt, account, ip);
             throw new BizException(ErrorCode.UNAUTHENTICATED);
         }
-        authAttemptService.onLoginSuccess(account);
+        authAttemptService.onLoginSuccess(attempt, account);
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         userRepository.updateLastLogin(user.id(), now);

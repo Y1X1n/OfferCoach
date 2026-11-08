@@ -637,9 +637,10 @@ CREATE INDEX idx_audit_resource ON audit_log(resource_type, resource_id);
 
 | Key | 类型 | TTL | 用途 | 说明 |
 |---|---|---|---|---|
-| `oc:auth:refresh:{sha256}` | string | 7d | Refresh Token 映射 | 值为 `userId:familyId:jti`；GETDEL 消费 |
+| `oc:auth:refresh:{sha256}` | string | 7d | Refresh Token 映射 | 值为 `userId:familyId:jti`；Lua 脚本原子消费并写 used 标记 |
+| `oc:auth:refresh-revoked:{familyId}` | string | 7d+1h | 家族墓碑 | 登出/改密/停用后阻止并发刷新重建家族 |
 | `oc:auth:refresh-family:{familyId}` | set | 7d | Refresh 家族 | 存家族内全部 token 摘要；重放/登出整族吊销 |
-| `oc:auth:refresh-used:{sha256}` | string | 7d | 已消费标记 | 值 `familyId`；再次出现判定重放 |
+| `oc:auth:refresh-used:{sha256}` | string | 7d | 已消费标记 | 新值 `userId:familyId:jti\|rotatedAtMillis`（旧值 `familyId` 兼容）；宽限内并发刷新同族补发，超期重放吊销整族 |
 | `oc:auth:blacklist:{jti}` | string | 剩余时效 | Access Token 吊销 | 登出/改密时写入；Redis 故障时鉴权 fail-closed |
 | `oc:login:fail:acct:{account}` | counter | 15m | 登录失败锁定 | ≥5 次返回 429 |
 | `oc:login:fail:ip:{ip}` | counter | 15m | IP 维度限速 | 规划：≥20 次临时封禁 |

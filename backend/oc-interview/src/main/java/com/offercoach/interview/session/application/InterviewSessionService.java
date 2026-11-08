@@ -7,6 +7,7 @@ import com.offercoach.identity.application.quota.QuotaService;
 import com.offercoach.identity.domain.quota.QuotaType;
 import com.offercoach.interview.jd.application.port.JobDescriptionRepository;
 import com.offercoach.interview.jd.domain.JobDescription;
+import com.offercoach.interview.report.application.ReportGenerationWorker;
 import com.offercoach.interview.report.application.port.InterviewReportRepository;
 import com.offercoach.interview.report.domain.InterviewReport;
 import com.offercoach.interview.resume.application.port.ResumeRepository;
@@ -55,7 +56,7 @@ public class InterviewSessionService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_IDEMPOTENCY_KEY = 128;
     private static final long START_ESTIMATED_READY_MS = 9000L;
-    private static final long REPORT_ESTIMATED_READY_MS = 20000L;
+    private static final long REPORT_ESTIMATED_READY_MS = 5000L;
     private static final String REF_TYPE = "INTERVIEW_SESSION";
     private static final String CHARGE_REASON = "SESSION_CHARGE";
     private static final String REFUND_REASON = "SESSION_REFUND";
@@ -66,6 +67,7 @@ public class InterviewSessionService {
     private final ResumeRepository resumeRepository;
     private final JobDescriptionRepository jdRepository;
     private final InterviewReportRepository reportRepository;
+    private final ReportGenerationWorker reportGenerationWorker;
     private final QuotaService quotaService;
     private final JsonCodec jsonCodec;
     private final ApplicationEventPublisher eventPublisher;
@@ -78,6 +80,7 @@ public class InterviewSessionService {
             ResumeRepository resumeRepository,
             JobDescriptionRepository jdRepository,
             InterviewReportRepository reportRepository,
+            ReportGenerationWorker reportGenerationWorker,
             QuotaService quotaService,
             JsonCodec jsonCodec,
             ApplicationEventPublisher eventPublisher,
@@ -88,6 +91,7 @@ public class InterviewSessionService {
         this.resumeRepository = resumeRepository;
         this.jdRepository = jdRepository;
         this.reportRepository = reportRepository;
+        this.reportGenerationWorker = reportGenerationWorker;
         this.quotaService = quotaService;
         this.jsonCodec = jsonCodec;
         this.eventPublisher = eventPublisher;
@@ -206,6 +210,7 @@ public class InterviewSessionService {
     /**
      * 跳过当前题：仅 IN_PROGRESS，计 0 分并推进 currentSeq。
      */
+    @Transactional
     public void skip(long userId, long sessionId, long questionId) {
         InterviewSession session = loadOwned(userId, sessionId);
         if (!SessionStatus.IN_PROGRESS.equals(session.status())) {
@@ -220,7 +225,9 @@ public class InterviewSessionService {
         if (!questionRepository.markSkipped(questionId)) {
             throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "QUESTION_CLOSED"));
         }
-        sessionRepository.advanceAfterSkip(sessionId);
+        if (!sessionRepository.advanceAfterSkip(sessionId)) {
+            throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("status", reloadStatus(sessionId)));
+        }
         questionRepository.markAsked(sessionId, session.currentSeq() + 1);
     }
 
@@ -264,7 +271,7 @@ public class InterviewSessionService {
             throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "NO_ANSWER"));
         }
         SessionStateMachine.require(session.status(), SessionStatus.REPORT_GENERATING);
-        return transactionTemplate.execute(status -> {
+        Finished finished = transactionTemplate.execute(status -> {
             if (!sessionRepository.finish(sessionId)) {
                 throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("status", reloadStatus(sessionId)));
             }
@@ -280,6 +287,10 @@ public class InterviewSessionService {
             log.info("会话结束，报告已排队：sessionId={} reportId={}", sessionId, reportId);
             return new Finished(reportId, reportStatus, REPORT_ESTIMATED_READY_MS);
         });
+        if (finished != null) {
+            reportGenerationWorker.kick(finished.reportId());
+        }
+        return finished;
     }
 
     /** 出题 worker 完成后置 READY；若会话已被放弃则忽略。 */

@@ -110,27 +110,44 @@ public class AuthAttemptService {
     }
 
     /**
-     * 登录限流：单 IP 每分钟 {@code login-per-minute} 次；账号失败次数达到阈值直接拒绝。
+     * 登录尝试预占：单 IP 分钟窗口 + 账号尝试计数原子递增后再判定。
+     *
+     * <p>先占用再校验密码，避免并发请求都读到阈值以下的计数而放大校验次数；
+     * 登录成功由 {@link #onLoginSuccess(LoginAttempt, String)} 清零。</p>
      */
-    public void checkLoginAllowed(String account, String ip) {
+    public LoginAttempt reserveLoginAttempt(String account, String ip) {
         enforceWindow(RedisKeys.loginRateLimit(ip), properties.getLoginPerMinute(), "登录");
         String key = accountKey(account);
         if (key == null) {
-            return;
+            return LoginAttempt.untracked();
         }
-        Long failures = readCounter(key);
-        if (failures != null && failures >= properties.getFailThreshold()) {
-            log.warn("账号登录失败次数达到阈值，暂时锁定：{}", mask(account));
-            throw new BizException(ErrorCode.RATE_LIMITED);
+        try {
+            Long attempts = redisTemplate.opsForValue().increment(key);
+            if (attempts != null && attempts == 1L) {
+                redisTemplate.expire(key, properties.getFailWindow());
+            }
+            if (attempts != null && attempts > properties.getFailThreshold()) {
+                log.warn("账号登录失败次数达到阈值，暂时锁定：{}", mask(account));
+                throw new BizException(ErrorCode.RATE_LIMITED);
+            }
+            return new LoginAttempt(key, true);
+        } catch (BizException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            log.warn("登录尝试计数写入失败，本次不累计：{}", exception.getClass().getSimpleName());
+            return LoginAttempt.untracked();
         }
     }
 
     /**
-     * 凭证错误时累加账号失败计数（首次写入窗口 TTL）。
+     * 凭证错误：预占成功时计数已生效，不再重复累加；Redis 异常导致未计数时补一次。
      */
-    public void onLoginFailure(String account, String ip) {
+    public void onLoginFailure(LoginAttempt attempt, String account, String ip) {
         log.warn("登录凭证校验失败 ip={} account={}", ip == null || ip.isBlank() ? "-" : ip, mask(account));
-        String key = accountKey(account);
+        if (attempt != null && attempt.counted()) {
+            return;
+        }
+        String key = attempt != null && attempt.key() != null ? attempt.key() : accountKey(account);
         if (key == null) {
             return;
         }
@@ -145,10 +162,10 @@ public class AuthAttemptService {
     }
 
     /**
-     * 登录成功后清除账号失败计数。
+     * 登录成功清除账号失败计数（含本次预占）。
      */
-    public void onLoginSuccess(String account) {
-        String key = accountKey(account);
+    public void onLoginSuccess(LoginAttempt attempt, String account) {
+        String key = attempt != null && attempt.key() != null ? attempt.key() : accountKey(account);
         if (key == null) {
             return;
         }
@@ -156,6 +173,16 @@ public class AuthAttemptService {
             redisTemplate.delete(key);
         } catch (RuntimeException ex) {
             log.warn("登录失败计数清理失败：{}", ex.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * 登录尝试预占结果；账号为空或 Redis 故障时为未计数。
+     */
+    public record LoginAttempt(String key, boolean counted) {
+
+        static LoginAttempt untracked() {
+            return new LoginAttempt(null, false);
         }
     }
 

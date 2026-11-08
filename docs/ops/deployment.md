@@ -296,7 +296,7 @@ spec:
 | 证书巡检 | `/opt/offercoach/cert-check.sh` 每周一 09:00 检查 30 天到期，写 `/var/log/offercoach-cert.log` 与 syslog |
 | 管理员 | `OC_ADMIN_ENABLED=true` 时按 `OC_ADMIN_EMAIL/OC_ADMIN_PASSWORD` 创建或提升 ADMIN；凭据保存在服务器 600 权限文件，不入仓 |
 | 已停用 | `9router`、`newapi`（用户确认，`restart=no`，容器与数据保留） |
-| 保留 | `ofm`、`weiyu.0803.xin` |
+| 保留 | `<OTHER_SERVICES>` |
 
 - 前端已接真实后端：认证/额度/简历/JD/面试/SSE 反馈/报告/套餐均走 `/api/v1`，不再依赖 mock；简历编辑支持 Markdown/JSON/打印 PDF 导出。
 - 生产验证（0.8.0）：邀请注册冒烟 21 项通过——策略下发、算术验证码一次性、邀请双方奖励、无效邀请码拒绝、注册开关 30 秒内生效、管理端策略保存/恢复、报告逐题回答与证据；浏览器验证注册页验证码与邀请码可选、设置页邀请卡、管理端平台策略面板。

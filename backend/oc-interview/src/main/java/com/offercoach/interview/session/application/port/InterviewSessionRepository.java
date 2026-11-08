@@ -49,9 +49,9 @@ public interface InterviewSessionRepository {
 
     void touch(long id);
 
-    void advanceAfterAnswer(long id);
+    boolean advanceAfterAnswer(long id);
 
-    void advanceAfterSkip(long id);
+    boolean advanceAfterSkip(long id);
 
     List<InterviewSession> findIdle(OffsetDateTime cutoff, int limit);
 

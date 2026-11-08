@@ -1,7 +1,6 @@
 package com.offercoach.interview.session.application;
 
 import com.offercoach.interview.resume.application.port.ResumeRepository;
-import com.offercoach.interview.resume.domain.ResumeStatus;
 import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
 import com.offercoach.interview.session.application.port.InterviewSessionRepository;
 import com.offercoach.interview.session.domain.InterviewSession;
@@ -61,8 +60,9 @@ public class StaleStateWatchdog {
 
     private void recoverResumes(OffsetDateTime cutoff) {
         for (Long resumeId : resumeRepository.findStaleParsingIds(cutoff, BATCH_SIZE)) {
-            resumeRepository.updateParseState(resumeId, ResumeStatus.FAILED, RESUME_TIMEOUT_REASON);
-            log.warn("超时简历解析置失败：resumeId={}", resumeId);
+            if (resumeRepository.failIfParsing(resumeId, RESUME_TIMEOUT_REASON)) {
+                log.warn("超时简历解析置失败：resumeId={}", resumeId);
+            }
         }
     }
 

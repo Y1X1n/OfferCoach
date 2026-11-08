@@ -125,13 +125,13 @@ public class InterviewSessionRepositoryImpl implements InterviewSessionRepositor
     }
 
     @Override
-    public void advanceAfterAnswer(long id) {
-        sessionMapper.advanceAfterAnswer(id);
+    public boolean advanceAfterAnswer(long id) {
+        return sessionMapper.advanceAfterAnswer(id) > 0;
     }
 
     @Override
-    public void advanceAfterSkip(long id) {
-        sessionMapper.advanceAfterSkip(id);
+    public boolean advanceAfterSkip(long id) {
+        return sessionMapper.advanceAfterSkip(id) > 0;
     }
 
     @Override

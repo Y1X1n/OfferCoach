@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 验证岗位族修复后的出题相关性：创建会话→查看题目→放弃，不打印令牌/原文。
-const BASE_URL = (process.env.BASE_URL || 'https://offercoach.0803.xin').replace(/\/+$/, '')
+const BASE_URL = (process.env.BASE_URL || 'http://127.0.0.1:8081').replace(/\/+$/, '')
 const API = `${BASE_URL}/api/v1`
 const ACCOUNT = process.env.SMOKE_ACCOUNT
 const PASSWORD = process.env.SMOKE_PASSWORD

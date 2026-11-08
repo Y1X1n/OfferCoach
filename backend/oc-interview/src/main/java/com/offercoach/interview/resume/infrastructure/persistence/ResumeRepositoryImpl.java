@@ -89,6 +89,11 @@ public class ResumeRepositoryImpl implements ResumeRepository {
     }
 
     @Override
+    public boolean failIfParsing(long id, String parseError) {
+        return resumeMapper.failIfParsing(id, parseError) > 0;
+    }
+
+    @Override
     public void markReady(
             long id, String rawText, String structuredJson, String summary, String summaryHash, int pageCount) {
         resumeMapper.markReady(id, rawText, structuredJson, summary, summaryHash, pageCount);

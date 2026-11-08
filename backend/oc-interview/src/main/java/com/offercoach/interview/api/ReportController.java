@@ -11,6 +11,7 @@ import com.offercoach.interview.feedback.application.port.AnswerFeedbackReposito
 import com.offercoach.interview.feedback.domain.AnswerFeedback;
 import com.offercoach.interview.jd.application.port.JobDescriptionRepository;
 import com.offercoach.interview.jd.domain.JobDescription;
+import com.offercoach.interview.report.application.ReportGenerationWorker;
 import com.offercoach.interview.report.application.ReportService;
 import com.offercoach.interview.report.domain.InterviewReport;
 import com.offercoach.interview.resume.application.port.ResumeRepository;
@@ -41,6 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService reportService;
+    private final ReportGenerationWorker reportGenerationWorker;
     private final InterviewSessionRepository sessionRepository;
     private final InterviewQuestionRepository questionRepository;
     private final InterviewAnswerRepository answerRepository;
@@ -51,6 +53,7 @@ public class ReportController {
 
     public ReportController(
             ReportService reportService,
+            ReportGenerationWorker reportGenerationWorker,
             InterviewSessionRepository sessionRepository,
             InterviewQuestionRepository questionRepository,
             InterviewAnswerRepository answerRepository,
@@ -59,6 +62,7 @@ public class ReportController {
             ResumeRepository resumeRepository,
             CurrentUser currentUser) {
         this.reportService = reportService;
+        this.reportGenerationWorker = reportGenerationWorker;
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
@@ -89,6 +93,7 @@ public class ReportController {
     public ResponseEntity<ReportStartedResponse> retry(@PathVariable("id") String id) {
         long reportId = parseId(id);
         reportService.retry(currentUser.userId(), reportId);
+        reportGenerationWorker.kick(reportId);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(new ReportStartedResponse(Long.toString(reportId), "GENERATING"));
     }

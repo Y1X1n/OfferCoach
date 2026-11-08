@@ -132,7 +132,7 @@ public class ReportService {
                         && !"FAILED".equals(answer.status())
                         && !"REJECTED".equals(answer.status()));
         if (scoringPending) {
-            throw new IllegalStateException("评分尚未完成");
+            throw new ScoringPendingException("评分尚未完成");
         }
         List<InterviewQuestion> questions = questionRepository.listBySession(session.id());
         Map<Long, InterviewQuestion> questionById = new LinkedHashMap<>();
@@ -284,4 +284,14 @@ public class ReportService {
     }
 
     public record ReportPage(List<InterviewReport> items, long total, int page, int size) {}
+
+    /**
+     * 评分尚未全部完成；属于可等待状态，worker 不计失败次数，由后续触发继续生成。
+     */
+    public static class ScoringPendingException extends RuntimeException {
+
+        public ScoringPendingException(String message) {
+            super(message);
+        }
+    }
 }

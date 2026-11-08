@@ -27,6 +27,11 @@ public final class RedisKeys {
         return "oc:auth:refresh-user:" + userId;
     }
 
+    /** 已吊销家族墓碑：阻止并发刷新在吊销后重建家族键。 */
+    public static String refreshFamilyRevoked(String familyId) {
+        return "oc:auth:refresh-revoked:" + familyId;
+    }
+
     public static String registerRateLimit(String ip) {
         return "oc:ratelimit:register:" + ip;
     }
