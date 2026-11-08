@@ -205,7 +205,7 @@
 
 ### 2.3 刷新与登出
 
-- `POST /auth/refresh`：无 Body，依赖 Refresh Cookie；同一家族内旋转 Refresh Token 并返回新 Access Token；旧 Token 重放会吊销整族。
+- `POST /auth/refresh`：无 Body，依赖 Refresh Cookie；同一家族内旋转 Refresh Token 并返回新 Access Token；并发/多标签页在 30 秒宽限期内重复提交旧 Token 视为并发刷新并同族补发，超过宽限期或家族已吊销（登出/改密/停用）按重放处理并吊销整族。
 - `POST /auth/logout`：需要有效 Access；吊销当前 Access 与整个 Refresh 家族；`204 No Content`。Redis 吊销失败返回 500，不伪装成功。
 - 已吊销 Access 返回 `UNAUTHENTICATED`；只有自然过期返回 `TOKEN_EXPIRED`。
 

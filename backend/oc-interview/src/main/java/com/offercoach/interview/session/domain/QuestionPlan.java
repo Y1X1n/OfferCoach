@@ -88,9 +88,9 @@ public record QuestionPlan(List<Slot> slots) {
         int medium = Math.max(1, (int) Math.round(count * 0.5));
         int hard = Math.max(1, count - easy - medium);
         while (easy + medium + hard > count) {
-            if (hard > 1) {
+            if (hard >= medium && hard >= easy && hard > 0) {
                 hard--;
-            } else if (medium > 1) {
+            } else if (medium >= easy && medium > 0) {
                 medium--;
             } else {
                 easy--;

@@ -91,6 +91,13 @@
 | [frontend-spec-audit-2026-11-07.md](reviews/frontend-spec-audit-2026-11-07.md) | 阿里前端规范对照、采纳取舍、工具链落地与验证 | 留档 |
 | [backend-spec-fusion-2026-11-07.md](reviews/backend-spec-fusion-2026-11-07.md) | 后端规范对照、验收、M0 重构与验证记录 | 留档 |
 | [full-stack-audit-2026-11-07.md](reviews/full-stack-audit-2026-11-07.md) | 前端/后端/数据库/中间件/契约五路审查、第一批修复与剩余优先级 | 留档 |
+| [architecture-backend-review-2026-11-08.md](reviews/architecture-backend-review-2026-11-08.md) | 后端架构、边界与幂等复查 | 留档 |
+| [data-infra-review-2026-11-08.md](reviews/data-infra-review-2026-11-08.md) | 数据模型、索引、Redis、备份与基础设施复查 | 留档 |
+| [frontend-ux-review-2026-11-08.md](reviews/frontend-ux-review-2026-11-08.md) | 前端体验、可访问性与交互复查 | 留档 |
+| [red-team-review-2026-11-08.md](reviews/red-team-review-2026-11-08.md) | 红队攻击面、可利用路径与优先级 | 留档 |
+| [remediation-2026-11-08.md](reviews/remediation-2026-11-08.md) | 额度续发、看门狗、线程池隔离与报告等待评分 | 留档 |
+| [load-test-2026-11-08.md](reviews/load-test-2026-11-08.md) | 本地并发压测、两轮修复与复测数据 | 留档 |
+| [code-audit-2026-11-08.md](reviews/code-audit-2026-11-08.md) | 四路只读审计、第二批修复与未修优先级 | 留档 |
 
 ## 3. 维护规则
 

@@ -32,6 +32,11 @@ public interface ResumeRepository {
      */
     List<Long> findStaleParsingIds(java.time.OffsetDateTime cutoff, int limit);
 
+    /**
+     * 看门狗：仅当仍处于 PENDING/PARSING 时置失败，避免覆盖并发完成的 READY。
+     */
+    boolean failIfParsing(long id, String parseError);
+
     void markReady(long id, String rawText, String structuredJson, String summary, String summaryHash, int pageCount);
 
     void markFailed(long id, String parseError);

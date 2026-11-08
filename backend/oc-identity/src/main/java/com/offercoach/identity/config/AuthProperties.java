@@ -19,6 +19,9 @@ public class AuthProperties {
     /** Refresh Token 有效期，默认 7 天。 */
     private Duration refreshTokenTtl = Duration.ofDays(7);
 
+    /** Refresh 轮换宽限期：并发或多标签页在宽限期内重复提交旧 Token 时同族补发，超期按重放吊销。 */
+    private Duration refreshGrace = Duration.ofSeconds(30);
+
     private Jwt jwt = new Jwt();
 
     private Cookie cookie = new Cookie();

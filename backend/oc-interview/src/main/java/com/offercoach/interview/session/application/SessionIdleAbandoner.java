@@ -2,6 +2,7 @@ package com.offercoach.interview.session.application;
 
 import com.offercoach.interview.config.InterviewProperties;
 import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
+import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
 import com.offercoach.interview.session.application.port.InterviewSessionRepository;
 import com.offercoach.interview.session.domain.InterviewSession;
 import java.time.OffsetDateTime;
@@ -23,16 +24,19 @@ public class SessionIdleAbandoner {
 
     private final InterviewSessionRepository sessionRepository;
     private final InterviewAnswerRepository answerRepository;
+    private final InterviewQuestionRepository questionRepository;
     private final InterviewSessionService sessionService;
     private final InterviewProperties properties;
 
     public SessionIdleAbandoner(
             InterviewSessionRepository sessionRepository,
             InterviewAnswerRepository answerRepository,
+            InterviewQuestionRepository questionRepository,
             InterviewSessionService sessionService,
             InterviewProperties properties) {
         this.sessionRepository = sessionRepository;
         this.answerRepository = answerRepository;
+        this.questionRepository = questionRepository;
         this.sessionService = sessionService;
         this.properties = properties;
     }
@@ -45,7 +49,9 @@ public class SessionIdleAbandoner {
             if (!sessionRepository.markIdleAbandoned(session.id(), cutoff)) {
                 continue;
             }
-            if (answerRepository.countBySession(session.id()) == 0) {
+            // 与手动放弃一致：题目已生成即视为已消耗出题成本，不再退款。
+            if (answerRepository.countBySession(session.id()) == 0
+                    && questionRepository.countBySession(session.id()) == 0) {
                 sessionService.refundQuietly(session.userId(), session.id());
             }
             log.info("超时会话已放弃：sessionId={}", session.id());

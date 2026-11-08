@@ -135,6 +135,14 @@ public interface ResumeMapper {
     @Update(
             """
             UPDATE resume
+            SET parse_status = 'FAILED', parse_error = #{parseError}, updated_at = now()
+            WHERE id = #{id} AND deleted_at IS NULL AND parse_status IN ('PENDING', 'PARSING')
+            """)
+    int failIfParsing(@Param("id") long id, @Param("parseError") String parseError);
+
+    @Update(
+            """
+            UPDATE resume
             SET title = #{title}, updated_at = now()
             WHERE id = #{id} AND user_id = #{userId} AND deleted_at IS NULL
             """)

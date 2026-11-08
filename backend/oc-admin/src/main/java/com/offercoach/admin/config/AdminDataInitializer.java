@@ -58,6 +58,11 @@ public class AdminDataInitializer implements ApplicationRunner {
                 log.warn("管理员邮箱已被软删账号占用，跳过：{}", normalizedEmail);
                 return;
             }
+            String passwordHash = existing.passwordHash();
+            if (passwordHash == null || passwordHash.isBlank() || !passwordEncoder.matches(password, passwordHash)) {
+                log.error("管理员邮箱已存在但凭证与配置不匹配，拒绝提升，请人工处理：{}", normalizedEmail);
+                return;
+            }
             userRepository.updateRole(existing.id(), ROLE_ADMIN);
             quotaService.initializeQuota(existing.id(), PLAN_PRO);
             if (!STATUS_ACTIVE.equals(existing.status())) {

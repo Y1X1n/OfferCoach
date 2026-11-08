@@ -16,7 +16,14 @@ import com.offercoach.identity.application.quota.QuotaResult;
 import com.offercoach.identity.application.quota.QuotaService;
 import com.offercoach.identity.domain.quota.QuotaType;
 import jakarta.servlet.http.Cookie;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -140,6 +147,67 @@ class IdentityM0IntegrationTest {
                                 "email", email, "password", "Passw0rd!", "nickname", "重复邮箱", "verifyCode", "123456"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void concurrentWrongPasswordsCannotExceedFailureThreshold() throws Exception {
+        String email = "lockout@offercoach.dev";
+        register(email);
+        int attempts = 12;
+        ExecutorService pool = Executors.newFixedThreadPool(attempts);
+        CountDownLatch ready = new CountDownLatch(attempts);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<Integer>> futures = new ArrayList<>();
+        try {
+            for (int index = 0; index < attempts; index++) {
+                futures.add(pool.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return mockMvc.perform(post("/api/v1/auth/login")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(objectMapper.writeValueAsString(
+                                            Map.of("account", email, "password", "WrongPass1"))))
+                            .andReturn()
+                            .getResponse()
+                            .getStatus();
+                }));
+            }
+            ready.await(10, TimeUnit.SECONDS);
+            start.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            for (Future<Integer> future : futures) {
+                statuses.add(future.get(30, TimeUnit.SECONDS));
+            }
+            long validated = statuses.stream().filter(status -> status == 401).count();
+            long limited = statuses.stream().filter(status -> status == 429).count();
+            assertThat(validated).isEqualTo(5);
+            assertThat(validated + limited).isEqualTo(attempts);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void refreshReplayWithinGraceKeepsFamilyUsable() throws Exception {
+        String email = "refresh-grace@offercoach.dev";
+        Cookie refresh1 = register(email).getResponse().getCookie("oc_rt");
+        assertThat(refresh1).isNotNull();
+
+        MvcResult first = mockMvc.perform(post("/api/v1/auth/refresh").cookie(refresh1))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie refresh2 = first.getResponse().getCookie("oc_rt");
+        assertThat(refresh2).isNotNull();
+
+        MvcResult replay = mockMvc.perform(post("/api/v1/auth/refresh").cookie(refresh1))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie refresh3 = replay.getResponse().getCookie("oc_rt");
+        assertThat(refresh3).isNotNull();
+        assertThat(refresh3.getValue()).isNotEqualTo(refresh1.getValue());
+
+        mockMvc.perform(post("/api/v1/auth/refresh").cookie(refresh2)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/auth/refresh").cookie(refresh3)).andExpect(status().isOk());
     }
 
     @Test
