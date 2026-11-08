@@ -2,7 +2,7 @@
 
 Spring Boot 3.3.5 / Java 21 的 Maven 多模块工程。
 
-**M0 状态**：账号认证（注册 / 登录 / 刷新 / 登出）、额度查询、套餐查询已实现；已加登录/注册限流、Refresh 家族吊销、prod 安全 fail-fast、软删部分唯一索引与 `PLAN_GRANT` 流水；M1 起（简历、JD、面试、评分、报告）尚未开始。
+**当前状态**：M1–M5 已实现并上线（`0.8.0`）；账号、额度、简历、JD、题库、会话、评分、报告与管理端均可用。完整说明见根目录 [README.md](../README.md) 与 [docs/CHANGELOG.md](../docs/CHANGELOG.md)。
 
 ## 模块
 

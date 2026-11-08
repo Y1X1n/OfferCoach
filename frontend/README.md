@@ -1,6 +1,6 @@
 # OfferCoach Web
 
-Vue 3 + TypeScript + Vite + Pinia + Tailwind 的前端实现，UI 基座为 **shadcn-vue 风格（Reka UI + Tailwind）**，采用中性面 + 单一 accent。前端已接入真实后端：认证、额度、简历、JD、面试、评分 SSE 与报告均通过 `src/api/` 调用 `docs/design/api.md` 定义的接口，不再使用 mock 数据。
+Vue 3 + TypeScript + Vite + Pinia + Tailwind 的前端实现，UI 基座为 **shadcn-vue 风格（Reka UI + Tailwind）**，采用中性面 + 单一 accent。前端已接入真实后端：认证、额度、简历、JD、面试、评分轮询与报告均通过 `src/api/` 调用 `docs/design/api.md` 定义的接口，不再使用 mock 数据。
 
 ## 启动
 
