@@ -1,0 +1,45 @@
+:root {
+  --bg: 0 0% 100%;
+  --surface: 0 0% 100%;
+  --surface-2: 210 20% 96%;
+  --border: 214 32% 91%;
+  --text: 222 47% 11%;
+  --muted: 215 16% 47%;
+  --brand: 222 47% 11%;
+  --brand-fg: 210 40% 98%;
+  --accent: 243 75% 59%;
+  --success: 160 84% 39%;
+  --warning: 38 92% 50%;
+  --danger: 0 84% 60%;
+  --info: 217 91% 60%;
+  --overlay: 222 47% 7%;
+  --success-strong: 160 84% 28%;
+  --warning-strong: 32 95% 32%;
+  --accent-strong: 243 75% 40%;
+  --info-strong: 217 91% 42%;
+  --danger-strong: 0 72% 42%;
+  --danger-solid: 0 72% 45%;
+}
+
+.dark {
+  --bg: 222 47% 5%;
+  --surface: 222 40% 8%;
+  --surface-2: 217 33% 14%;
+  --border: 217 33% 20%;
+  --text: 210 40% 96%;
+  --muted: 215 20% 65%;
+  --brand: 210 40% 98%;
+  --brand-fg: 222 47% 11%;
+  --accent: 239 84% 67%;
+  --success: 158 74% 45%;
+  --warning: 43 96% 56%;
+  --danger: 0 91% 65%;
+  --info: 213 94% 68%;
+  --overlay: 0 0% 0%;
+  --success-strong: 158 74% 65%;
+  --warning-strong: 43 96% 68%;
+  --accent-strong: 239 84% 75%;
+  --info-strong: 213 94% 76%;
+  --danger-strong: 0 91% 74%;
+  --danger-solid: 0 65% 48%;
+}

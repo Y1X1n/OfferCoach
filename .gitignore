@@ -1,0 +1,56 @@
+# secrets
+.env
+.env.*
+!.env.example
+!deploy/.env.example
+**/keys/
+**/.admin-credentials
+**/.demo-credentials
+**/.ai-secret
+**/.invite-code
+*.pem
+*.key
+*.p12
+
+# node
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/artifacts/
+.pnpm-store/
+*.tgz
+
+# java
+backend/**/target/
+*.class
+*.jar
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# logs / runtime
+*.log
+logs/
+backend/.local/
+backend/.drafts/
+tmp/
+*.dump
+*.bak
+*.prev*
+
+# data: 保留测试夹具与题库审计，排除克隆仓库与全量题库数据
+data/question-banks/
+data/question-bank/normalized/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# local tooling metadata
+*.qoder.site

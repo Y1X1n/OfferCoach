@@ -1,0 +1,41 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+  shutdown: graceful
+
+spring:
+  application:
+    name: offercoach-gateway
+  cloud:
+    gateway:
+      # /internal/** 为服务间内部接口，由 InternalPathBlockFilter 直接返回 403，不在此配置路由。
+      routes:
+        # M0 不直连 AI：/api/v1/ai/** 交由 app 的 JWT 安全链处理，避免无鉴权暴露。
+        # M3 恢复网关直连 SSE 时，必须同时实现网关 JWT + streamToken 校验。
+        - id: app-api
+          uri: ${APP_BASE_URL:http://127.0.0.1:8081}
+          predicates:
+            - Path=/api/**
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: ${CORS_ORIGINS:http://localhost:5174,http://127.0.0.1:5174}
+            allowedMethods: GET,POST,PATCH,PUT,DELETE,OPTIONS
+            allowedHeaders: Authorization,Content-Type,X-Request-Id,Idempotency-Key
+            exposedHeaders: X-Request-Id,X-Trace-Id
+            allowCredentials: true
+            maxAge: 3600
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.offercoach: INFO
