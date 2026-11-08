@@ -17,7 +17,6 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -107,11 +106,9 @@ public class AnswerService {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("Idempotency-Key", "过长")));
         }
 
-        long answerId;
-        try {
-            answerId = answerRepository.insert(
-                    new InterviewAnswer(0, sessionId, questionId, userId, mode, text, durationMs, "SCORING", null));
-        } catch (DuplicateKeyException exception) {
+        long answerId = answerRepository.insert(
+                new InterviewAnswer(0, sessionId, questionId, userId, mode, text, durationMs, "SCORING", null));
+        if (answerId == 0) {
             Optional<InterviewAnswer> raced = answerRepository.findByQuestionId(questionId);
             if (raced.isPresent()) {
                 throw new BizException(

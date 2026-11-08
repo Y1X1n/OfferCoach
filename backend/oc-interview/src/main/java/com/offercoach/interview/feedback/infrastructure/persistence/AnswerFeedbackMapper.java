@@ -41,7 +41,7 @@ public interface AnswerFeedbackMapper {
                  CAST(#{improvementsJson,jdbcType=VARCHAR} AS jsonb),
                  CAST(#{evidenceJson,jdbcType=VARCHAR} AS jsonb),
                  #{rewrittenAnswer}, #{model}, #{provider}, #{degraded}, now())
-            ON CONFLICT (request_id) DO NOTHING
+            ON CONFLICT DO NOTHING
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insertIfAbsent(AnswerFeedbackDO row);

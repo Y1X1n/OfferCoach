@@ -28,6 +28,7 @@ public interface InterviewAnswerMapper {
             VALUES
                 (#{sessionId}, #{questionId}, #{userId}, #{inputMode}, #{answerText}, #{durationMs},
                  #{status}, now(), now())
+            ON CONFLICT (question_id) DO NOTHING
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(InterviewAnswerDO row);
