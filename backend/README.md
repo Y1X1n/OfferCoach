@@ -2,7 +2,7 @@
 
 Spring Boot 3.3.5 / Java 21 的 Maven 多模块工程。
 
-**当前状态**：M1–M5 已实现并上线（`0.8.0`）；账号、额度、简历、JD、题库、会话、评分、报告与管理端均可用。完整说明见根目录 [README.md](../README.md) 与 [docs/CHANGELOG.md](../docs/CHANGELOG.md)。
+**当前状态**：M1–M5 已实现并上线（`0.8.2`）；账号、额度、简历、JD、题库、会话、评分、报告与管理端均可用。完整说明见根目录 [README.md](../README.md) 与 [docs/CHANGELOG.md](../docs/CHANGELOG.md)。
 
 ## 模块
 
