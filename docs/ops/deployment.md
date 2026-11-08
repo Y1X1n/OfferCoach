@@ -281,8 +281,8 @@ spec:
 |---|---|
 | 实例 | `<ECS_INSTANCE_ID>`（cn-beijing，Ubuntu 22.04） |
 | 公网 IP | `<ECS_PUBLIC_IP>` |
-| 域名 | `https://offercoach.0803.xin`（阿里云 DNS A 记录） |
-| TLS | Let's Encrypt，`offercoach.0803.xin`，有效期至 2027-02-05，Certbot 自动续期 |
+| 域名 | `https://<PUBLIC_DOMAIN>`（阿里云 DNS A 记录） |
+| TLS | Let's Encrypt，`<PUBLIC_DOMAIN>`，有效期至 2027-02-05，Certbot 自动续期 |
 | 入口 | 宿主 Nginx 80/443 → `/` `127.0.0.1:8082`（web 容器）、`/api/` `127.0.0.1:8081`（app 容器） |
 | 容器 | `offercoach-app:0.8.0`、`offercoach-web:0.7.0`、`offercoach-postgres:16-alpine`、`offercoach-redis:7.2-alpine`；均为 `restart=unless-stopped` |
 | 数据 | 命名卷 `offercoach_pgdata`、`offercoach_redisdata`；宿主目录 `/opt/offercoach/data` 挂载为 `/data`（UID 10001）；仅绑定 `127.0.0.1` 的 5432/6379 |
@@ -291,7 +291,7 @@ spec:
 | 演示账号 | 生产演示账号由种子脚本/服务器环境维护，凭据不写入文档；本地开发默认演示账号见 `oc.demo.*` |
 | 注册 | `REGISTER_INVITE_ENABLED=false`；注册开关、算术验证码、单 IP/单设备日限与邀请奖励由 `platform_settings` 控制，管理端「平台策略」在线调节 |
 | AI | 当前 `AI_ENABLED=false`，简历/JD/出题/评分/报告使用确定性启发式降级；管理端「AI 配置」可在线切换 URL/Key/模型（保存即时失效缓存、约 30s 生效）；Key 以 AES-GCM 密文存库，根密钥 `OC_AI_SECRET` 存服务器 600 文件；管理端已发布 Prompt 版本会被运行时读取（60s 缓存）；SSE 默认关闭，前端轮询反馈 |
-| 管理端 | `https://offercoach.0803.xin/admin`；管理员账号由 `OC_ADMIN_*` 引导创建，凭据保存在服务器 600 权限文件；支持角色调整、解锁、重置密码、额度调整 |
+| 管理端 | `https://<PUBLIC_DOMAIN>/admin`；管理员账号由 `OC_ADMIN_*` 引导创建，凭据保存在服务器 600 权限文件；支持角色调整、解锁、重置密码、额度调整 |
 | 备份 | `backup-before-invite-20261108.dump` 等；`/opt/offercoach/backups` 每日 03:15 全库 dump，保留 7 天；Qbank 与简历原文件在 `/opt/offercoach/data` |
 | 证书巡检 | `/opt/offercoach/cert-check.sh` 每周一 09:00 检查 30 天到期，写 `/var/log/offercoach-cert.log` 与 syslog |
 | 管理员 | `OC_ADMIN_ENABLED=true` 时按 `OC_ADMIN_EMAIL/OC_ADMIN_PASSWORD` 创建或提升 ADMIN；凭据保存在服务器 600 权限文件，不入仓 |

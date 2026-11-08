@@ -1,7 +1,7 @@
 # OfferCoach 线上系统红队安全审查报告
 
 > 状态：留档 ｜ 日期：2026-11-08 ｜ 方式：攻击者视角的只读代码/配置审查 + 少量只读 HTTP 探测
-> 范围：`E:/My_project` 全仓库（backend 7 模块、frontend、Nginx 容器配置、Compose、部署/运维文档、题库数据）以及线上入口 `https://offercoach.0803.xin`
+> 范围：`E:/My_project` 全仓库（backend 7 模块、frontend、Nginx 容器配置、Compose、部署/运维文档、题库数据）以及线上入口 `https://<PUBLIC_DOMAIN>`
 > 约束：未使用任何账号口令，未进行登录尝试、写入、上传、批量请求、DoS 或数据外传；报告不复制任何口令/密钥/Token 原值。
 
 ## 0. 结论摘要
@@ -16,7 +16,7 @@
 
 | 层 | 观察 |
 |---|---|
-| 公网入口 | `https://offercoach.0803.xin`，`Server: nginx/1.18.0 (Ubuntu)`，`HTTP/1.1 301` → HTTPS，Let's Encrypt 证书 `CN=offercoach.0803.xin`，有效期至 2027-02-05，响应含 `Strict-Transport-Security` |
+| 公网入口 | `https://<PUBLIC_DOMAIN>`，`Server: nginx/1.18.0 (Ubuntu)`，`HTTP/1.1 301` → HTTPS，Let's Encrypt 证书 `CN=<PUBLIC_DOMAIN>`，有效期至 2027-02-05，响应含 `Strict-Transport-Security` |
 | 路由 | `/` 与绝大多数路径落到 web 容器（SPA，677B index.html）；`/api/` 反代到 app `127.0.0.1:8081`；`/admin` 为同一 SPA 的管理端路由（`docs/ops/deployment.md:283-294`） |
 | 后端 | Spring Boot 单体（oc-app 聚合 identity/interview/admin/ai-client），JWT 资源服务器；无独立网关实例对外（8080 探测不可达） |
 | 数据面 | PostgreSQL/Redis 仅在宿主 `127.0.0.1` 绑定（文档声明），公网 5432/6379/8081/8082/8080/15672/9001 探测均不可达 |

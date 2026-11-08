@@ -2,7 +2,7 @@
 
 AI 模拟面试与简历诊断平台：上传简历与目标岗位 JD，自动出题、逐题分析、生成可复盘的面试报告。
 
-线上演示：<https://offercoach.0803.xin>
+项目展示：<https://y1x1n.github.io/OfferCoach/>（静态展示页，不连接在线后端）
 
 ## 功能
 
