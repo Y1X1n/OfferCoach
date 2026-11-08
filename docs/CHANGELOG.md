@@ -13,7 +13,7 @@
 - **M1–M4**：简历上传/手录/解析/修正/软删/重解析、JD 结构化/匹配、题库导入与检索、会话状态机、RAG 出题、答题、SSE 五维评分、异步报告与重试、每日额度与流水全部实现；单元测试与生产全链路冒烟通过。
 - **题库**：7 个公开仓库归一化为 26,385 条；公开部署仅保留 3 个 MIT 来源共 22,409 条（NC/ND/GPL/UNLICENSED 已排除），`pg_trgm` + 关键词打分为无 Milvus 方案。
 - **M5 管理端**：`/admin` 已上线，覆盖题库 CRUD/导入/发布归档、用户状态与额度补偿、指标概览、AI 调用日志、Prompt 模板/版本/发布、实验 CRUD、审计日志；管理员账号由 `OC_ADMIN_*` 引导创建。
-- **部署**：`https://offercoach.0803.xin`（ECS cn-beijing，Docker Compose；app `0.8.0`、web `0.7.0`、PG 16、Redis 7.2）；每日 03:15 数据库 dump + 每周证书巡检。
+- **部署**：`https://<PUBLIC_DOMAIN>`（ECS cn-beijing，Docker Compose；app `0.8.0`、web `0.7.0`、PG 16、Redis 7.2）；每日 03:15 数据库 dump + 每周证书巡检。
 - **AI**：OpenAI 兼容客户端已接入；未配置密钥时简历/JD/出题/评分/报告自动走启发式降级（`degraded=true`）；管理端发布的 Prompt 版本会被运行时读取（60s 缓存）。
 - **下一步**：配置真实模型密钥、Git/CI 发布基线、异地备份与监控告警、管理端 MFA 与 Prompt 注入防护、题库检索召回优化。
 - **未决**：见 [README.md](README.md) §4。
@@ -109,7 +109,7 @@
 
 ### v1.9（2026-11-07）——ECS 部署上线
 
-- 域名 `offercoach.0803.xin` 解析到 ECS `<ECS_PUBLIC_IP>`；Let's Encrypt 证书签发（有效期至 2027-02-05）。
+- 域名 `<PUBLIC_DOMAIN>` 解析到 ECS `<ECS_PUBLIC_IP>`；Let's Encrypt 证书签发（有效期至 2027-02-05）。
 - 前端、后端、PostgreSQL、Redis 打包为 Docker 镜像，Compose 启动；Nginx 反代 `/` 与 `/api/`。
 - 后端 prod profile + 独立 JWT 密钥；演示账号通过 SQL 种子写入，额度 30/9999，`PLAN_GRANT` 流水各 1 条。
 - 按用户要求停用 9router/newapi（restart=no，数据保留）；ofm/weiyu 保留。
