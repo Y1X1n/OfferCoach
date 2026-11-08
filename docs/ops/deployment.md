@@ -275,7 +275,7 @@ spec:
 - 闲置：开发环境夜间缩容到 0；staging 非工作时间 1 副本。
 - 每月成本复盘：单位经济模型（单场成本、单用户成本、毛利率）。
 
-## 8. 当前 ECS 实例（2026-11-07）
+## 8. 当前 ECS 实例（2026-11-08）
 
 | 项 | 值 |
 |---|---|
@@ -284,7 +284,7 @@ spec:
 | 域名 | `https://<PUBLIC_DOMAIN>`（阿里云 DNS A 记录） |
 | TLS | Let's Encrypt，`<PUBLIC_DOMAIN>`，有效期至 2027-02-05，Certbot 自动续期 |
 | 入口 | 宿主 Nginx 80/443 → `/` `127.0.0.1:8082`（web 容器）、`/api/` `127.0.0.1:8081`（app 容器） |
-| 容器 | `offercoach-app:0.8.0`、`offercoach-web:0.7.0`、`offercoach-postgres:16-alpine`、`offercoach-redis:7.2-alpine`；均为 `restart=unless-stopped` |
+| 容器 | `offercoach-app:0.8.2`、`offercoach-web:0.7.0`、`offercoach-postgres:16-alpine`、`offercoach-redis:7.2-alpine`；均为 `restart=unless-stopped` |
 | 数据 | 命名卷 `offercoach_pgdata`、`offercoach_redisdata`；宿主目录 `/opt/offercoach/data` 挂载为 `/data`（UID 10001）；仅绑定 `127.0.0.1` 的 5432/6379 |
 | 配置 | `/opt/offercoach`（Compose、`offercoach.env`、JWT 密钥，目录 700 / 文件 600）；`DEVICE_SALT` 用于设备指纹散列，首次部署时随机生成 |
 | 题库 | `/opt/offercoach/data/qbank/questions.jsonl`（22,409 条，仅 MIT 来源：mianstack / agent-interview / ai-agent-interview-240）；非宽松许可来源已在 V9 迁移与导入器中排除 |
@@ -295,10 +295,11 @@ spec:
 | 备份 | `backup-before-invite-20261108.dump` 等；`/opt/offercoach/backups` 每日 03:15 全库 dump，保留 7 天；Qbank 与简历原文件在 `/opt/offercoach/data` |
 | 证书巡检 | `/opt/offercoach/cert-check.sh` 每周一 09:00 检查 30 天到期，写 `/var/log/offercoach-cert.log` 与 syslog |
 | 管理员 | `OC_ADMIN_ENABLED=true` 时按 `OC_ADMIN_EMAIL/OC_ADMIN_PASSWORD` 创建或提升 ADMIN；凭据保存在服务器 600 权限文件，不入仓 |
-| 已停用 | `9router`、`newapi`（用户确认，`restart=no`，容器与数据保留） |
+| 已清理 | `9router`、`newapi`（2026-11-08 删除容器、卷、镜像与 `/root/9r-backup` 备份） |
 | 保留 | `<OTHER_SERVICES>` |
 
 - 前端已接真实后端：认证/额度/简历/JD/面试/SSE 反馈/报告/套餐均走 `/api/v1`，不再依赖 mock；简历编辑支持 Markdown/JSON/打印 PDF 导出。
 - 生产验证（0.8.0）：邀请注册冒烟 21 项通过——策略下发、算术验证码一次性、邀请双方奖励、无效邀请码拒绝、注册开关 30 秒内生效、管理端策略保存/恢复、报告逐题回答与证据；浏览器验证注册页验证码与邀请码可选、设置页邀请卡、管理端平台策略面板。
+- 生产验证（0.8.2）：演示/管理员登录、刷新宽限补发、登出吊销旧/新 Token、额度与公共端点全部通过；Flyway 无新迁移；发版前已生成数据库 dump `/opt/offercoach/backups/offercoach-20261108-223558.dump`。
 - 已知：单实例、无异地备份/监控告警；每日 dump 只在本机；AI 未配置密钥时走启发式；题库已剔除 NC/ND/GPL/UNLICENSED 来源。
 - 事故记录：20:59 因资源/IO 卡顿导致 Cloud Assistant 掉线，经实例重启恢复；随后按用户要求停掉 9router/newapi，释放内存。
