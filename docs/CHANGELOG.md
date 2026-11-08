@@ -1,0 +1,237 @@
+# 更新日志（文档与项目里程碑）
+
+> 状态：生效 ｜ 版本：v2.6 ｜ 更新：2026-11-08
+> 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
+
+## 当前状态
+
+- **阶段**：M1–M4 全链路完成并上线；真实前端已接真实后端。
+- **前端**：登录/简历/JD/面试/SSE 评分/报告/套餐/设置全部走 `/api/v1`；简历编辑支持 Markdown/JSON/打印 PDF 导出；全站页头、卡片、按钮与空态统一。
+- **文档**：26 份，覆盖产品、架构、数据、接口、AI、前端、UI、后端、测试、部署、CI/CD、可观测性、排期与复查。
+- **前端质量**：ESLint + Prettier + Vitest + `pnpm check` 通过（19 单测、typecheck 0、lint 0、build 成功）。
+- **后端规范**：阿里 Java 手册、Spring Cloud 实践与 CSDN REST 规范融合生效；Palantir 4 空格、Checkstyle、JaCoCo、Enforcer 均通过。
+- **M1–M4**：简历上传/手录/解析/修正/软删/重解析、JD 结构化/匹配、题库导入与检索、会话状态机、RAG 出题、答题、SSE 五维评分、异步报告与重试、每日额度与流水全部实现；单元测试与生产全链路冒烟通过。
+- **题库**：7 个公开仓库归一化为 26,385 条；公开部署仅保留 3 个 MIT 来源共 22,409 条（NC/ND/GPL/UNLICENSED 已排除），`pg_trgm` + 关键词打分为无 Milvus 方案。
+- **M5 管理端**：`/admin` 已上线，覆盖题库 CRUD/导入/发布归档、用户状态与额度补偿、指标概览、AI 调用日志、Prompt 模板/版本/发布、实验 CRUD、审计日志；管理员账号由 `OC_ADMIN_*` 引导创建。
+- **部署**：`https://offercoach.0803.xin`（ECS cn-beijing，Docker Compose；app `0.8.0`、web `0.7.0`、PG 16、Redis 7.2）；每日 03:15 数据库 dump + 每周证书巡检。
+- **AI**：OpenAI 兼容客户端已接入；未配置密钥时简历/JD/出题/评分/报告自动走启发式降级（`degraded=true`）；管理端发布的 Prompt 版本会被运行时读取（60s 缓存）。
+- **下一步**：配置真实模型密钥、Git/CI 发布基线、异地备份与监控告警、管理端 MFA 与 Prompt 注入防护、题库检索召回优化。
+- **未决**：见 [README.md](README.md) §4。
+
+## 里程碑总览
+
+| 阶段 | 目标 | 关键交付 | 状态 |
+|---|---|---|---|
+| D0 | 文档首版 | 12 份编号文档：PRD、架构、数据、API、前端、UI、AI、难点、后端、部署、测试、排期 | 已完成 2026-11-07 |
+| D1 | 文档规范吸收 | 唯一索引、任务导航、状态标记、单一来源、待决清单、开发流程、复查留档；文档迁入 `design/dev/ops/reviews` | 已完成 2026-11-07 |
+| F0 | 前端独立演示 | Vue 3 工程、Design Token、Mock 状态、登录/工作台/简历/JD/面试/报告/套餐/设置、流式反馈、响应式与暗色 | 已完成 2026-11-07 |
+| M0 | 后端工程基建 | 仓库/CI、Compose、账号、额度流水、可观测性骨架 | 已完成 2026-11-07 |
+| M1 | 输入链路 | 简历上传/解析/修正、JD 结构化/匹配、题库导入与检索 | 已完成 2026-11-07 |
+| M2 | 会话与出题 | 状态机、题库检索、出题配比与校验、并发约束 | 已完成 2026-11-07 |
+| M3 | 评分流 | 回答提交、上下文快照、SSE、反馈落库、首字监控 | 已完成 2026-11-07 |
+| M4 | 报告与额度 | 异步 Worker、报告页、重试、每日会话上限与额度结算 | 已完成 2026-11-07 |
+| M5 | 管理端与评测 | 题库/用户/指标/Prompt/审计/实验 CRUD 已实现；评测门禁、Prompt 回滚、A/B 运行时待后续 | 部分完成 2026-11-08 |
+| M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
+
+## 文档版本
+
+### v2.6（2026-11-08）——题库审计、岗位族与出题相关性
+
+- 题库审计（22,409 条）：无重复题干、无链接题；89% 为 DEPTH、56% 为 AI-Agent；19,682 条无参考答案；缺口主要是岗位族与维度分布，而不是脏数据。
+- 岗位族修复：JD 启发式结构化写入 `jobFamily`；旧 JD 在出题上下文按标题/技能/简历摘要回退推断并归一化；检索按“主岗位族 + 通用 + 系统设计”召回，AI 题不再因岗位族为空而挤占后端 JD。
+- 检索质量：优先有参考答案题目，参考要点与质量分加权；每维度保留基础候选，避免 top N 被 DEPTH 占满导致 PROJECT/BEHAVIOR 只能走模板。
+- 模板去重：PROJECT 按项目与焦点轮换，FIT 按技能轮换，同一场面试不再出现重复模板题。
+- 评估（top 20）：后端核心命中 65%→100%、非本域 50%→0%；前端 0%→95%、70%→0%；数据 20%→85%、60%→0%；AI 非本域 5%→0%。
+- 真实会话验证：后端 JD 修复后 5/5 题来自后端岗位族（Java、Spring、Redis 项目、Kafka/QPS 项目、Maven 冲突），不再出现 AI 题或重复题。
+- 产物：`scripts/qbank/clean-and-evaluate.mjs`、`data/question-bank/audit-report.md`、`questions-clean.jsonl`（含质量分与岗位族归一化）。
+
+### v2.5（2026-11-08）——逐题反馈场景化
+
+- 评分文案从“所有题一套模板”改为按场景生成：项目经历题看个人职责/结果/取舍；技术深度题看原理/取舍/边界；行为面试题看冲突/行动/复盘；岗位匹配题看动机/匹配证据/落地计划。
+- 技术题再细分排查、性能、设计、原理四类焦点，各自给出不同追问方向；行为题区分协作冲突与复盘类。
+- 参考答案要点会做语义覆盖判断（如“落地计划”可由 30/60/90 天计划覆盖），缺失要点会生成针对该题的改进项，而不是通用套话。
+- 证据引用按场景挑选高信息量原句，并给出场景化理由；同一题的多条证据避免重复理由。
+- 报告逐题拆解、反馈叙事与 PRO 改写模板同步更新；评分公式保持不变。
+- 验证：新增 5 个场景单测；四类题目输出的一级优点/改进不再相同；生产 0.7.7 冒烟 4 题反馈分别指向个人职责、机制解释、评分契约与个人职责，长参考答案不再被误判为已覆盖；后端 `verify` 通过。
+- 真实用户模拟（2026-11-08，林浩 / 张三简历 / 云帆科技 JD，5 题）：注册→上传 DOCX→JD 匹配 92.5→面试 5 题→报告 62.4；逐题反馈分别指向机制、Spring 生命周期、数据口径、接口契约、故障处置。模拟暴露并修复：结果指标未识别“下降/降到”、项目题未识别“我先/我在”、长参考要点被误判未覆盖、行为题在非冲突场景强推“冲突处理”、项目/行为兜底建议不随题目变化。已知：5 题中 2 题与后端岗位语义不匹配（题库检索按维度召回，缺岗位族/语义过滤）。
+
+### v2.4（2026-11-08）——邀请注册、注册风控、运行时额度与审查修复
+
+- 邀请注册：邀请码改为可选项；新增 `GET /users/me/invite` 邀请名片与 `/register?invite=CODE` 预填；邀请成功后邀请人 +1 次面试、被邀请人 +1 次解析（额度、每日/累计上限可由管理端调整）；同设备注册只记录关系不发奖励。
+- 防脚本注册：注册页默认要求一次性算术验证码（`POST /auth/captcha`，Redis 5 分钟、单次消费、单 IP 每小时限发）；新增单 IP / 单设备每日成功注册上限与 `X-Device-Id` 设备指纹；注册开关改为运行时策略。
+- 管理端：新增“平台策略”标签页与 `GET/PUT /admin/settings/quota`，可在线调节每日模拟面试/解析次数、月度免费额度、邀请奖励与注册风控阈值，写审计；策略 30 秒内生效。
+- 额度：每日解析次数上限接入三条建档路径；周期到期自动续发月度免费额度并降级为 FREE（`PLAN_RENEWAL` 流水，幂等）。
+- 审查修复：出题/解析/评分改用独立 `aiExecutor`，报告生成异步化不再占用调度线程；新增状态看门狗（PREPARING 超时置失败并退款、PARSING 超时置失败、SCORING 超时标记失败）；报告生成等待评分完成，避免提前结束导致缺题；报告逐题拆解补回答原文、五维分与证据/改写；题库导入与数据库剔除 UNLICENSED/NC/ND/GPL 来源（保留 22,409 条 MIT）。
+- 数据：V8 `app_user` 邀请/设备字段、`invite_reward`、`platform_settings`；V9 清理非宽松许可题库。
+- 前端：注册页按策略展示固定验证码/算术验证码/可选邀请码；设置页新增邀请卡（复制链接、奖励与剩余名额）；管理端新增平台策略面板。
+- 验证：后端编译与测试通过；前端 26 单测、typecheck、lint、build 通过；题库过滤脚本保留 22,409 条。
+- 仍未处理：无 Git/CI、备份仅本机、Redis 单实例与告警、管理端 MFA、Prompt 注入防护、压测与灰度。
+
+### v2.3（2026-11-08）——四路审查、反馈去 SSE、报告导出文件名
+
+- 四路独立审查报告：后端架构、前端 UX、红队安全、数据/运维，见 `docs/reviews/*-2026-11-08.md`。
+- 反馈交付：答题后服务端异步预生成反馈，前端轮询 `GET feedback` 并一次性展示；SSE 默认关闭（`oc.ai.sse-enabled=false`），兼容接口保留。
+- 面试恢复：题目接口返回 `answerId/answerText/durationMs`，刷新或重进后可恢复已答原文、时长与反馈；面试详情补 `jdTitle/jdCompany/reportId`。
+- 报告导出：默认文件名 `公司-岗位-YYMMDD`（如 `云帆科技-高级后端工程师-261108`）；打印时展开逐题拆解、临时切浅色主题并隐藏应用外壳。
+- 安全修复：X-Real-IP 取客户端 IP；管理员解锁清理 Redis 失败计数；停用/改密/改角色吊销 Refresh 家族；AI Base URL 禁止内网/本机（可配置）；放弃会话仅在未生成题目时退款；上传校验 PDF/DOCX 魔数、DOCX inflate ratio、PDF 页数上限。
+- 凭据治理：文档移除演示口令/管理员邮箱；生产演示账号口令已轮换并保存到服务器 600 权限文件。
+- 部署：app/web `0.6.1`；新增 `backup-before-final-20261108.dump`。
+- 验证：轮询反馈 4/4、刷新恢复原文与反馈、报告字段、管理端 AI 配置/角色/解锁/重置密码；前端 26 单测、typecheck/lint/build；后端测试通过。
+- 审查仍未处理：无 Git/CI、备份仅本机、题库许可（NC/ND/GPL）、月度额度续发、线程池隔离、状态看门狗、报告与评分对齐、题库检索仅前 200 行、报告逐题回答/证据、管理端 MFA 等。
+
+### v2.2（2026-11-08）——LLM 在线切换与管理员权限扩展
+
+- AI 运行时配置：新增 V7 `ai_runtime_config`；管理端 `GET/PUT /admin/ai-config` 与 `POST /admin/ai-config/test`，可在线切换启用状态、Base URL、主/小模型与 API Key，保存后立即失效缓存、约 30 秒内生效；DB 空字段回退 `oc.ai.*` 环境值。
+- Key 安全：AES-GCM 加密存储（`v1:base64(iv||密文)`），根密钥来自 `OC_AI_SECRET`；接口只返回末 4 位掩码；保存/清除写审计，不含明文。
+- 管理员权限：新增角色调整（USER/SUPPORT/ADMIN）、账号解锁、重置密码；禁止修改自己角色、禁止撤销最后一个管理员；用户列表返回剩余额度。
+- 前端 `/admin` 新增 AI 配置标签；用户面板增加角色、解锁、重置密码与额度展示。
+- 部署：app/web `0.4.0`；ECS 已设置 `OC_AI_SECRET`。
+- 验证：AI 配置保存/掩码/密文/清除、测试接口 503（无 Key）、角色切换、解锁、重置密码登录、自我降级 403、demo 访问 403 均通过。
+
+### v2.1（2026-11-08）——M5 管理端上线
+
+- 后端 `oc-admin`：7 组管理 API（题库/用户/指标/AI 日志/Prompt/实验/审计），类级 `@PreAuthorize("hasRole('ADMIN')")`，写操作审计与额度补偿流水；管理员账号通过 `OC_ADMIN_*` 引导创建。
+- 前端 `/admin`：概览、题库、用户、AI 日志、Prompt、审计六个标签；仅 ADMIN 可见入口与路由，非 ADMIN 返回 403/工作台提示。
+- 数据：V6 新增 `prompt_template/prompt_version/ab_experiment/ab_assignment/admin_audit_log`，并预置 5 个 Prompt 模板。
+- AI：评分/出题写入 `ai_call_log`；管理端发布的 Prompt 版本被 `PromptProvider` 以 60 秒缓存读取。
+- 运维：`/opt/offercoach/backup.sh` 每日 03:15 全库 dump 保留 7 天；`cert-check.sh` 每周一检查 30 天到期；管理员凭据与邀请码分别存于服务器 600 权限文件。
+- 验证：管理端登录、题库/用户/指标/Prompt/审计/AI 日志接口 200；Prompt 建版发布生效；demo USER 访问管理端 403；生产 M1–M4 冒烟继续通过。
+- 已知：Prompt 评测/回滚、实验运行时与指标、题库重建索引、CI 发布链路未实现。
+
+### v2.0（2026-11-07）——M1–M4 真实全栈上线
+
+- 后端：M1 简历（PDF/DOCX/手录结构化、AI/启发式解析、置信度、软删、重解析限流）、JD 结构化/匹配；M2 会话状态机、题库 26,385 条导入、PostgreSQL trigram + 关键词检索、维度配比出题；M3 回答幂等、短期流令牌、SSE 五维评分与证据；M4 异步报告 Worker/重试、每日会话上限与额度结算。
+- 前端：移除 mock 数据依赖，新增 `src/api` 客户端（内存 Access Token、401 单次刷新、并发去重、SSE fetch 流）；真实登录/注册/简历/JD/面试/报告/套餐/设置；简历导出 Markdown/JSON/PDF；全站页头与状态组件统一。
+- 数据：V4 新增简历/JD/会话/题目/回答/反馈/报告/题库/AI 日志；V5 题库按 `(repo, path, md5(stem))` 去重。
+- 部署：ECS 重建 app `0.2.0` / web `0.2.2`；新增 `/opt/offercoach/data` 持久卷与 `/data/qbank/questions.jsonl` 启动导入；生产注册改为邀请码。
+- 验证：后端单测通过；本地与生产 HTTPS 冒烟均通过（注册/登录→简历→JD→出题→4 题作答→SSE→报告 READY→额度）；生产 SSE 首字 27ms。
+- 已知：AI 密钥未配置，当前走启发式降级；题库 `campus`/`system-design-101` 为 NC/ND、`codejeet` 为 GPL，公开分发前需复核（`data/question-bank/LICENSES.md`）。
+
+### v1.9（2026-11-07）——ECS 部署上线
+
+- 域名 `offercoach.0803.xin` 解析到 ECS `<ECS_PUBLIC_IP>`；Let's Encrypt 证书签发（有效期至 2027-02-05）。
+- 前端、后端、PostgreSQL、Redis 打包为 Docker 镜像，Compose 启动；Nginx 反代 `/` 与 `/api/`。
+- 后端 prod profile + 独立 JWT 密钥；演示账号通过 SQL 种子写入，额度 30/9999，`PLAN_GRANT` 流水各 1 条。
+- 按用户要求停用 9router/newapi（restart=no，数据保留）；ofm/weiyu 保留。
+- 公网验证：首页/登录/报告/创建面试/套餐均 200；登录→me→quota→refresh→logout→失效全链路通过；app 8081 不对公网开放。
+- 事故与恢复：资源/IO 卡顿导致 Cloud Assistant 掉线，经授权重启实例后恢复；已加 1GB swap。
+
+### v1.8（2026-11-07）——全栈审计第一批修复
+
+- 认证：注册 3/min/IP、登录 10/min/IP、5 次失败锁定 15 分钟；Refresh 家族与旧 Token 重放整族吊销；登出/黑名单失败不再伪装成功；Redis 故障吊销 fail-closed。
+- 生产：prod 缺 JWT PEM 或启用 demo/固定验证码/非 Secure Cookie/localhost CORS 时启动失败；app 默认仅绑定 127.0.0.1，prod 显式 0.0.0.0。
+- 边界：app 拒绝 `/internal/**`；网关移除无鉴权 AI 直连路由（恢复 M3 时再加 JWT）；403 返回完整 ApiError；Prometheus 端点可抓取；未知路径 404；null 字段显式输出。
+- 数据：`app_user` 改部分唯一索引、注销允许清空联系方式；初始/存量额度补 `PLAN_GRANT` 流水（V3）。
+- 前端：账号状态按 userId 隔离、重置不再删除账号、草稿切题/卸载/离开立即落盘；测试 28 例。
+- 验证：后端 7 测试 + verify（Testcontainers 3 例因本机 Docker 版本跳过）；真实冒烟 7/7；Refresh 重放整族失效、登录锁定 429、404、内网 403；前端 28 测试与四组浏览器脚本。
+
+### v1.7（2026-11-07）——后端规范生效与 M0 重构
+
+- 后端规范融合验收生效：backend.md v1.2、conventions.md v1.3、api.md/architecture.md/testing.md/observability.md v1.2。
+- 工程门禁：Spotless + Palantir（4 空格/120 列）、Checkstyle、JaCoCo、Java 21 Enforcer；Testcontainers 升 1.21.3。
+- 账号层：`UserRepository` 端口 + 实现，Auth/User/Demo 不再直连 Mapper。
+- 额度层：`QuotaRepository` 端口 + 实现，领域类型入 `domain/quota`；行锁、幂等、流水语义不变。
+- 网关：`WebFilter` 在路由前拒绝 `/internal/**`（403）；新增 `application-prod.yml` 与 release SNAPSHOT 检查脚本。
+- 验证：7 个测试通过、verify 通过、app+gateway 冒烟 7/7、内网 403、计划接口 200；Testcontainers 因本机 Docker 版本跳过，CI 可运行。
+
+### v1.6（2026-11-07）——前端结构重构
+
+- 面试间 831→298 行：抽出 `useInterviewRoom`（计时/流式/草稿/提交）与 RoomHeader、QuestionPanel、AnswerComposer。
+- 创建面试页 718→158 行：拆出 ResumePicker、JdPicker、InterviewConfigPanel、SetupSummary，radiogroup 语义不变。
+- 简历编辑器 529→223 行：六个分区组件化，校验/保存留在父组件。
+- store 698→413 行：评分与报告聚合下沉 `domain/scoring.ts`，持久化与 mock 账号拆到 stores 子模块；`Resume.confidence` 收紧为分区键。
+- 可访问性：设置开关热区 64×44、报告筛选/清除移动端 44px、“查看详情”触屏常显、hash 滚动尊重 reduced-motion。
+- 验证：typecheck/lint 0、22 单测、build、四组浏览器脚本；草稿刷新恢复、热区与 390px 溢出断言通过。
+
+### v1.5（2026-11-07）——前端规范对照与质量工具链
+
+- 三路并行审查前端全量代码，对照现有规范与阿里《前端开发规范》，新增 [frontend-spec-audit-2026-11-07.md](reviews/frontend-spec-audit-2026-11-07.md)。
+- 落地 ESLint 10 flat + Prettier（Tailwind 类名排序）+ Vitest，新增 `lint/format/test/check` 脚本；开启 `exactOptionalPropertyTypes` 与 `verbatimModuleSyntax`。
+- 修复注册后无法再次登录、主题“跟随系统”失效、移动抽屉焦点逃逸、流式反馈无过程播报、语义色对比度不足、移动触控目标偏小。
+- 字号/字距/缩放收敛为 Token（`text-2xs/3xs`、`tracking-*`、`scale-98`）；面试间三栏改为 `room`(1400px) 断点；修复 390px 下题号导航导致的横向溢出（`grid-cols-1` + `contain-layout` + `overflow-x: clip`）。
+- 面试回答草稿停笔 3 秒入 `sessionStorage`；删除 `StatCard`/`todayIso`/`ApiError` 等死代码。
+- 文档：frontend.md v1.3、ui-system.md v1.3、conventions.md v1.2，写入采纳/适配/不采纳清单与演示态例外。
+- 验证：typecheck / lint（0 error 0 warning）/ 10 个单测 / build / 四组浏览器脚本全部通过；375px 与 1280px 无横向溢出。
+
+### v1.4（2026-11-07）——工作台减法与简历版式/编辑
+
+- 工作台 4 张彩色图标统计卡改为单条中性 `MetricStrip`，去掉“AI 模板感”；报告区新增 2 份种子报告并 `flex-1` 撑满左栏。
+- 修复工作台 375px 下 6px 横向溢出（网格子项 `min-w-0`）。
+- 简历新增 4 套**版式模板**（不是内容模板）：经典单栏、现代双栏、紧凑商务、极简留白；切换只改排版，实时预览。
+- 简历新增内容编辑：标题、摘要、基本信息、教育、工作、项目、技能、证书；保存后置信度归 1，刷新保持。
+- 修复公共 Dialog 的 `scale-in` 动画覆盖居中位移问题，改为淡入；Reka UI 焦点陷阱与关闭还原仍通过。
+- 验证：typecheck/build 通过；核心 8 题流程、12 题、注册/上传/JD、暗色、移动端、版式切换、内容编辑全部通过，控制台 0 错误。
+
+### v1.3（2026-11-07）——确定 UI 组件库与中性主题
+
+- 选定 **shadcn-vue** 作为全站 UI 基座（Reka UI + Tailwind，源码归项目所有），不引入 Element Plus / Ant Design Vue / PrimeVue 全量库。
+- 设计 Token 切为中性黑白 + 单一靛蓝强调色：主操作近黑/近白，`accent` 只做数据高亮；白底、细边框、弱阴影。
+- Dialog 重构为 Reka UI 原语，焦点陷阱、ESC、关闭后焦点还原与 `aria-describedby` 由底层保证。
+- 减法打磨：移除侧栏重复 CTA 卡、登录页网格/渐变装饰与指标卡，统一为更克制的排版。
+- 重新构建并通过两轮 Playwright 验收（8 题完整流程、12 题、注册/上传/JD、暗色、移动端、Dialog 焦点），控制台 0 错误。
+- 设计规范同步更新：`docs/dev/ui-system.md` v1.2。
+
+### v1.2（2026-11-07）——前端独立演示版
+
+- 新增 `frontend/`：Vue 3 + TypeScript + Vite + Pinia + Tailwind，mock-first，可脱离后端完成全流程。
+- 页面：登录、注册、工作台、简历管理、目标岗位、创建面试、面试间、报告列表、报告详情、套餐、设置、404。
+- 能力：8/12 题生成、计时、逐字流式反馈、停止/重试、跳过按 0 分计入、报告雷达/逐题拆解/改进计划。
+- 设计：Design Token、亮/暗主题、响应式（375px 无横向溢出）、可见返回键与常驻顶层导航、Dialog 焦点陷阱。
+- 验证：`pnpm typecheck`、`pnpm build`、Playwright Chrome 全流程 + 移动端 + 暗色 + 12 题 + 上传/注册，控制台 0 错误。
+- 复查：[frontend-review-2026-11-07.md](reviews/frontend-review-2026-11-07.md) 记录 P1 修复与剩余 P2。
+
+### v1.1（2026-11-07）——吸收 Lamburger ERP 文档规范
+
+- 新增唯一索引 [README.md](README.md)：按“你要做的事”导航、全量地图、状态标记、维护规则、12 项待决清单。
+- 新增 [overview.md](overview.md)（10 分钟总览）、[requirements.md](requirements.md)（一条需求一行，R-01~R-88）、[reference.md](reference.md)（借鉴来源与取舍）。
+- 新增 [dev/conventions.md](dev/conventions.md)、[dev/workflow.md](dev/workflow.md)：跨端规范与契约冻结/变更流程。
+- 文档重组：`design/`（产品/架构/数据/API/AI/难点）、`dev/`（规范/前端/UI/后端/测试/排期）、`ops/`（部署/CI-CD/观测）、`reviews/`（复查留档）。
+- 拆分原“部署运维与可观测性”为部署、CI/CD、可观测性三份；补齐发布门禁与 Runbook 的独立入口。
+- 数据模型补命名/类型/索引/软删/建表自查；后端补不变量与联调前自测清单；UI 补跨页面交互铁律。
+- 一致性修复：额度事务唯一键处理、反馈版本与幂等、报告失败状态、Token 预算、PDF/支付/语音版本边界、账号注销与外键生命周期。
+- 新增 [reviews/doc-consistency-review-2026-11-07.md](reviews/doc-consistency-review-2026-11-07.md)，记录修复项与遗留项。
+
+### v1.0（2026-11-07）——首版
+
+- 12 份文档：产品需求、系统架构、数据库与存储、API、前端规范、UI 设计系统、AI 与 Prompt、关键难点、后端实现、部署运维、测试验收、任务排期。
+- 关键结论：Vue 3 + Spring Cloud + 独立 Python AI 服务；评分 SSE 网关直连；RAG 混合检索 + 重排；额度行锁 + 流水幂等；报告 Outbox 异步。
+
+## 已知待办
+
+### 文档
+
+- [ ] D-01 ~ D-12 待决项逐条关闭（负责人与关闭时机见 [README.md](README.md) §4）。
+- [ ] 题库冷启动 500 题（300 人工 + 200 AI 生成后审核）与版权确认。
+- [ ] 评分黄金集 200 条与标注指南。
+- [ ] API OpenAPI 文件与前端生成类型（代码阶段产出）。
+- [ ] 部署环境域名、证书、K8s 集群与 Secret 清单。
+
+### 代码
+
+- [ ] M0 工程骨架与 CI。
+- [ ] 账号/额度/简历/JD/会话/回答/报告主链路。
+- [ ] AI 服务：解析、出题、评分、报告四条 Chain。
+- [ ] 管理端：题库导入/向量化、Prompt 版本、实验、日志。
+- [ ] SSE 首字监控与端到端埋点。
+- [ ] E2E 主干 15 条与压测脚本。
+
+### 运营与合规
+
+- [ ] 隐私政策、用户协议、数据删除入口。
+- [ ] LLM 供应商零留存/不训练条款。
+- [ ] 简历与音频保留期法务确认。
+- [ ] 客服补偿与退款流程。
+
+## 统计
+
+| 项 | 数值 |
+|---|---|
+| 文档数 | 23（根级 5 + design 6 + dev 7 + ops 3 + reviews 2） |
+| 设计文档 | 6 |
+| 开发文档 | 7（含 conventions/workflow） |
+| 运维文档 | 3 |
+| 复查留档 | 2 |
+| 需求条目 | 63（R-01~R-88，编号分段） |
+| 待决事项 | 12 |
+
+> 统计随文档变更更新；以文件系统与需求表实际条目为准。

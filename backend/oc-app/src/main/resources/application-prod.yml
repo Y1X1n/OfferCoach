@@ -1,0 +1,44 @@
+# 生产 profile：SPRING_PROFILES_ACTIVE=prod。
+# 仅覆盖与 local 不同的安全项，其余沿用 application.yml；仓库不保存任何真实密钥。
+server:
+  # 生产由容器/负载均衡转发，默认监听全部网卡，可用 SERVER_ADDRESS 收窄。
+  address: ${SERVER_ADDRESS:0.0.0.0}
+
+oc:
+  storage:
+    # 生产必须挂载持久卷，容器重建后文件仍在。
+    root: ${STORAGE_ROOT}
+  ai:
+    enabled: ${AI_ENABLED:true}
+  auth:
+    jwt:
+      # 无默认值：未显式提供 PEM 路径时启动失败，禁止生成临时密钥（否则重启即全员掉线）。
+      private-key-path: ${JWT_PRIVATE_KEY_PATH}
+      public-key-path: ${JWT_PUBLIC_KEY_PATH}
+    cookie:
+      # 生产强制 Secure，仅通过 HTTPS 下发 Refresh Cookie。
+      secure: true
+    dev-verify-code:
+      # 关闭固定验证码，避免生产使用 123456 注册。
+      enabled: false
+    invite-code:
+      # 未接入邮件/短信前，生产注册必须提供邀请码；未配置则注册入口关闭。
+      enabled: ${REGISTER_INVITE_ENABLED:true}
+      code: ${REGISTER_INVITE_CODE:}
+  demo:
+    # 不创建演示账号。
+    enabled: false
+  admin:
+    # 管理员账号由环境变量显式开启；密码不得写入仓库。
+    enabled: ${ADMIN_ENABLED:false}
+  cors:
+    # 无默认值：未显式配置 CORS_ORIGINS 时启动失败，避免生产放开跨域。
+    allowed-origins: ${CORS_ORIGINS}
+
+management:
+  endpoint:
+    health:
+      # 生产健康端点不返回组件详情。
+      show-details: never
+
+# 日志沿用 logback-spring.xml：非 local profile 输出 JSON，无需在此重复配置。

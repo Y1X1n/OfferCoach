@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>张三 · 后端开发工程师</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: #1f2937;
+        font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+        font-size: 10.5pt;
+        line-height: 1.6;
+      }
+      .page { padding: 36px 44px; }
+      h1 { margin: 0 0 4px; font-size: 24pt; letter-spacing: 1px; }
+      .headline { margin: 0; color: #374151; }
+      .intent { margin: 10px 0 0; color: #4b5563; }
+      h2 {
+        margin: 20px 0 8px;
+        padding-bottom: 4px;
+        border-bottom: 1.5px solid #d1d5db;
+        font-size: 13pt;
+        color: #111827;
+      }
+      h3 { margin: 12px 0 3px; font-size: 10.8pt; }
+      p { margin: 3px 0; }
+      ul { margin: 4px 0 8px; padding-left: 18px; }
+      li { margin: 2px 0; }
+      .meta { color: #4b5563; }
+      .stack { color: #4b5563; font-size: 9.5pt; }
+      .muted { margin-top: 18px; color: #9ca3af; font-size: 8.5pt; }
+      .keep { page-break-inside: avoid; }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <h1>张三</h1>
+      <p class="headline"><strong>后端开发工程师</strong> ｜ 上海 ｜ 3 年经验 ｜ 13800001234 ｜ zhangsan.test@example.com</p>
+      <p class="intent">求职意向：高级后端工程师（Java / Spring Cloud / 高并发）</p>
+
+      <h2>个人简介</h2>
+      <p>3 年后端开发经验，长期负责订单履约与交易核心链路。熟悉 Java、Spring Boot、Spring Cloud、MySQL、Redis、Kafka 与 Kubernetes，具备高并发系统设计、缓存一致性、消息可靠性及稳定性治理实践。习惯用量化指标验证方案效果，能独立完成从容量评估、方案设计到上线复盘的完整闭环。</p>
+
+      <h2>教育经历</h2>
+      <p><strong>华东理工大学</strong> ｜ 计算机科学与技术 ｜ 本科 ｜ 2018-09 至 2022-06</p>
+      <p class="meta">主修课程：数据结构、操作系统、计算机网络、数据库系统、分布式系统。</p>
+
+      <h2>工作经历</h2>
+      <div class="keep">
+        <h3>云帆科技有限公司 ｜ 后端开发工程师 ｜ 2022-07 至 至今</h3>
+        <ul>
+          <li>负责订单履约系统核心模块开发，覆盖下单、库存预占、履约编排与状态回调。</li>
+          <li>主导订单查询链路重构，引入 Redis 多级缓存与异步化改造，支撑大促峰值流量。</li>
+          <li>参与稳定性治理，建设接口级监控、告警与降级预案，核心接口可用性提升至 99.95%。</li>
+          <li>推动团队工程规范落地，包括接口契约、幂等设计、灰度发布与故障复盘。</li>
+        </ul>
+      </div>
+
+      <h2>项目经历</h2>
+      <div class="keep">
+        <h3>订单履约系统重构 ｜ 核心开发 ｜ 2024-03 至 2024-10</h3>
+        <p class="stack">技术栈：Java、Spring Boot、Spring Cloud、MySQL、Redis、Kafka、Kubernetes</p>
+        <ul>
+          <li>背景：大促期间订单系统 QPS 从 800 涨到 2400，原有单体架构出现超时与积压。</li>
+          <li>职责：负责履约链路拆分与容量评估，设计订单查询与履约写入的读写分离方案。</li>
+          <li>方案：使用 Redis 缓存热点订单，Kafka 解耦库存扣减与通知，增加消息重试与死信队列；对比同步与异步方案的取舍并完成灰度上线。</li>
+          <li>结果：P99 延迟从 800ms 降至 180ms，故障率下降 40%，大促期间零 P1 事故。</li>
+          <li>复盘：补充缓存一致性降级预案，完善压测基线与大促预案演练。</li>
+        </ul>
+      </div>
+
+      <div class="keep">
+        <h3>交易稳定性治理 ｜ 后端负责人 ｜ 2023-05 至 2023-12</h3>
+        <p class="stack">技术栈：Java、Spring Cloud、MySQL、Redis、Prometheus、Kubernetes</p>
+        <ul>
+          <li>梳理核心交易链路依赖，建立接口 SLO、错误预算与告警分级。</li>
+          <li>设计缓存击穿与雪崩保护，增加热点探测、限流与熔断降级策略。</li>
+          <li>结果：核心接口超时率从 1.8% 降至 0.3%，高峰期资源成本下降 18%。</li>
+        </ul>
+      </div>
+
+      <div class="keep">
+        <h3>面试题库检索服务 ｜ 独立开发 ｜ 2023-01 至 2023-04</h3>
+        <p class="stack">技术栈：Java、Spring Boot、PostgreSQL、Redis</p>
+        <ul>
+          <li>为内部面试练习平台实现题库检索与推荐，支持按岗位、维度、难度筛选。</li>
+          <li>使用 PostgreSQL trigram 与关键词打分实现召回，接口 P95 延迟低于 120ms。</li>
+          <li>结果：人工整理题库时间减少 60%，检索命中率提升 25%。</li>
+        </ul>
+      </div>
+
+      <h2>专业技能</h2>
+      <ul>
+        <li>编程语言：Java（熟练）、SQL（熟练）、Python（了解）。</li>
+        <li>框架与中间件：Spring Boot、Spring Cloud、MyBatis、MySQL、Redis、Kafka、RabbitMQ。</li>
+        <li>架构能力：微服务拆分、高并发设计、缓存一致性、消息可靠性、限流熔断与降级。</li>
+        <li>工程与运维：Docker、Kubernetes、Linux、Git、Prometheus、Grafana、CI/CD。</li>
+        <li>协作能力：需求评审、技术方案评审、跨团队沟通与故障复盘。</li>
+      </ul>
+
+      <h2>证书</h2>
+      <ul>
+        <li>CET-6（2020）</li>
+        <li>阿里云云计算工程师 ACP（2023）</li>
+      </ul>
+
+      <p class="muted">说明：本简历为 OfferCoach 模拟面试测试数据，人物、公司与项目均为虚构。</p>
+    </main>
+  </body>
+</html>

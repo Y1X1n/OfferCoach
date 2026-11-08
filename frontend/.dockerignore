@@ -1,0 +1,8 @@
+node_modules
+artifacts
+src
+scripts
+*.md
+.env*
+.OfferCoach.qoder.site
+Dockerfile

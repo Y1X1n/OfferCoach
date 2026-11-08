@@ -1,0 +1,7 @@
+dist
+node_modules
+artifacts
+public
+pnpm-lock.yaml
+scripts
+*.qoder.site
