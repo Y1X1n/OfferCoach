@@ -85,6 +85,118 @@ class FeedbackScorerTest {
     }
 
     @Test
+    void emptyAnswerScoresNearZero() {
+        FeedbackScorer.Result result =
+                raw("", "Redis 缓存和数据库如何保证一致性？", List.of("延迟双删", "主从延迟"), List.of("Redis", "MySQL"), "DEPTH");
+
+        assertThat(result.overallScore().doubleValue()).isLessThan(2.0);
+        assertThat(result.dimensions().values())
+                .allSatisfy(score -> assertThat(score.doubleValue()).isLessThanOrEqualTo(3.0));
+    }
+
+    @Test
+    void offTopicLongAnswerIsPenalized() {
+        String answer = "今天天气不错，我沿着河边走了很久。中午和同事吃了牛肉面，味道比上周那家更好。"
+                + "下午把房间收拾了一遍，扔掉不少旧纸箱。晚上打算看一部纪录片，十一点前睡觉。"
+                + "周末准备去郊区爬山，顺便拍些照片，再买点水果带回来。";
+        FeedbackScorer.Result result = raw(
+                answer, "Redis 缓存和数据库如何保证一致性？", List.of("延迟双删", "主从延迟", "异常场景"), List.of("Redis", "MySQL"), "DEPTH");
+
+        assertThat(result.dimensions().get("content").doubleValue()).isLessThanOrEqualTo(3.0);
+        assertThat(result.overallScore().doubleValue()).isLessThanOrEqualTo(4.0);
+        assertThat(String.join(" ", result.strengths())).doesNotContain("没有明显跑题");
+    }
+
+    @Test
+    void veryShortAnswerIsCappedBelowThree() {
+        FeedbackScorer.Result result =
+                raw("Redis 缓存加延迟双删。", "Redis 缓存和数据库如何保证一致性？", List.of("延迟双删"), List.of("Redis"), "DEPTH");
+
+        assertThat(result.dimensions().values())
+                .allSatisfy(score -> assertThat(score.doubleValue()).isLessThanOrEqualTo(3.0));
+        assertThat(result.overallScore().doubleValue()).isLessThan(3.0);
+    }
+
+    @Test
+    void shortAnswerCapsEveryDimensionAtFive() {
+        FeedbackScorer.Result result = raw(
+                "我们用 Redis 做缓存，先更新再删缓存，遇到并发会短暂不一致。",
+                "Redis 缓存和数据库如何保证一致性？",
+                List.of("延迟双删"),
+                List.of("Redis"),
+                "DEPTH");
+
+        assertThat(result.dimensions().values())
+                .allSatisfy(score -> assertThat(score.doubleValue()).isLessThanOrEqualTo(5.0));
+        assertThat(result.overallScore().doubleValue()).isLessThanOrEqualTo(5.0);
+    }
+
+    @Test
+    void typicalOnTopicAnswerScoresInMidRange() {
+        FeedbackScorer.Result result = raw(
+                "我们用 Redis 做缓存，先更新数据库再删除缓存，主要考虑一致性。遇到并发时会有短暂不一致，所以加了延迟双删。",
+                "Redis 缓存和数据库如何保证一致性？",
+                List.of("延迟双删", "并发一致性"),
+                List.of("Redis", "MySQL"),
+                "DEPTH");
+
+        assertThat(result.overallScore().doubleValue()).isBetween(4.0, 7.0);
+        assertThat(result.dimensions().get("content").doubleValue()).isGreaterThanOrEqualTo(5.0);
+    }
+
+    @Test
+    void strongStructuredAnswerOutranksKeywordStuffing() {
+        String strong = "首先交代背景：大促期间订单链路 QPS 从 800 升到 2400，我负责缓存改造。"
+                + "其次对比本地缓存与 Redis 集群后选择 Redis 集群，并说明主从延迟带来的取舍。"
+                + "然后补充降级、超时与重试边界，避免缓存雪崩。"
+                + "最后结果：P99 从 800ms 降到 180ms，故障率下降 40%，复盘补了容量评估。";
+        String stuffing = "Redis Kafka MySQL Spring 分布式 缓存 消息 队列 高并发 性能优化 一致性 事务 索引 锁 限流 熔断。".repeat(6);
+
+        FeedbackScorer.Result strongResult = raw(
+                strong,
+                "Redis 缓存和数据库如何保证一致性？",
+                List.of("个人职责", "方案取舍", "量化结果", "边界与降级"),
+                List.of("Redis", "MySQL", "Kafka"),
+                "DEPTH");
+        FeedbackScorer.Result stuffedResult = raw(
+                stuffing,
+                "Redis 缓存和数据库如何保证一致性？",
+                List.of("个人职责", "方案取舍", "量化结果", "边界与降级"),
+                List.of("Redis", "MySQL", "Kafka"),
+                "DEPTH");
+
+        assertThat(strongResult.overallScore().doubleValue())
+                .isGreaterThan(stuffedResult.overallScore().doubleValue());
+        assertThat(stuffedResult.dimensions().get("structure").doubleValue()).isLessThan(6.0);
+        assertThat(stuffedResult.dimensions().get("content").doubleValue()).isLessThan(6.0);
+        assertThat(stuffedResult.dimensions().get("fit").doubleValue()).isLessThan(6.0);
+    }
+
+    @Test
+    void coveringReferencePointsRaisesContentScore() {
+        String answer = "因为主从复制有延迟，所以采用延迟双删，并对比了替代方案。";
+        FeedbackScorer.Result covered =
+                raw(answer, "Redis 缓存和数据库如何保证一致性？", List.of("延迟双删"), List.of("Redis", "MySQL"), "DEPTH");
+        FeedbackScorer.Result missing =
+                raw(answer, "Redis 缓存和数据库如何保证一致性？", List.of("缓存雪崩的预热方案"), List.of("Redis", "MySQL"), "DEPTH");
+
+        assertThat(covered.dimensions().get("content").doubleValue())
+                .isGreaterThan(missing.dimensions().get("content").doubleValue());
+    }
+
+    @Test
+    void fillersAndRepeatedSentencesLowerLanguageScore() {
+        String clean = "我先说明背景与目标，再给出具体方案和取舍，最后补充量化结果与复盘。";
+        String messy = "呃，那个，就是说，然后就是我先说明背景与目标，再给出具体方案和取舍，最后补充量化结果与复盘。" + "我先说明背景与目标，再给出具体方案和取舍，最后补充量化结果与复盘。";
+
+        FeedbackScorer.Result cleanResult = raw(clean, "介绍一个项目。", List.of(), List.of(), "PROJECT");
+        FeedbackScorer.Result messyResult = raw(messy, "介绍一个项目。", List.of(), List.of(), "PROJECT");
+
+        assertThat(messyResult.dimensions().get("language").doubleValue())
+                .isLessThan(cleanResult.dimensions().get("language").doubleValue());
+    }
+
+    @Test
     void fourScenariosDoNotShareTheSameTemplate() {
         List<FeedbackScorer.Result> results = List.of(
                 score("PROJECT", "我负责订单模块，把耗时从 800ms 降到 200ms。"),
@@ -99,6 +211,12 @@ class FeedbackScorerTest {
 
         assertThat(firstStrengths).hasSizeGreaterThanOrEqualTo(3);
         assertThat(firstImprovements).hasSizeGreaterThanOrEqualTo(3);
+    }
+
+    private static FeedbackScorer.Result raw(
+            String answer, String question, List<String> references, List<String> jdKeywords, String dimension) {
+        return FeedbackScorer.score(
+                new FeedbackScorer.Input(answer, question, references, jdKeywords, true, dimension));
     }
 
     private static FeedbackScorer.Result score(String dimension, String answer) {

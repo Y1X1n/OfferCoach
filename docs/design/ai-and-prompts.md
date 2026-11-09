@@ -257,6 +257,8 @@ def validate_questions(items: list[QuestionDraft], cfg: InterviewConfig) -> None
 - 回答过短（< 40 字）时，各维度最高 5 分，并在改进建议中说明原因。
 - 回答与题目无关时，`content ≤ 3`，整体不高于 4 分。
 
+**无模型降级**：`FeedbackScorer` 按同一套下限规则执行确定性评分——要点覆盖、题目相关性、证据/取舍/边界为主要信号，长度只作弱信号；回答 < 40 字各维上限 5，跑题时 `content ≤ 3` 且总分 ≤ 4。评分版本记为 `rules-v3`，便于与旧反馈区分。
+
 ### 7.4 评分一致性
 
 - 同一回答重复评分（人工触发）时，温度设为 0，结果差异应 ≤ 0.5 分；超过则记录 `inconsistent` 标记。

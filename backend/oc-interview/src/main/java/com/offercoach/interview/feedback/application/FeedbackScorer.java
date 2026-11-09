@@ -58,6 +58,7 @@ public final class FeedbackScorer {
             "depth", 0.25,
             "fit", 0.15,
             "language", 0.15);
+    private static final int MIN_MEANINGFUL_LENGTH = 20;
 
     private FeedbackScorer() {}
 
@@ -68,24 +69,42 @@ public final class FeedbackScorer {
         List<String> skills = SkillDictionary.findSkills(text);
         List<String> domainTerms = SkillDictionary.findDomainTerms(text);
         int numbers = count(NUMBER.matcher(text));
+        int metrics = count(METRIC.matcher(text));
         int markers = countMarkers(lower);
-        int sentenceCount = sentences.size();
+        Scenario scenario = scenarioOf(input.dimension());
+        Focus focus = focusOf(scenario, lower);
+        Analysis analysis = analyze(input, text, lower, sentences, skills, numbers, markers);
 
-        double content = clamp(
-                5.2 + Math.min(2.0, skills.size() * 0.35) + lengthBonus(text.length()) + Math.min(0.6, numbers * 0.2));
-        double structure = clamp(5.0
-                + Math.min(2.1, markers * 0.3)
-                + (text.contains("\n\n") ? 0.5 : 0)
-                + (sentenceCount >= 4 ? 0.4 : 0));
-        double depth = clamp(5.0
-                + Math.min(1.6, domainTerms.size() * 0.4)
-                + Math.min(1.5, numbers * 0.3)
-                + Math.min(1.2, countTradeoffs(lower) * 0.4));
-        double fit = clamp(5.0 + fitBonus(text, input.jdKeywords()));
-        double language = clamp(5.4
-                + lengthBonus(text.length())
-                + (sentenceCount >= 3 ? 0.5 : 0)
-                - Math.min(1.0, countFillers(lower) * 0.3));
+        int jdTotal = distinctKeywordCount(input.jdKeywords());
+        int jdMatchedCount = jdMatchCount(text, input.jdKeywords());
+        double relevance = questionRelevance(input.questionText(), lower);
+
+        double content = contentScore(text, analysis, metrics, relevance, domainTerms);
+        double structure = structureScore(text, analysis);
+        double depth = depthScore(text, analysis, metrics, domainTerms);
+        double fit = fitScore(text, analysis, jdTotal, jdMatchedCount, metrics);
+        fit = Math.min(fit, content + 1.0);
+        double language = languageScore(text, analysis);
+        if (text.isBlank()) {
+            content = 0.0;
+            structure = 0.0;
+            depth = 0.0;
+            fit = jdTotal > 0 ? 0.5 : 1.0;
+            language = 0.0;
+        } else if (text.length() < MIN_MEANINGFUL_LENGTH) {
+            content = Math.min(content, 2.0);
+            structure = Math.min(structure, 2.5);
+            depth = Math.min(depth, 2.0);
+            fit = Math.min(fit, 3.0);
+            language = Math.min(language, 2.5);
+        } else if (text.length() < 40) {
+            content = Math.min(content, 5.0);
+            structure = Math.min(structure, 5.0);
+            depth = Math.min(depth, 5.0);
+            fit = Math.min(fit, 5.0);
+            language = Math.min(language, 5.0);
+        }
+        boolean offTopic = analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0 && relevance == 0.0;
 
         Map<String, BigDecimal> dimensions = new LinkedHashMap<>();
         dimensions.put("content", round(content));
@@ -97,11 +116,10 @@ public final class FeedbackScorer {
         double weighted = dimensions.entrySet().stream()
                 .mapToDouble(entry -> entry.getValue().doubleValue() * WEIGHTS.get(entry.getKey()))
                 .sum();
+        if (offTopic) {
+            weighted = Math.min(weighted, 4.0);
+        }
         BigDecimal overall = round(weighted);
-
-        Scenario scenario = scenarioOf(input.dimension());
-        Focus focus = focusOf(scenario, lower);
-        Analysis analysis = analyze(input, text, lower, sentences, skills, numbers, markers);
 
         List<String> strengths = strengths(scenario, focus, analysis, dimensions);
         List<String> improvements = improvements(scenario, focus, analysis, dimensions);
@@ -311,24 +329,222 @@ public final class FeedbackScorer {
         return Focus.GENERAL;
     }
 
-    private static double lengthBonus(int length) {
-        if (length < 80) {
-            return -1.2;
+    private static double contentScore(
+            String text, Analysis analysis, int metrics, double relevance, List<String> domainTerms) {
+        double score = 2.0;
+        if (analysis.referenceTotal() > 0) {
+            score += 4.0 * analysis.referenceCovered() / (double) analysis.referenceTotal();
+        } else {
+            score += 2.0;
         }
-        if (length < 160) {
-            return -0.4;
+        score += 1.6 * relevance;
+        score += Math.min(1.1, analysis.skills().size() * 0.22 + domainTerms.size() * 0.12);
+        score += Math.min(1.0, metrics * 0.4);
+        int length = text.length();
+        if (length < 40) {
+            score -= 1.4;
+        } else if (length < 80) {
+            score -= 0.6;
+        } else if (length >= 120) {
+            score += 0.4;
         }
-        if (length <= 900) {
-            return 0.8;
+        if (length > 1200) {
+            score -= 0.3;
         }
-        return 1.0;
+        score -= duplicateSentenceRatio(analysis.sentences()) * 1.5;
+        if (analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0 && relevance == 0.0) {
+            score = Math.min(score, 3.0);
+        }
+        return clamp(score);
     }
 
-    private static double fitBonus(String text, List<String> jdKeywords) {
-        if (jdKeywords == null || jdKeywords.isEmpty()) {
-            return 0.6;
+    private static double structureScore(String text, Analysis analysis) {
+        double score = 3.0;
+        score += Math.min(2.5, analysis.structureMarkers() * 0.45);
+        if (text.split("\\n\\s*\\n").length >= 2) {
+            score += 0.6;
         }
-        return Math.min(3.0, jdMatched(text, jdKeywords).size() * 0.6);
+        if (hasBulletLines(text)) {
+            score += 0.4;
+        }
+        int sentenceCount = analysis.sentences().size();
+        if (sentenceCount >= 3) {
+            score += 0.5;
+        }
+        if (sentenceCount >= 6) {
+            score += 0.4;
+        }
+        if (analysis.goal()) {
+            score += 0.4;
+        }
+        if (analysis.action()) {
+            score += 0.3;
+        }
+        if (analysis.result()) {
+            score += 0.4;
+        }
+        if (analysis.reflection()) {
+            score += 0.2;
+        }
+        if (sentenceCount <= 1 && text.length() >= 200) {
+            score -= 1.2;
+        }
+        if (text.length() < 60) {
+            score -= 0.6;
+        }
+        return clamp(score);
+    }
+
+    private static double depthScore(String text, Analysis analysis, int metrics, List<String> domainTerms) {
+        double score = 2.0;
+        if (analysis.why()) {
+            score += 1.2;
+        }
+        score += Math.min(1.5, analysis.tradeoffs() * 0.5);
+        if (analysis.edge()) {
+            score += 1.0;
+        }
+        if (analysis.failure()) {
+            score += 0.6;
+        }
+        if (analysis.reflection()) {
+            score += 0.5;
+        }
+        score += Math.min(1.4, metrics * 0.45);
+        score += Math.min(1.2, domainTerms.size() * 0.2);
+        score += Math.min(0.8, analysis.skills().size() * 0.15);
+        if (text.length() < 60) {
+            score -= 0.8;
+        }
+        return clamp(score);
+    }
+
+    private static double fitScore(String text, Analysis analysis, int jdTotal, int jdMatchedCount, int metrics) {
+        double score;
+        if (jdTotal > 0) {
+            double ratio = Math.min(1.0, jdMatchedCount / (double) Math.min(jdTotal, 8));
+            score = 4.0 + Math.min(3.5, jdMatchedCount * 0.9) + 2.0 * ratio;
+        } else {
+            score = 4.0 + Math.min(1.5, analysis.skills().size() * 0.25) + (metrics > 0 ? 0.4 : 0);
+        }
+        if (analysis.motivation()) {
+            score += 0.3;
+        }
+        if (analysis.plan()) {
+            score += 0.2;
+        }
+        if (text.length() < 40) {
+            score -= 0.5;
+        }
+        return clamp(Math.min(score, 9.0));
+    }
+
+    private static double languageScore(String text, Analysis analysis) {
+        double score = 5.0;
+        int sentenceCount = analysis.sentences().size();
+        if (sentenceCount >= 2) {
+            score += 0.5;
+        }
+        if (sentenceCount >= 4) {
+            score += 0.5;
+        }
+        if (sentenceCount > 0) {
+            double averageLength = analysis.sentences().stream()
+                    .mapToInt(String::length)
+                    .average()
+                    .orElse(0);
+            if (averageLength >= 12 && averageLength <= 80) {
+                score += 0.4;
+            }
+        }
+        int length = text.length();
+        if (length >= 100 && length <= 800) {
+            score += 0.4;
+        }
+        if (endsWithSentencePunctuation(text)) {
+            score += 0.2;
+        }
+        score -= Math.min(2.0, analysis.fillers() * 0.6);
+        score -= duplicateSentenceRatio(analysis.sentences()) * 1.2;
+        if (length < 40) {
+            score -= 1.2;
+        } else if (length < 80) {
+            score -= 0.4;
+        }
+        return clamp(Math.min(score, 9.2));
+    }
+
+    private static double questionRelevance(String questionText, String answerLower) {
+        if (questionText == null || questionText.isBlank()) {
+            return 0.0;
+        }
+        Set<String> terms = new LinkedHashSet<>();
+        for (String skill : SkillDictionary.findSkills(questionText)) {
+            terms.add(skill.toLowerCase(Locale.ROOT));
+        }
+        for (String term : SkillDictionary.findDomainTerms(questionText)) {
+            terms.add(term.toLowerCase(Locale.ROOT));
+        }
+        Matcher matcher = Pattern.compile("[A-Za-z][A-Za-z0-9+#.]{1,}").matcher(questionText);
+        while (matcher.find()) {
+            terms.add(matcher.group().toLowerCase(Locale.ROOT));
+        }
+        terms.removeIf(term -> term.length() < 2);
+        if (terms.isEmpty()) {
+            return 0.0;
+        }
+        long matched = terms.stream().filter(answerLower::contains).count();
+        return matched / (double) terms.size();
+    }
+
+    private static int distinctKeywordCount(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return 0;
+        }
+        return (int) values.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(value -> value.strip().toLowerCase(Locale.ROOT))
+                .distinct()
+                .count();
+    }
+
+    private static int jdMatchCount(String text, List<String> keywords) {
+        if (keywords == null || keywords.isEmpty()) {
+            return 0;
+        }
+        String lower = text.toLowerCase(Locale.ROOT);
+        return (int) keywords.stream()
+                .filter(keyword -> keyword != null && !keyword.isBlank())
+                .map(keyword -> keyword.strip().toLowerCase(Locale.ROOT))
+                .filter(keyword -> SkillDictionary.containsSkill(text, keyword) || lower.contains(keyword))
+                .distinct()
+                .count();
+    }
+
+    private static boolean hasBulletLines(String text) {
+        return text.lines().anyMatch(line -> {
+            String trimmed = line.strip();
+            return trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.matches("^\\d+[.、)]\\s+.*");
+        });
+    }
+
+    private static boolean endsWithSentencePunctuation(String text) {
+        if (text.isEmpty()) {
+            return false;
+        }
+        char last = text.charAt(text.length() - 1);
+        return last == '。' || last == '！' || last == '？' || last == '.' || last == '!' || last == '?';
+    }
+
+    private static double duplicateSentenceRatio(List<String> sentences) {
+        if (sentences.size() < 2) {
+            return 0.0;
+        }
+        Set<String> unique = new LinkedHashSet<>();
+        for (String sentence : sentences) {
+            unique.add(sentence.toLowerCase(Locale.ROOT));
+        }
+        return (sentences.size() - unique.size()) / (double) sentences.size();
     }
 
     private static int countMarkers(String lower) {
@@ -394,11 +610,11 @@ public final class FeedbackScorer {
             }
             default -> {}
         }
-        addFallbackStrengths(result, scenario);
+        addFallbackStrengths(result, scenario, analysis);
         return distinctLimit(result, 4);
     }
 
-    private static void addFallbackStrengths(List<String> result, Scenario scenario) {
+    private static void addFallbackStrengths(List<String> result, Scenario scenario, Analysis analysis) {
         if (result.size() >= 2) {
             return;
         }
@@ -409,7 +625,11 @@ public final class FeedbackScorer {
             }
             case TECHNICAL -> {
                 result.add("回答给出了基本结论，下一步补原理与失效场景会更有说服力");
-                result.add("围绕题目给出了自己的理解，没有明显跑题");
+                if (analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0) {
+                    result.add("表达比较完整，具备进一步展开的基础，下一步先对齐题目要点");
+                } else {
+                    result.add("围绕题目给出了自己的理解，没有明显跑题");
+                }
             }
             case BEHAVIOR -> {
                 result.add("能围绕行为问题给出真实经历，下一步把冲突和行动讲细");
