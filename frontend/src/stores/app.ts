@@ -74,6 +74,11 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function setQuota(value: Quota): void {
+    quota.value = value
+    quotaLoaded.value = true
+  }
+
   async function login(account: string, password: string): Promise<Me> {
     const res = await authApi.login({ account: account.trim(), password })
     applySession(res)
@@ -175,6 +180,7 @@ export const useAppStore = defineStore('app', () => {
     ensureSession,
     loadMe,
     loadQuota,
+    setQuota,
     logout,
     clearSession,
     updateProfile,

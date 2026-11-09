@@ -29,6 +29,11 @@ public class InterviewSessionRepositoryImpl implements InterviewSessionRepositor
     }
 
     @Override
+    public Optional<InterviewSession> findLatestOpen(long userId) {
+        return Optional.ofNullable(toSession(sessionMapper.findLatestOpen(userId)));
+    }
+
+    @Override
     public Optional<InterviewSession> findByUserAndKey(long userId, String idempotencyKey) {
         return Optional.ofNullable(toSession(sessionMapper.findByUserAndKey(userId, idempotencyKey)));
     }

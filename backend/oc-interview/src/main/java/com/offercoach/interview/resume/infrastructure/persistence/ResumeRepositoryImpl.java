@@ -69,6 +69,11 @@ public class ResumeRepositoryImpl implements ResumeRepository {
     }
 
     @Override
+    public long countReady(long userId) {
+        return resumeMapper.countReady(userId);
+    }
+
+    @Override
     public void clearDefault(long userId) {
         resumeMapper.clearDefault(userId);
     }

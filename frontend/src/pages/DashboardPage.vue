@@ -18,14 +18,16 @@ import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Progress from '@/components/ui/Progress.vue'
 import { errorMessage } from '@/api/client'
-import * as interviewsApi from '@/api/interviews'
-import * as jdsApi from '@/api/jds'
-import * as quotaApi from '@/api/quota'
-import * as reportsApi from '@/api/reports'
-import * as resumesApi from '@/api/resumes'
+import * as dashboardApi from '@/api/dashboard'
+import { DEFAULT_INTERVIEW_CONFIG } from '@/api/interviews'
 import { useAppStore } from '@/stores/app'
-import type { InterviewSession, Jd, Quota, ReportSummary, ResumeSummary } from '@/types'
-import { formatDate, formatScore, mean, round1 } from '@/utils/format'
+import type {
+  DashboardActiveSession,
+  InterviewSession,
+  Quota,
+  ReportSummary,
+} from '@/types'
+import { formatDate, formatScore } from '@/utils/format'
 
 interface QuickStep {
   key: string
@@ -41,11 +43,13 @@ const store = useAppStore()
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const quota = ref<Quota | null>(null)
-const resumes = ref<ResumeSummary[]>([])
-const jds = ref<Jd[]>([])
 const sessions = ref<InterviewSession[]>([])
 const reports = ref<ReportSummary[]>([])
 const reportsTotal = ref(0)
+const resumeReady = ref(false)
+const jdCount = ref(0)
+const averageScore = ref<number | null>(null)
+const scoredReportCount = ref(0)
 
 const primaryLinkClass =
   'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground shadow-sm transition-all hover:brightness-105 active:scale-98'
@@ -62,16 +66,11 @@ const greeting = computed(() => {
 })
 const greetingTitle = computed(() => `${greeting.value}，${store.user?.nickname ?? '同学'}`)
 
-const scoredReports = computed(() =>
-  reports.value.filter((report) => typeof report.overallScore === 'number'),
-)
 const averageValue = computed(() =>
-  scoredReports.value.length > 0
-    ? formatScore(round1(mean(scoredReports.value.map((report) => report.overallScore ?? 0))))
-    : '—',
+  averageScore.value === null ? '—' : formatScore(averageScore.value),
 )
 const averageHint = computed(() =>
-  scoredReports.value.length > 0 ? `近 ${scoredReports.value.length} 场平均` : '完成面试后统计',
+  scoredReportCount.value > 0 ? `近 ${scoredReportCount.value} 场平均` : '完成面试后统计',
 )
 
 const overviewItems = computed(() => [
@@ -100,15 +99,9 @@ const activeSession = computed<InterviewSession | null>(() => {
     )[0] ?? null
   )
 })
-const activeResumeTitle = computed(() => {
-  const session = activeSession.value
-  if (!session) return ''
-  return (
-    session.resumeTitle ??
-    resumes.value.find((resume) => resume.id === session.resumeId)?.title ??
-    '未选择简历'
-  )
-})
+const activeResumeTitle = computed(
+  () => activeSession.value?.resumeTitle ?? '未选择简历',
+)
 const answeredCount = computed(() => activeSession.value?.progress?.answered ?? 0)
 const questionTotal = computed(
   () => activeSession.value?.progress?.total ?? activeSession.value?.questionCount ?? 0,
@@ -127,8 +120,7 @@ const dailyPercent = computed(() => {
   return Math.min(100, Math.round((daily.sessionsUsed / daily.sessionsLimit) * 100))
 })
 
-const resumeReady = computed(() => resumes.value.some((resume) => resume.status === 'READY'))
-const jdReady = computed(() => jds.value.length > 0)
+const jdReady = computed(() => jdCount.value > 0)
 const readyToStart = computed(() => resumeReady.value && jdReady.value)
 
 const quickSteps = computed<QuickStep[]>(() => [
@@ -143,7 +135,7 @@ const quickSteps = computed<QuickStep[]>(() => [
   {
     key: 'jd',
     title: 'JD 就绪',
-    description: jdReady.value ? `已添加 ${jds.value.length} 个目标岗位` : '粘贴目标岗位 JD 并分析',
+    description: jdReady.value ? `已添加 ${jdCount.value} 个目标岗位` : '粘贴目标岗位 JD 并分析',
     done: jdReady.value,
     to: '/jds',
     action: jdReady.value ? '管理岗位' : '添加 JD',
@@ -172,41 +164,50 @@ const weeklyTip = computed(() => {
   return report.summary || '继续保持练习节奏，优先补齐报告中的改进项，再开始下一场模拟面试。'
 })
 
+function toSession(session: DashboardActiveSession): InterviewSession {
+  return {
+    id: session.id,
+    status: session.status,
+    config: DEFAULT_INTERVIEW_CONFIG,
+    progress: {
+      answered: session.answeredCount,
+      skipped: 0,
+      total: session.questionCount,
+    },
+    questionCount: session.questionCount,
+    resumeId: session.resumeId,
+    jdId: session.jdId,
+    resumeTitle: session.resumeTitle,
+    jdTitle: session.jdTitle,
+    jdCompany: session.jdCompany,
+    startedAt: session.startedAt,
+    lastActiveAt: session.lastActiveAt,
+  }
+}
+
 async function loadAll(): Promise<void> {
   loading.value = true
   loadError.value = null
-  const [quotaResult, resumeResult, jdResult, interviewResult, reportResult] =
-    await Promise.allSettled([
-      quotaApi.getQuota(),
-      resumesApi.listResumes({ page: 1, size: 20 }),
-      jdsApi.listJds({ page: 1, size: 20 }),
-      interviewsApi.listInterviews({ page: 1, size: 20 }),
-      reportsApi.listReports({ page: 1, size: 20 }),
-    ])
-
-  if (quotaResult.status === 'fulfilled') quota.value = quotaResult.value
-  if (resumeResult.status === 'fulfilled') resumes.value = resumeResult.value.items
-  if (jdResult.status === 'fulfilled') jds.value = jdResult.value.items
-  if (interviewResult.status === 'fulfilled') sessions.value = interviewResult.value.items
-  if (reportResult.status === 'fulfilled') {
-    reports.value = reportResult.value.items
-    reportsTotal.value = reportResult.value.total
+  try {
+    const data = await dashboardApi.getDashboard()
+    quota.value = data.quota
+    store.setQuota(data.quota)
+    resumeReady.value = data.resumeReady
+    jdCount.value = data.jdCount
+    sessions.value = data.activeSession ? [toSession(data.activeSession)] : []
+    reports.value = data.recentReports
+    reportsTotal.value = data.reportTotal
+    averageScore.value = data.averageScore ?? null
+    scoredReportCount.value = data.scoredReportCount
+  } catch (error) {
+    loadError.value = errorMessage(error, '工作台数据加载失败')
+  } finally {
+    loading.value = false
   }
-
-  const failures = [quotaResult, resumeResult, jdResult, interviewResult, reportResult].filter(
-    (result): result is PromiseRejectedResult => result.status === 'rejected',
-  )
-  if (failures.length === 5) {
-    loadError.value = errorMessage(failures[0]?.reason, '工作台数据加载失败')
-  } else if (failures.length > 0) {
-    loadError.value = null
-  }
-  loading.value = false
 }
 
 onMounted(() => {
   void loadAll()
-  void store.loadQuota()
 })
 </script>
 
@@ -229,15 +230,12 @@ onMounted(() => {
       </template>
     </PageHeader>
 
-    <AsyncState
-      v-if="loadError"
-      class="mt-6"
-      :error="loadError"
-      error-title="工作台加载失败"
-      @retry="loadAll"
-    />
+    <div v-if="loadError" class="mt-6">
+      <AsyncState :error="loadError" error-title="工作台加载失败" @retry="loadAll" />
+    </div>
 
-    <AsyncState v-else :loading="loading" :loading-lines="6" class="mt-6">
+    <div v-else class="mt-6 flex min-h-0 min-w-0 flex-1 flex-col">
+      <AsyncState :loading="loading" :loading-lines="6">
       <MetricStrip :items="overviewItems" label="概览数据" />
 
       <div class="mt-5 grid min-w-0 flex-1 gap-5 lg:grid-cols-3">
@@ -478,6 +476,7 @@ onMounted(() => {
           </Card>
         </aside>
       </div>
-    </AsyncState>
+      </AsyncState>
+    </div>
   </div>
 </template>

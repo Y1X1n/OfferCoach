@@ -65,6 +65,9 @@ public interface ResumeMapper {
     @Select("SELECT COUNT(*) FROM resume WHERE user_id = #{userId} AND deleted_at IS NULL")
     long count(@Param("userId") long userId);
 
+    @Select("SELECT COUNT(*) FROM resume WHERE user_id = #{userId} AND deleted_at IS NULL AND parse_status = 'READY'")
+    long countReady(@Param("userId") long userId);
+
     @Update(
             """
             UPDATE resume

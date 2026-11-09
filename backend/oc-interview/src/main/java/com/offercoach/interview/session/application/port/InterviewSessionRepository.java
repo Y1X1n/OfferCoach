@@ -15,6 +15,9 @@ public interface InterviewSessionRepository {
 
     Optional<InterviewSession> findAny(long id);
 
+    /** 最近活跃的未结束会话（CREATED/READY/IN_PROGRESS/PAUSED）。 */
+    Optional<InterviewSession> findLatestOpen(long userId);
+
     Optional<InterviewSession> findByUserAndKey(long userId, String idempotencyKey);
 
     long insert(InterviewSession session);

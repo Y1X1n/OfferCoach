@@ -9,19 +9,14 @@ import com.offercoach.interview.api.dto.report.ReportStartedResponse;
 import com.offercoach.interview.api.dto.report.ReportSummaryResponse;
 import com.offercoach.interview.feedback.application.port.AnswerFeedbackRepository;
 import com.offercoach.interview.feedback.domain.AnswerFeedback;
-import com.offercoach.interview.jd.application.port.JobDescriptionRepository;
-import com.offercoach.interview.jd.domain.JobDescription;
 import com.offercoach.interview.report.application.ReportGenerationWorker;
+import com.offercoach.interview.report.application.ReportMetaResolver;
 import com.offercoach.interview.report.application.ReportService;
 import com.offercoach.interview.report.domain.InterviewReport;
-import com.offercoach.interview.resume.application.port.ResumeRepository;
-import com.offercoach.interview.resume.domain.Resume;
 import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
 import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
-import com.offercoach.interview.session.application.port.InterviewSessionRepository;
 import com.offercoach.interview.session.domain.InterviewAnswer;
 import com.offercoach.interview.session.domain.InterviewQuestion;
-import com.offercoach.interview.session.domain.InterviewSession;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -43,32 +38,26 @@ public class ReportController {
 
     private final ReportService reportService;
     private final ReportGenerationWorker reportGenerationWorker;
-    private final InterviewSessionRepository sessionRepository;
+    private final ReportMetaResolver reportMetaResolver;
     private final InterviewQuestionRepository questionRepository;
     private final InterviewAnswerRepository answerRepository;
     private final AnswerFeedbackRepository feedbackRepository;
-    private final JobDescriptionRepository jdRepository;
-    private final ResumeRepository resumeRepository;
     private final CurrentUser currentUser;
 
     public ReportController(
             ReportService reportService,
             ReportGenerationWorker reportGenerationWorker,
-            InterviewSessionRepository sessionRepository,
+            ReportMetaResolver reportMetaResolver,
             InterviewQuestionRepository questionRepository,
             InterviewAnswerRepository answerRepository,
             AnswerFeedbackRepository feedbackRepository,
-            JobDescriptionRepository jdRepository,
-            ResumeRepository resumeRepository,
             CurrentUser currentUser) {
         this.reportService = reportService;
         this.reportGenerationWorker = reportGenerationWorker;
-        this.sessionRepository = sessionRepository;
+        this.reportMetaResolver = reportMetaResolver;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.feedbackRepository = feedbackRepository;
-        this.jdRepository = jdRepository;
-        this.resumeRepository = resumeRepository;
         this.currentUser = currentUser;
     }
 
@@ -99,7 +88,7 @@ public class ReportController {
     }
 
     private ReportSummaryResponse toSummary(long userId, InterviewReport report) {
-        ReportMeta meta = meta(userId, report);
+        ReportMetaResolver.Meta meta = reportMetaResolver.resolve(userId, report.sessionId());
         return new ReportSummaryResponse(
                 Long.toString(report.id()),
                 Long.toString(report.sessionId()),
@@ -115,7 +104,7 @@ public class ReportController {
     }
 
     private ReportDetailResponse toDetail(long userId, InterviewReport report) {
-        ReportMeta meta = meta(userId, report);
+        ReportMetaResolver.Meta meta = reportMetaResolver.resolve(userId, report.sessionId());
         return new ReportDetailResponse(
                 Long.toString(report.id()),
                 Long.toString(report.sessionId()),
@@ -177,30 +166,6 @@ public class ReportController {
                 answer == null ? null : answer.answerText(),
                 feedbackView);
     }
-
-    private ReportMeta meta(long userId, InterviewReport report) {
-        InterviewSession session = sessionRepository.findAny(report.sessionId()).orElse(null);
-        JobDescription jd = session == null
-                ? null
-                : jdRepository.findOwned(userId, session.jdId()).orElse(null);
-        Resume resume = session == null
-                ? null
-                : resumeRepository.findOwned(userId, session.resumeId()).orElse(null);
-        String jdTitle = jd == null ? null : jd.title();
-        String company = jd == null ? null : jd.company();
-        String role = jdTitle == null || jdTitle.isBlank() ? "模拟面试" : jdTitle;
-        String title =
-                resume != null && resume.title() != null && !resume.title().isBlank()
-                        ? resume.title()
-                        : role + " · 面试报告";
-        return new ReportMeta(
-                title,
-                company == null || company.isBlank() ? "目标公司" : company,
-                role,
-                session == null ? 0 : session.questionCount());
-    }
-
-    private record ReportMeta(String title, String company, String role, int questionCount) {}
 
     private static String timestamp(OffsetDateTime value) {
         return value == null ? null : value.toInstant().toString();

@@ -29,6 +29,13 @@ public interface InterviewSessionMapper {
     @Select("SELECT " + COLUMNS + " FROM interview_session WHERE id = #{id}")
     InterviewSessionDO findAny(@Param("id") long id);
 
+    @Select("SELECT "
+            + COLUMNS
+            + " FROM interview_session WHERE user_id = #{userId}"
+            + " AND status IN ('CREATED', 'READY', 'IN_PROGRESS', 'PAUSED')"
+            + " ORDER BY last_active_at DESC NULLS LAST, id DESC LIMIT 1")
+    InterviewSessionDO findLatestOpen(@Param("userId") long userId);
+
     @Select("SELECT " + COLUMNS + " FROM interview_session WHERE user_id = #{userId} AND idempotency_key = #{key}")
     InterviewSessionDO findByUserAndKey(@Param("userId") long userId, @Param("key") String key);
 
