@@ -150,7 +150,11 @@ async function copyInviteLink(): Promise<void> {
 
 async function confirmLogout(): Promise<void> {
   logoutOpen.value = false
-  await store.logout()
+  const ok = await store.logout()
+  if (!ok) {
+    toast('退出失败', 'error', '服务端未完成吊销，请检查网络后重试。')
+    return
+  }
   toast('已退出登录', 'info')
   await router.push('/login')
 }

@@ -2,8 +2,10 @@ package com.offercoach.ai;
 
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -182,7 +184,38 @@ public class AiRuntimeConfigService {
     }
 
     String requireBaseUrl(String raw) {
-        return validateBaseUrl(raw, properties.isAllowPrivateHosts());
+        String normalized = validateBaseUrl(raw, properties.isAllowPrivateHosts());
+        if (!properties.isAllowPrivateHosts()) {
+            requirePublicResolution(hostOf(normalized));
+        }
+        return normalized;
+    }
+
+    /**
+     * 请求前复查：防止存量配置或 DNS 重绑定在请求阶段指向内网。
+     */
+    public boolean isSafeRuntimeUrl(String raw) {
+        try {
+            String normalized = validateBaseUrl(raw, properties.isAllowPrivateHosts());
+            if (!properties.isAllowPrivateHosts()) {
+                requirePublicResolution(hostOf(normalized));
+            }
+            return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private static String hostOf(String url) {
+        try {
+            String host = new URI(url).getHost();
+            if (host == null || host.isBlank()) {
+                throw fieldError("baseUrl", "不是合法的 URL");
+            }
+            return host;
+        } catch (URISyntaxException exception) {
+            throw fieldError("baseUrl", "不是合法的 URL");
+        }
     }
 
     static String validateBaseUrl(String raw, boolean allowPrivateHosts) {
@@ -216,7 +249,70 @@ public class AiRuntimeConfigService {
         if (!allowPrivateHosts && isPrivateHost(host)) {
             throw fieldError("baseUrl", "AI 网关不允许指向内网或本机地址");
         }
+        if (!allowPrivateHosts && isIpLiteral(host)) {
+            try {
+                if (isNonPublicAddress(InetAddress.getByName(host))) {
+                    throw fieldError("baseUrl", "AI 网关不允许指向内网或本机地址");
+                }
+            } catch (UnknownHostException exception) {
+                throw fieldError("baseUrl", "不是合法的 URL");
+            }
+        }
         return trimTrailingSlash(value);
+    }
+
+    private static boolean isIpLiteral(String host) {
+        return host.indexOf(':') >= 0 || host.matches("\\d{1,3}(\\.\\d{1,3}){3}");
+    }
+
+    /**
+     * 解析主机并拒绝任一非公网地址，拦截 localhost 别名、内网域名与 DNS 重绑定到私网的情况。
+     */
+    private static void requirePublicResolution(String host) {
+        InetAddress[] addresses;
+        try {
+            addresses = InetAddress.getAllByName(host);
+        } catch (UnknownHostException exception) {
+            throw fieldError("baseUrl", "无法解析主机名");
+        }
+        for (InetAddress address : addresses) {
+            if (isNonPublicAddress(address)) {
+                throw fieldError("baseUrl", "AI 网关不允许指向内网或本机地址");
+            }
+        }
+    }
+
+    static boolean isNonPublicAddress(InetAddress address) {
+        if (address.isAnyLocalAddress()
+                || address.isLoopbackAddress()
+                || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress()
+                || address.isMulticastAddress()) {
+            return true;
+        }
+        byte[] bytes = address.getAddress();
+        if (bytes.length == 4) {
+            int first = bytes[0] & 0xFF;
+            int second = bytes[1] & 0xFF;
+            if (first == 0 || first == 127 || first >= 224) {
+                return true;
+            }
+            if (first == 100 && second >= 64 && second <= 127) {
+                return true;
+            }
+            if (first == 192 && second == 0) {
+                return true;
+            }
+            if (first == 198 && (second == 18 || second == 19 || second == 51)) {
+                return true;
+            }
+            return first == 203 && second == 0 && (bytes[2] & 0xFF) == 113;
+        }
+        if (bytes.length == 16) {
+            int first = bytes[0] & 0xFF;
+            return first == 0xFC || first == 0xFD;
+        }
+        return false;
     }
 
     private static boolean isLocalHost(String host) {

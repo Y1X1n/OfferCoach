@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { AuthResponse, Me, Quota, UserSummary } from '@/types'
-import { clearAccessToken, getAccessToken, setAccessToken } from '@/api/client'
+import { ApiError, clearAccessToken, getAccessToken, setAccessToken } from '@/api/client'
 import * as authApi from '@/api/auth'
 import * as quotaApi from '@/api/quota'
 import * as usersApi from '@/api/users'
@@ -53,6 +53,18 @@ export const useAppStore = defineStore('app', () => {
     quota.value = { ...EMPTY_QUOTA }
     quotaLoaded.value = false
     restoreAttempted.value = true
+    clearDrafts()
+  }
+
+  function clearDrafts(): void {
+    try {
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index)
+        if (key?.startsWith('oc_draft_')) localStorage.removeItem(key)
+      }
+    } catch {
+      // 本地存储不可用时忽略
+    }
   }
 
   async function loadMe(): Promise<Me | null> {
@@ -140,14 +152,20 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function logout(): Promise<void> {
+  async function logout(): Promise<boolean> {
     try {
       await authApi.logout()
-    } catch {
-      // 本地仍然清理会话；服务端吊销失败不影响前端登出
-    } finally {
-      clearSession()
+    } catch (cause) {
+      if (cause instanceof ApiError && (cause.status === 401 || cause.status === 403)) {
+        // Access/Refresh 均已失效，本地清理即可，避免卡在无法登出的状态。
+        clearSession()
+        return true
+      }
+      // 服务端吊销失败时保留本地会话，避免“看似登出、刷新后自动重登”。
+      return false
     }
+    clearSession()
+    return true
   }
 
   async function updateProfile(input: {

@@ -39,13 +39,21 @@ public class OpenAiCompatibleProvider implements AiProvider {
     public OpenAiCompatibleProvider(AiRuntimeConfigService runtimeConfig, ObjectMapper objectMapper) {
         this.runtimeConfig = runtimeConfig;
         this.objectMapper = objectMapper;
-        this.httpClient =
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
     }
 
     @Override
     public boolean available() {
         return usable(runtimeConfig.current());
+    }
+
+    private void requireSafeGateway(AiRuntimeSettings settings) {
+        if (!runtimeConfig.isSafeRuntimeUrl(settings.baseUrl())) {
+            throw new AiUnavailableException("AI 网关地址不安全");
+        }
     }
 
     @Override
@@ -54,6 +62,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
         if (!usable(settings)) {
             throw new AiUnavailableException("AI 未启用或未配置");
         }
+        requireSafeGateway(settings);
         return execute(settings, modelOf(settings, scene), systemPrompt, userPrompt, settings.timeout());
     }
 
@@ -63,6 +72,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
         if (!usable(settings)) {
             throw new AiUnavailableException("AI 未启用或未配置");
         }
+        requireSafeGateway(settings);
         AtomicBoolean received = new AtomicBoolean(false);
         try {
             HttpResponse<InputStream> response = httpClient.send(

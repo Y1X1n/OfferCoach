@@ -182,6 +182,8 @@ export interface RequestOptions {
   query?: Record<string, QueryValue> | undefined
   headers?: Record<string, string> | undefined
   signal?: AbortSignal | undefined
+  /** 单次请求超时，默认 JSON 30s、表单上传 120s。 */
+  timeoutMs?: number | undefined
   idempotencyKey?: string | undefined
   /** 401 时是否尝试刷新（默认 true，/auth/* 除外）。 */
   refreshOnUnauthorized?: boolean | undefined
@@ -223,8 +225,9 @@ export function refreshSession(): Promise<boolean> {
 }
 
 async function performRefresh(): Promise<boolean> {
+  let res: Response
   try {
-    const res = await fetch(buildUrl('/auth/refresh'), {
+    res = await fetch(buildUrl('/auth/refresh'), {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -232,20 +235,27 @@ async function performRefresh(): Promise<boolean> {
         'X-Request-Id': createRequestId(),
         'X-Device-Id': getDeviceId(),
       },
+      signal: AbortSignal.timeout(10_000),
     })
-    if (!res.ok) {
-      await toApiError(res)
-      throw new Error('refresh failed')
+  } catch {
+    // 网络异常或超时不等于会话失效：保留内存 Token，由调用方提示重试。
+    return false
+  }
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      clearAccessToken()
+      notifySessionExpired()
     }
+    return false
+  }
+  try {
     const data = (await res.json()) as AuthResponse
     if (typeof data.accessToken !== 'string' || !data.accessToken) {
-      throw new Error('refresh response missing accessToken')
+      return false
     }
     setAccessToken(data.accessToken)
     return true
   } catch {
-    clearAccessToken()
-    notifySessionExpired()
     return false
   }
 }
@@ -259,7 +269,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (
     response.status === 401 &&
     options.refreshOnUnauthorized !== false &&
-    !path.startsWith('/auth/')
+    (!path.startsWith('/auth/') || path === '/auth/logout')
   ) {
     const refreshed = await refreshSession()
     if (!refreshed) throw await toApiError(response)
@@ -287,22 +297,39 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
     headers['Content-Type'] = 'application/json; charset=utf-8'
     payload = JSON.stringify(body)
   }
+  const timeoutMs = options.timeoutMs ?? (isFormData ? 120_000 : 30_000)
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  if (options.signal) {
+    if (options.signal.aborted) controller.abort()
+    else options.signal.addEventListener('abort', () => controller.abort(), { once: true })
+  }
   try {
     return await fetch(buildUrl(path, options.query), {
       method: options.method ?? 'GET',
       credentials: 'include',
       headers,
       ...(payload === undefined ? {} : { body: payload }),
-      ...(options.signal ? { signal: options.signal } : {}),
+      signal: controller.signal,
     })
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    if (options.signal?.aborted) throw error
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiError({
+        code: 'NETWORK_ERROR',
+        message: '请求超时，请检查网络后重试',
+        status: 0,
+        retryable: true,
+      })
+    }
     throw new ApiError({
       code: 'NETWORK_ERROR',
       message: '网络连接失败，请检查网络后重试',
       status: 0,
       retryable: true,
     })
+  } finally {
+    window.clearTimeout(timeoutId)
   }
 }
 

@@ -119,7 +119,8 @@ function openReport(): void {
 }
 
 async function handleAbandon(): Promise<void> {
-  await abandon()
+  const ok = await abandon()
+  if (!ok) return
   abandonDialogOpen.value = false
   await router.push({ name: 'dashboard' })
 }

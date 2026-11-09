@@ -420,6 +420,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
         }
       } else {
         toast(errorMessage(cause, '提交失败，请稍后重试'), 'error')
+        if (isSessionActive.value && !isAnswered.value) startTimer()
       }
     } finally {
       submitting.value = false
@@ -447,6 +448,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       void reload(true, true)
     } catch (cause) {
       toast(errorMessage(cause, '跳过失败，请重试'), 'error')
+      if (isSessionActive.value) startTimer()
     }
   }
 
@@ -505,8 +507,8 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     }
   }
 
-  async function abandon(): Promise<void> {
-    if (ending.value) return
+  async function abandon(): Promise<boolean> {
+    if (ending.value) return false
     ending.value = true
     try {
       await interviewsApi.abandonInterview(sessionKey())
@@ -514,8 +516,10 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       clearTimer()
       abortStream()
       toast('已放弃本场面试', 'info')
+      return true
     } catch (cause) {
       toast(errorMessage(cause, '放弃失败，请稍后重试'), 'error')
+      return false
     } finally {
       ending.value = false
     }
