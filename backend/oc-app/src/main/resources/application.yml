@@ -74,6 +74,7 @@ oc:
       same-site: Lax
       path: /api/v1/auth
     device-salt: ${DEVICE_SALT:}
+    proxy-secret: ${AUTH_PROXY_SECRET:}
     dev-verify-code:
       enabled: ${DEV_VERIFY_CODE_ENABLED:true}
       code: ${DEV_VERIFY_CODE:123456}
@@ -91,11 +92,15 @@ oc:
     email: ${DEMO_EMAIL:demo@offercoach.dev}
     password: ${DEMO_PASSWORD:}
     nickname: 演示用户
+  # 可选：配置后 Prometheus 抓取需携带 Authorization: Bearer <token>。
+  metrics-token: ${METRICS_TOKEN:}
   admin:
     enabled: ${ADMIN_ENABLED:${ADMIN_BOOTSTRAP_ENABLED:false}}
     email: ${ADMIN_EMAIL:}
     password: ${ADMIN_PASSWORD:}
     nickname: ${ADMIN_NICKNAME:管理员}
+    # 可选：逗号分隔的 IP 白名单；为空表示不限制（管理端仍由 ADMIN 角色保护）。
+    allowed-ips: ${ADMIN_ALLOWED_IPS:}
   ai:
     enabled: ${AI_ENABLED:false}
     base-url: ${AI_BASE_URL:https://api.deepseek.com/v1}
@@ -111,6 +116,12 @@ oc:
     sse-enabled: ${AI_SSE_ENABLED:false}
   storage:
     root: ${STORAGE_ROOT:.local/storage}
+  # 数据保留策略：每天低峰（默认 03:30）分批清理过期日志，避免表无限增长。
+  retention:
+    ai-call-days: ${RETENTION_AI_CALL_DAYS:90}
+    audit-days: ${RETENTION_AUDIT_DAYS:1095}
+    cron: "${RETENTION_CRON:0 30 3 * * *}"
+    zone: ${RETENTION_ZONE:Asia/Shanghai}
   interview:
     min-answer-length: 10
     max-answer-length: 4000

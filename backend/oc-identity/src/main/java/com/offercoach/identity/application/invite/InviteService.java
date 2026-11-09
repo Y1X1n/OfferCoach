@@ -66,6 +66,7 @@ public class InviteService {
         }
 
         PlatformSettingsService.Snapshot settings = settingsService.snapshot();
+        lockInviter(inviter.id());
         long todayCount = countToday(inviter.id());
         long totalCount = countTotal(inviter.id());
         boolean rewarded = settings.inviteDailyCap() > 0
@@ -169,6 +170,13 @@ public class InviteService {
         Long count = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM invite_reward WHERE inviter_id = ?", Long.class, inviterId);
         return count == null ? 0 : count;
+    }
+
+    /**
+     * 事务级 advisory lock：同一邀请人的名额检查与奖励写入串行化，避免并发绕过每日/累计上限。
+     */
+    private void lockInviter(long inviterId) {
+        jdbcTemplate.query("SELECT pg_advisory_xact_lock(?)", resultSet -> null, inviterId);
     }
 
     /**

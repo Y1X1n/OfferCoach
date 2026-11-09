@@ -45,6 +45,10 @@ public class ProductionSafetyValidator implements ApplicationRunner {
         if (authProperties.getDevVerifyCode().isEnabled()) {
             violations.add("oc.auth.dev-verify-code.enabled 必须为 false（禁止固定验证码注册）");
         }
+        if (authProperties.getProxySecret() == null
+                || authProperties.getProxySecret().isBlank()) {
+            violations.add("oc.auth.proxy-secret 必须配置（生产仅信任携带 X-Proxy-Secret 的代理头）");
+        }
         if (!authProperties.getCookie().isSecure()) {
             violations.add("oc.auth.cookie.secure 必须为 true（Refresh Cookie 仅经 HTTPS 下发）");
         }

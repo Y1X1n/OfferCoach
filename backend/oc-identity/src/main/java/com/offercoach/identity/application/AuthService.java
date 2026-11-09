@@ -56,6 +56,7 @@ public class AuthService {
     private final PlatformSettingsService settingsService;
     private final CaptchaService captchaService;
     private final InviteService inviteService;
+    private final String dummyPasswordHash;
 
     public AuthService(
             UserRepository userRepository,
@@ -80,6 +81,7 @@ public class AuthService {
         this.settingsService = settingsService;
         this.captchaService = captchaService;
         this.inviteService = inviteService;
+        this.dummyPasswordHash = passwordEncoder.encode("OfferCoachDummyPassword1");
     }
 
     /**
@@ -151,7 +153,9 @@ public class AuthService {
         }
         AuthAttemptService.LoginAttempt attempt = authAttemptService.reserveLoginAttempt(account, ip);
         UserAccount user = findByEmail(account).filter(UserAccount::isActive).orElse(null);
-        if (user == null || !passwordMatches(password, user)) {
+        String storedHash = user == null ? dummyPasswordHash : user.passwordHash();
+        boolean passwordMatched = passwordEncoder.matches(password, storedHash);
+        if (user == null || !passwordMatched) {
             authAttemptService.onLoginFailure(attempt, account, ip);
             throw new BizException(ErrorCode.UNAUTHENTICATED);
         }
@@ -225,14 +229,6 @@ public class AuthService {
     private Optional<UserAccount> findByEmail(String email) {
         String normalized = email.trim().toLowerCase(Locale.ROOT);
         return userRepository.findByEmail(normalized);
-    }
-
-    private boolean passwordMatches(String rawPassword, UserAccount user) {
-        String passwordHash = user.passwordHash();
-        if (passwordHash == null || passwordHash.isBlank()) {
-            return false;
-        }
-        return passwordEncoder.matches(rawPassword, passwordHash);
     }
 
     private String planCodeOf(long userId) {

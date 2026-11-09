@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.15 ｜ 更新：2026-11-09
+> 状态：生效 ｜ 版本：v2.16 ｜ 更新：2026-11-09
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -13,7 +13,7 @@
 - **M1–M4**：简历上传/手录/解析/修正/软删/重解析、JD 结构化/匹配、题库导入与检索、会话状态机、RAG 出题、答题、SSE 五维评分、异步报告与重试、每日额度与流水全部实现；单元测试与生产全链路冒烟通过。
 - **题库**：7 个公开仓库归一化为 26,385 条；公开部署仅保留 3 个 MIT 来源共 22,409 条（NC/ND/GPL/UNLICENSED 已排除），`pg_trgm` + 关键词打分为无 Milvus 方案。
 - **M5 管理端**：`/admin` 已上线，覆盖题库 CRUD/导入/发布归档、用户状态与额度补偿、指标概览、AI 调用日志、Prompt 模板/版本/发布、实验 CRUD、审计日志；管理员账号由 `OC_ADMIN_*` 引导创建。
-- **部署**：`https://<PUBLIC_DOMAIN>`（ECS cn-beijing，Docker Compose；app `0.8.9`、web `0.7.6`、PG 16、Redis 7.2）；每日 03:15 数据库 dump + 每周证书巡检；newapi/9router 容器、卷、镜像与旧备份已清理。
+- **部署**：`https://<PUBLIC_DOMAIN>`（ECS cn-beijing，Docker Compose；app `0.8.11`、web `0.7.7`、PG 16、Redis 7.2）；每日 03:15 数据库 dump + 每周证书巡检；newapi/9router 容器、卷、镜像与旧备份已清理。
 - **AI**：OpenAI 兼容客户端已接入；未配置密钥时简历/JD/出题/评分/报告自动走启发式降级（`degraded=true`）；管理端发布的 Prompt 版本会被运行时读取（60s 缓存）。
 - **下一步**：配置真实模型密钥、Git/CI 发布基线、异地备份与监控告警、管理端 MFA 与 Prompt 注入防护、题库检索召回优化。
 - **未决**：见 [README.md](README.md) §4。
@@ -34,6 +34,17 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.16（2026-11-09）——剩余审计项收尾与框架升级
+
+- Spring Boot `3.3.5 → 3.5.16`、Spring Cloud `2023.0.3 → 2025.0.3`、MyBatis-Plus `3.5.16`、springdoc `2.8.16`；CI 与本地 `mvn verify` 通过，Testcontainers 集成测试恢复执行。
+- 可信代理：应用仅当 `X-Proxy-Secret` 匹配 `AUTH_PROXY_SECRET` 时才采信 `X-Real-IP`；生产 Nginx 已配置该头，伪造 IP 不再影响限流。生产 profile 启动强制要求代理密钥，缺失/不匹配时每分钟告警并回退直连地址。
+- 认证加固：未知邮箱执行 dummy BCrypt 以对齐耗时；限流计数改为 Lua `INCR+PEXPIRE` 原子写入；邀请名额检查加事务级 advisory lock。
+- 管理端：可选 IP 白名单（`ADMIN_ALLOWED_IPS`）、可选 Prometheus Token（`METRICS_TOKEN`）、审计日志 append-only 触发器、每日数据保留清理（AI 日志 90 天/审计 3 年）。
+- 管理端 UI：tab 键盘导航与 ARIA、平台策略保存确认、ADMIN 授予以停用确认对话框。
+- 前端：单题 deadline/暂停剩余时间持久化；提交幂等键复用；PRO 无改写提示与重试文案修正；草稿随登出清理。
+- 发布 `offercoach-app:0.8.11`、`offercoach-web:0.7.7`；生产迁移 `V202611090002` 已应用；代理密钥、审计不可修改验证通过。
+- 未决：MinIO 官方镜像已从 Docker Hub 撤下，Compose 中 `minio:latest` 无法固定有效 tag，需改用其他镜像仓库或对象存储；管理端 MFA 仍待产品决策。
 
 ### v2.15（2026-11-09）——审计剩余项清理
 

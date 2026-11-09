@@ -6,6 +6,7 @@ import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import Input from '@/components/ui/Input.vue'
 import { errorMessage } from '@/api/client'
 import * as adminApi from '@/api/admin'
@@ -51,6 +52,9 @@ const loading = ref(true)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
 const formError = ref('')
+const confirmOpen = ref(false)
+/** 待确认保存的载荷，确认后才会真正提交。 */
+const pendingPayload = ref<AdminPlatformSettingsPayload | null>(null)
 
 const isEmpty = computed(() => !loading.value && !loadError.value && settings.value === null)
 
@@ -135,7 +139,39 @@ function parseForm(): { payload: AdminPlatformSettingsPayload } | { error: strin
   }
 }
 
-async function save(): Promise<void> {
+interface SummaryItem {
+  label: string
+  value: string
+}
+
+function dailyText(value: number): string {
+  return value === 0 ? '0（不限制）' : `${value} 次`
+}
+
+function rewardText(value: number): string {
+  return value === 0 ? '0（暂停发放）' : `${value} 次`
+}
+
+/** 确认对话框展示的关键数值摘要，取自待提交载荷而非表单原始字符串。 */
+const summary = computed<SummaryItem[]>(() => {
+  const payload = pendingPayload.value
+  if (!payload) return []
+  return [
+    { label: '开放注册', value: payload.registrationOpen ? '开放' : '关闭' },
+    { label: '每日模拟面试上限', value: dailyText(payload.dailyInterviewLimit) },
+    { label: '每日简历解析上限', value: dailyText(payload.dailyResumeLimit) },
+    { label: '每月免费面试次数', value: `${payload.freeMonthlyInterviews} 次` },
+    { label: '每月免费解析次数', value: `${payload.freeMonthlyResumes} 次` },
+    { label: '邀请人奖励', value: rewardText(payload.inviteRewardInviterInterview) },
+    { label: '被邀请人奖励', value: rewardText(payload.inviteRewardInviteeResume) },
+    { label: '每人每日邀请上限', value: `${payload.inviteDailyCap} 次` },
+    { label: '每人累计邀请上限', value: `${payload.inviteTotalCap} 次` },
+    { label: '单 IP 每日注册上限', value: `${payload.registrationIpDailyCap} 个` },
+    { label: '单设备每日注册上限', value: `${payload.registrationDeviceDailyCap} 个` },
+  ]
+})
+
+function requestSave(): void {
   if (saving.value) return
   const parsed = parseForm()
   if ('error' in parsed) {
@@ -143,13 +179,21 @@ async function save(): Promise<void> {
     return
   }
   formError.value = ''
+  pendingPayload.value = parsed.payload
+  confirmOpen.value = true
+}
+
+async function save(): Promise<void> {
+  const payload = pendingPayload.value
+  if (!payload || saving.value) return
   saving.value = true
   try {
-    syncForm(await adminApi.updatePlatformSettings(parsed.payload))
+    syncForm(await adminApi.updatePlatformSettings(payload))
     toast('平台策略已保存', 'success', '约 30 秒内对注册与额度生效。')
   } catch (cause) {
     formError.value = errorMessage(cause, '平台策略保存失败')
   } finally {
+    confirmOpen.value = false
     saving.value = false
   }
 }
@@ -194,7 +238,7 @@ onMounted(() => {
       @retry="load"
     >
       <Card padding="md" class="min-w-0">
-        <form class="space-y-6" novalidate @submit.prevent="save">
+        <form class="space-y-6" novalidate @submit.prevent="requestSave">
           <Alert v-if="formError" variant="danger" title="策略未保存" :description="formError" />
 
           <section>
@@ -216,7 +260,9 @@ onMounted(() => {
                   aria-label="开放注册"
                   :class="[
                     'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
-                    form.registrationOpen ? 'bg-brand' : 'bg-surface-2 ring-1 ring-inset ring-border',
+                    form.registrationOpen
+                      ? 'bg-brand'
+                      : 'bg-surface-2 ring-1 ring-inset ring-border',
                   ]"
                   @click="form.registrationOpen = !form.registrationOpen"
                 >
@@ -259,16 +305,8 @@ onMounted(() => {
               免费用户每月 1 日续发；到期套餐会降级为 FREE 并按此处额度续发。
             </p>
             <div class="mt-3 grid gap-4 sm:grid-cols-2">
-              <Input
-                v-model="form.freeMonthlyInterviews"
-                label="每月免费面试次数"
-                type="number"
-              />
-              <Input
-                v-model="form.freeMonthlyResumes"
-                label="每月免费解析次数"
-                type="number"
-              />
+              <Input v-model="form.freeMonthlyInterviews" label="每月免费面试次数" type="number" />
+              <Input v-model="form.freeMonthlyResumes" label="每月免费解析次数" type="number" />
             </div>
           </section>
 
@@ -291,16 +329,8 @@ onMounted(() => {
                 label="被邀请人奖励（解析次数）"
                 type="number"
               />
-              <Input
-                v-model="form.inviteDailyCap"
-                label="每人每日邀请上限"
-                type="number"
-              />
-              <Input
-                v-model="form.inviteTotalCap"
-                label="每人累计邀请上限"
-                type="number"
-              />
+              <Input v-model="form.inviteDailyCap" label="每人每日邀请上限" type="number" />
+              <Input v-model="form.inviteTotalCap" label="每人累计邀请上限" type="number" />
             </div>
           </section>
 
@@ -333,5 +363,29 @@ onMounted(() => {
         </form>
       </Card>
     </AsyncState>
+
+    <ConfirmDialog
+      v-model:open="confirmOpen"
+      title="确认保存平台策略"
+      description="请核对将要写入的数值；保存后约 30 秒内对注册与额度生效，修改会写入审计日志。"
+      size="md"
+      alert-variant="warning"
+      alert-title="影响全站注册与额度"
+      alert-description="数值错误会立即影响新用户注册与所有用户的额度发放，取消不会提交任何修改。"
+      confirm-label="确认保存"
+      :loading="saving"
+      @confirm="save"
+    >
+      <dl class="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
+        <div
+          v-for="item in summary"
+          :key="item.label"
+          class="flex items-baseline justify-between gap-3 border-b border-border pb-1.5"
+        >
+          <dt class="text-text-muted">{{ item.label }}</dt>
+          <dd class="tabular shrink-0 font-medium text-text">{{ item.value }}</dd>
+        </div>
+      </dl>
+    </ConfirmDialog>
   </div>
 </template>

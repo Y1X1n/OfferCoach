@@ -94,6 +94,15 @@
 | 索引缺失 | 已修复 | `V202611090001` 增加评分/清理/解析/题库表达式索引 |
 | CI 缺失 | 已修复 | `.github/workflows/ci.yml`（backend verify + frontend check）与 Dependabot |
 | 前端幂等键/PRO 提示/重试文案 | 已修复 | 按题复用幂等键；PRO 无改写不再误示升级；重试文案与后端一致 |
-| 可信代理头 | 未修复 | 需与 Nginx 共享信任配置同步，单独改应用会丢失真实 IP |
+| 可信代理头 | 已修复 | 应用要求 `X-Proxy-Secret` 匹配才采信 `X-Real-IP`；生产 Nginx 已配置，伪造头被忽略；生产启动强制校验、漏配每分钟告警 |
+| 邀请名额原子上限 | 已修复 | 事务级 `pg_advisory_xact_lock` 串行化名额检查与奖励写入 |
+| 账号枚举耗时 | 已修复 | 未知邮箱执行 dummy BCrypt 校验 |
+| 限流计数原子性 | 已修复 | Redis Lua `INCR + PEXPIRE` |
+| 管理端审计不可篡改 | 已修复 | `V202611090002` append-only 触发器，仅保留策略可带标记清理 |
+| 数据保留策略 | 已修复 | AI 日志 90 天、审计 3 年，每日分批清理 |
+| 管理端可选 IP 白名单 / 指标鉴权 | 已修复 | `ADMIN_ALLOWED_IPS`、`METRICS_TOKEN` 可选启用 |
+| 管理端键盘与危险操作确认 | 已修复 | tab 键盘/ARIA、策略保存与 ADMIN 授予二次确认 |
+| Spring Boot 3.3 EOL | 已修复 | 升级 Boot 3.5.16 / Cloud 2025.0.3 / MyBatis-Plus 3.5.16 / springdoc 2.8.16，CI 与 verify 通过 |
+| 管理端 MFA | 未修复 | 需要产品交互、密钥托管与恢复流程，保留为后续功能 |
+| MinIO 镜像固定 | 未修复 | 官方 Docker Hub 镜像已撤下，无法确认可用 tag，需更换仓库/对象存储 |
 | 异地备份 | 未修复 | 需要用户提供对象存储/远端，当前仍为单机 dump |
-| Spring Boot 等大版本升级 | 未修复 | 需单独回归，另行安排 |
