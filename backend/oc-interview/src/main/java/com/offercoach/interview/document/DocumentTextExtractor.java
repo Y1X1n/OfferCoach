@@ -29,7 +29,6 @@ public class DocumentTextExtractor {
         // 防止 DOCX zip bomb 在解压阶段耗尽内存。
         ZipSecureFile.setMinInflateRatio(0.01);
         ZipSecureFile.setMaxEntrySize(32L * 1024 * 1024);
-        ZipSecureFile.setMaxTextSize(2_000_000L);
     }
 
     public ExtractedDocument extract(byte[] content, String extension) {

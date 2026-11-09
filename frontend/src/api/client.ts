@@ -269,7 +269,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (
     response.status === 401 &&
     options.refreshOnUnauthorized !== false &&
-    !path.startsWith('/auth/')
+    (!path.startsWith('/auth/') || path === '/auth/logout')
   ) {
     const refreshed = await refreshSession()
     if (!refreshed) throw await toApiError(response)

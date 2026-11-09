@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { AuthResponse, Me, Quota, UserSummary } from '@/types'
-import { clearAccessToken, getAccessToken, setAccessToken } from '@/api/client'
+import { ApiError, clearAccessToken, getAccessToken, setAccessToken } from '@/api/client'
 import * as authApi from '@/api/auth'
 import * as quotaApi from '@/api/quota'
 import * as usersApi from '@/api/users'
@@ -155,7 +155,12 @@ export const useAppStore = defineStore('app', () => {
   async function logout(): Promise<boolean> {
     try {
       await authApi.logout()
-    } catch {
+    } catch (cause) {
+      if (cause instanceof ApiError && (cause.status === 401 || cause.status === 403)) {
+        // Access/Refresh 均已失效，本地清理即可，避免卡在无法登出的状态。
+        clearSession()
+        return true
+      }
       // 服务端吊销失败时保留本地会话，避免“看似登出、刷新后自动重登”。
       return false
     }

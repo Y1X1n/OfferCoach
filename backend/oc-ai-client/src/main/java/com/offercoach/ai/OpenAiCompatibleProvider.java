@@ -50,12 +50,19 @@ public class OpenAiCompatibleProvider implements AiProvider {
         return usable(runtimeConfig.current());
     }
 
+    private void requireSafeGateway(AiRuntimeSettings settings) {
+        if (!runtimeConfig.isSafeRuntimeUrl(settings.baseUrl())) {
+            throw new AiUnavailableException("AI 网关地址不安全");
+        }
+    }
+
     @Override
     public AiResult complete(AiScene scene, String systemPrompt, String userPrompt) {
         AiRuntimeSettings settings = runtimeConfig.current();
         if (!usable(settings)) {
             throw new AiUnavailableException("AI 未启用或未配置");
         }
+        requireSafeGateway(settings);
         return execute(settings, modelOf(settings, scene), systemPrompt, userPrompt, settings.timeout());
     }
 
@@ -65,6 +72,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
         if (!usable(settings)) {
             throw new AiUnavailableException("AI 未启用或未配置");
         }
+        requireSafeGateway(settings);
         AtomicBoolean received = new AtomicBoolean(false);
         try {
             HttpResponse<InputStream> response = httpClient.send(
