@@ -36,7 +36,7 @@ public class FeedbackService {
     private static final Logger log = LoggerFactory.getLogger(FeedbackService.class);
     private static final String REQUEST_ID_PREFIX = "fb:";
     private static final String PROVIDER = "heuristic";
-    private static final String MODEL = "rules-v2";
+    private static final String MODEL = "rules-v3";
     private static final String PRO_PLAN = "PRO";
 
     private final InterviewSessionRepository sessionRepository;
