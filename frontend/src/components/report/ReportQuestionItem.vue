@@ -11,6 +11,7 @@ import {
   TriangleAlert,
 } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
+import { useAppStore } from '@/stores/app'
 import type { QuestionDimension, ReportBreakdownItem } from '@/types'
 import { formatScore, scoreTone } from '@/utils/format'
 
@@ -19,6 +20,8 @@ type BadgeVariant = 'brand' | 'success' | 'warning' | 'danger' | 'neutral' | 'ac
 const props = withDefaults(defineProps<{ item: ReportBreakdownItem; open?: boolean }>(), {
   open: false,
 })
+
+const store = useAppStore()
 
 const dimensionMeta: Record<QuestionDimension, { label: string; variant: BadgeVariant }> = {
   PROJECT: { label: '项目经历', variant: 'brand' },
@@ -184,6 +187,12 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
           class="mt-2 rounded-md border border-brand/20 bg-brand/5 p-3 text-sm leading-6 text-text"
         >
           {{ rewrittenAnswer }}
+        </p>
+        <p
+          v-else-if="store.isPro"
+          class="mt-2 rounded-md border border-dashed border-border bg-surface-2/60 p-3 text-sm text-text-muted"
+        >
+          本题没有生成建议改写。
         </p>
         <div
           v-else

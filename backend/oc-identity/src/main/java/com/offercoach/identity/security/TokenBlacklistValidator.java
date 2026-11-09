@@ -39,10 +39,33 @@ public class TokenBlacklistValidator implements OAuth2TokenValidator<Jwt> {
             if (Boolean.TRUE.equals(blacklisted)) {
                 return OAuth2TokenValidatorResult.failure(REVOKED);
             }
+            String subject = token.getSubject();
+            if (subject != null && !subject.isBlank()) {
+                long userId = Long.parseLong(subject);
+                long tokenVersion = versionOf(token.getClaim("ver"));
+                long currentVersion = versionOf(redisTemplate.opsForValue().get(RedisKeys.accessTokenEpoch(userId)));
+                if (tokenVersion != currentVersion) {
+                    return OAuth2TokenValidatorResult.failure(REVOKED);
+                }
+            }
         } catch (RuntimeException ex) {
             log.warn("Access Token 黑名单校验失败，按拒绝处理：{}", ex.getClass().getSimpleName());
             return OAuth2TokenValidatorResult.failure(UNAVAILABLE);
         }
         return OAuth2TokenValidatorResult.success();
+    }
+
+    private static long versionOf(Object value) {
+        if (value == null) {
+            return 0L;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException exception) {
+            return 0L;
+        }
     }
 }

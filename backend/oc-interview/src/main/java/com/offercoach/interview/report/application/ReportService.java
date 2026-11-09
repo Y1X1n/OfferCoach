@@ -108,7 +108,7 @@ public class ReportService {
      * 聚合反馈生成报告；由 worker 在抢占成功后调用。
      */
     @Transactional
-    public void generate(long reportId) {
+    public void generate(long reportId, String generationToken) {
         InterviewReport report = reportRepository
                 .findById(reportId)
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("reportId", reportId)));
@@ -120,9 +120,6 @@ public class ReportService {
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND));
         List<AnswerFeedback> feedbacks = feedbackRepository.listBySession(session.id());
         List<InterviewAnswer> answers = answerRepository.listBySession(session.id());
-        if (feedbacks.isEmpty()) {
-            throw new IllegalStateException("没有可聚合的评分");
-        }
         Set<Long> feedbackAnswerIds = new java.util.HashSet<>();
         for (AnswerFeedback feedback : feedbacks) {
             feedbackAnswerIds.add(feedback.answerId());
@@ -133,6 +130,9 @@ public class ReportService {
                         && !"REJECTED".equals(answer.status()));
         if (scoringPending) {
             throw new ScoringPendingException("评分尚未完成");
+        }
+        if (feedbacks.isEmpty()) {
+            throw new EmptyFeedbackException("没有可聚合的评分");
         }
         List<InterviewQuestion> questions = questionRepository.listBySession(session.id());
         Map<Long, InterviewQuestion> questionById = new LinkedHashMap<>();
@@ -179,27 +179,51 @@ public class ReportService {
         List<InterviewReport.BreakdownItem> breakdown = breakdown(feedbacks, questionById, questionByAnswer);
         String summary = summary(overallScore, radar, feedbacks.size());
 
-        reportRepository.markReady(
-                reportId,
-                overallScore,
-                jsonCodec.write(radar),
-                summary,
-                jsonCodec.write(highlights),
-                jsonCodec.write(risks),
-                jsonCodec.write(plan),
-                jsonCodec.write(breakdown));
+        boolean ready = reportRepository.markReady(
+                        reportId,
+                        overallScore,
+                        jsonCodec.write(radar),
+                        summary,
+                        jsonCodec.write(highlights),
+                        jsonCodec.write(risks),
+                        jsonCodec.write(plan),
+                        jsonCodec.write(breakdown),
+                        generationToken)
+                > 0;
+        if (!ready) {
+            log.warn("报告租约已失效，跳过完成写入：reportId={}", reportId);
+            return;
+        }
         sessionRepository.complete(session.id(), overallScore);
         log.info("报告生成完成：reportId={} sessionId={} score={}", reportId, session.id(), overallScore);
     }
 
     @Transactional
-    public void fail(long reportId, String error, int maxAttempts) {
-        int attempts = reportRepository.incrementAttempts(reportId, error);
+    public void fail(long reportId, String generationToken, String error, int maxAttempts) {
+        int attempts = reportRepository.incrementAttempts(reportId, error, generationToken);
+        if (attempts == 0) {
+            return;
+        }
         if (attempts >= maxAttempts) {
-            reportRepository.markFailed(reportId, error);
-            reportRepository
-                    .findById(reportId)
-                    .ifPresent(report -> sessionRepository.markReportFailed(report.sessionId()));
+            if (reportRepository.markFailed(reportId, error, generationToken) > 0) {
+                reportRepository
+                        .findById(reportId)
+                        .ifPresent(report -> sessionRepository.markReportFailed(report.sessionId()));
+            }
+        }
+    }
+
+    /**
+     * 无任何可聚合评分时直接终止报告，避免 6 次无效重试。
+     */
+    @Transactional
+    public void failFinal(long reportId, String generationToken, String error) {
+        InterviewReport report = reportRepository.findById(reportId).orElse(null);
+        if (report == null) {
+            return;
+        }
+        if (reportRepository.markFailed(reportId, error, generationToken) > 0) {
+            sessionRepository.markReportFailed(report.sessionId());
         }
     }
 
@@ -291,6 +315,16 @@ public class ReportService {
     public static class ScoringPendingException extends RuntimeException {
 
         public ScoringPendingException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * 所有回答均无可用反馈；直接终止报告，重试也不会恢复。
+     */
+    public static class EmptyFeedbackException extends RuntimeException {
+
+        public EmptyFeedbackException(String message) {
             super(message);
         }
     }

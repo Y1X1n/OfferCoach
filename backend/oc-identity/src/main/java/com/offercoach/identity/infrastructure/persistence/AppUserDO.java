@@ -34,6 +34,9 @@ public class AppUserDO {
 
     private String timezone;
 
+    /** 是否允许将简历原文用于模型调用；当前仅保存用户选择。 */
+    private Boolean allowRawResumeToLlm;
+
     private OffsetDateTime emailVerifiedAt;
 
     private OffsetDateTime lastLoginAt;

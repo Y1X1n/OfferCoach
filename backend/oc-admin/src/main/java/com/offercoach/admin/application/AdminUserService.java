@@ -10,6 +10,7 @@ import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.application.RefreshTokenService;
+import com.offercoach.identity.application.TokenEpochService;
 import com.offercoach.identity.application.quota.QuotaResult;
 import com.offercoach.identity.application.quota.QuotaService;
 import com.offercoach.identity.application.quota.QuotaSnapshot;
@@ -55,6 +56,7 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final StringRedisTemplate redisTemplate;
     private final RefreshTokenService refreshTokenService;
+    private final TokenEpochService tokenEpochService;
 
     public AdminUserService(
             AdminUserRepository userRepository,
@@ -62,13 +64,15 @@ public class AdminUserService {
             AuditLogger auditLogger,
             PasswordEncoder passwordEncoder,
             StringRedisTemplate redisTemplate,
-            RefreshTokenService refreshTokenService) {
+            RefreshTokenService refreshTokenService,
+            TokenEpochService tokenEpochService) {
         this.userRepository = userRepository;
         this.quotaService = quotaService;
         this.auditLogger = auditLogger;
         this.passwordEncoder = passwordEncoder;
         this.redisTemplate = redisTemplate;
         this.refreshTokenService = refreshTokenService;
+        this.tokenEpochService = tokenEpochService;
     }
 
     public Paged<User> list(int page, int size, String keyword, String status) {
@@ -199,6 +203,14 @@ public class AdminUserService {
         } catch (RuntimeException exception) {
             log.warn(
                     "吊销用户 Refresh 会话失败：userId={} reason={}",
+                    userId,
+                    exception.getClass().getSimpleName());
+        }
+        try {
+            tokenEpochService.bump(userId);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "递增 Access Token 版本失败：userId={} reason={}",
                     userId,
                     exception.getClass().getSimpleName());
         }

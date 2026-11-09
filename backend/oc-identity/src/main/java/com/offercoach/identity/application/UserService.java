@@ -40,7 +40,8 @@ public class UserService {
     }
 
     @Transactional
-    public UserProfile update(long userId, String nickname, String timezone, String avatarUrl) {
+    public UserProfile update(
+            long userId, String nickname, String timezone, String avatarUrl, Boolean allowRawResumeToLlm) {
         UserAccount user = requireUser(userId);
 
         String normalizedNickname = validateNickname(nickname);
@@ -55,6 +56,9 @@ public class UserService {
                     normalizedAvatarUrl,
                     OffsetDateTime.now(ZoneOffset.UTC));
             user = requireUser(userId);
+        }
+        if (allowRawResumeToLlm != null) {
+            userRepository.updateAllowRawResumeToLlm(user.id(), allowRawResumeToLlm);
         }
         return toProfile(user);
     }
@@ -75,7 +79,8 @@ public class UserService {
                 user.role(),
                 user.timezone(),
                 planCodeOf(user.id()),
-                user.createdAt());
+                user.createdAt(),
+                userRepository.allowRawResumeToLlm(user.id()));
     }
 
     private String planCodeOf(long userId) {
@@ -145,5 +150,6 @@ public class UserService {
             String role,
             String timezone,
             String planCode,
-            OffsetDateTime createdAt) {}
+            OffsetDateTime createdAt,
+            boolean allowRawResumeToLlm) {}
 }

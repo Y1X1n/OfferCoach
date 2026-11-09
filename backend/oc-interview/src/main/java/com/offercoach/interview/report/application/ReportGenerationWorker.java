@@ -4,6 +4,7 @@ import com.offercoach.interview.config.InterviewProperties;
 import com.offercoach.interview.report.application.port.InterviewReportRepository;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import org.slf4j.Logger;
@@ -44,14 +45,15 @@ public class ReportGenerationWorker {
     public void run() {
         List<Long> pending = reportRepository.findStaleGenerating(STALE_SECONDS, BATCH_SIZE);
         for (Long reportId : pending) {
-            if (reportRepository.claim(reportId, STALE_SECONDS)) {
-                submit(reportId);
+            String token = UUID.randomUUID().toString();
+            if (reportRepository.claim(reportId, STALE_SECONDS, token)) {
+                submit(reportId, token);
             }
         }
     }
 
     /**
-     * 立即触发一次生成；进程内去重，跨实例靠数据库 claim 条件更新。
+     * 立即触发一次生成；进程内去重，跨实例靠租约 token 与 claim 条件更新。
      * 触发失败只记录日志：会话/报告状态已提交，5 秒轮询会兜底，不应把接口变成 500。
      */
     public void kick(long reportId) {
@@ -59,8 +61,9 @@ public class ReportGenerationWorker {
             return;
         }
         try {
-            if (reportRepository.claim(reportId, 0)) {
-                submit(reportId);
+            String token = UUID.randomUUID().toString();
+            if (reportRepository.claim(reportId, 0, token)) {
+                submit(reportId, token);
             }
         } catch (RuntimeException exception) {
             log.warn(
@@ -80,14 +83,14 @@ public class ReportGenerationWorker {
                 .ifPresent(report -> kick(report.id()));
     }
 
-    private void submit(long reportId) {
+    private void submit(long reportId, String token) {
         if (!running.add(reportId)) {
             return;
         }
         try {
             aiExecutor.execute(() -> {
                 try {
-                    generate(reportId);
+                    generate(reportId, token);
                 } finally {
                     running.remove(reportId);
                 }
@@ -101,15 +104,18 @@ public class ReportGenerationWorker {
         }
     }
 
-    private void generate(long reportId) {
+    private void generate(long reportId, String token) {
         try {
-            reportService.generate(reportId);
+            reportService.generate(reportId, token);
         } catch (ReportService.ScoringPendingException exception) {
             log.info("评分尚未完成，等待下次调度：reportId={}", reportId);
+        } catch (ReportService.EmptyFeedbackException exception) {
+            log.warn("报告没有可聚合的评分，直接终止：reportId={}", reportId);
+            reportService.failFinal(reportId, token, "NO_SCORABLE_FEEDBACK");
         } catch (RuntimeException exception) {
             String reason = exception.getClass().getSimpleName();
             log.warn("报告生成失败：reportId={} reason={}", reportId, reason);
-            reportService.fail(reportId, truncate(reason, 64), properties.getReportMaxAttempts());
+            reportService.fail(reportId, token, truncate(reason, 64), properties.getReportMaxAttempts());
         }
     }
 

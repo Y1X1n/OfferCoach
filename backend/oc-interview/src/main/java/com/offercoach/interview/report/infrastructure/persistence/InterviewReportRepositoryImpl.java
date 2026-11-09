@@ -66,12 +66,12 @@ public class InterviewReportRepositoryImpl implements InterviewReportRepository 
     }
 
     @Override
-    public boolean claim(long id, int staleSeconds) {
-        return reportMapper.claim(id, staleSeconds) > 0;
+    public boolean claim(long id, int staleSeconds, String generationToken) {
+        return reportMapper.claim(id, staleSeconds, generationToken) > 0;
     }
 
     @Override
-    public void markReady(
+    public int markReady(
             long id,
             BigDecimal overallScore,
             String radarJson,
@@ -79,8 +79,9 @@ public class InterviewReportRepositoryImpl implements InterviewReportRepository 
             String highlightsJson,
             String risksJson,
             String improvementPlanJson,
-            String questionBreakdownJson) {
-        reportMapper.markReady(
+            String questionBreakdownJson,
+            String generationToken) {
+        return reportMapper.markReady(
                 id,
                 overallScore,
                 radarJson,
@@ -88,18 +89,19 @@ public class InterviewReportRepositoryImpl implements InterviewReportRepository 
                 highlightsJson,
                 risksJson,
                 improvementPlanJson,
-                questionBreakdownJson);
+                questionBreakdownJson,
+                generationToken);
     }
 
     @Override
-    public int incrementAttempts(long id, String lastError) {
-        Integer attempts = reportMapper.incrementAttempts(id, lastError);
+    public int incrementAttempts(long id, String lastError, String generationToken) {
+        Integer attempts = reportMapper.incrementAttempts(id, lastError, generationToken);
         return attempts == null ? 0 : attempts;
     }
 
     @Override
-    public void markFailed(long id, String lastError) {
-        reportMapper.markFailed(id, lastError);
+    public int markFailed(long id, String lastError, String generationToken) {
+        return reportMapper.markFailed(id, lastError, generationToken);
     }
 
     @Override

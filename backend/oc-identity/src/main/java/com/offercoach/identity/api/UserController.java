@@ -56,8 +56,12 @@ public class UserController {
 
     @PatchMapping("/me")
     public MeResponse update(@Valid @RequestBody UpdateMeRequest request) {
-        return toResponse(
-                userService.update(currentUser.userId(), request.nickname(), request.timezone(), request.avatarUrl()));
+        return toResponse(userService.update(
+                currentUser.userId(),
+                request.nickname(),
+                request.timezone(),
+                request.avatarUrl(),
+                request.allowRawResumeToLlm()));
     }
 
     private MeResponse toResponse(UserService.UserProfile profile) {
@@ -69,6 +73,7 @@ public class UserController {
                 profile.role(),
                 profile.timezone(),
                 profile.planCode(),
-                profile.createdAt());
+                profile.createdAt(),
+                profile.allowRawResumeToLlm());
     }
 }

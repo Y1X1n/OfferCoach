@@ -284,8 +284,8 @@ spec:
 | 域名 | `https://<PUBLIC_DOMAIN>`（阿里云 DNS A 记录） |
 | TLS | Let's Encrypt，`<PUBLIC_DOMAIN>`，有效期至 2027-02-05，Certbot 自动续期 |
 | 入口 | 宿主 Nginx 80/443 → `/` `127.0.0.1:8082`（web 容器）、`/api/` `127.0.0.1:8081`（app 容器） |
-| 容器 | `offercoach-app:0.8.7`、`offercoach-web:0.7.4`、`offercoach-postgres:16-alpine`、`offercoach-redis:7.2-alpine`；均为 `restart=unless-stopped` |
-| 数据 | 命名卷 `offercoach_pgdata`、`offercoach_redisdata`；宿主目录 `/opt/offercoach/data` 挂载为 `/data`（UID 10001）；仅绑定 `127.0.0.1` 的 5432/6379 |
+| 容器 | `offercoach-app:0.8.9`、`offercoach-web:0.7.6`、`offercoach-postgres:16-alpine`、`offercoach-redis:7.2-alpine`；均为 `restart=unless-stopped` |
+| 数据 | 命名卷 `offercoach_pgdata`、`offercoach_redisdata`；宿主目录 `/opt/offercoach/data` 挂载为 `/data`（UID 10001）；仅绑定 `127.0.0.1` 的 5432/6379；Redis `maxmemory-policy=volatile-lru` |
 | 配置 | `/opt/offercoach`（Compose、`offercoach.env`、JWT 密钥，目录 700 / 文件 600）；`DEVICE_SALT` 用于设备指纹散列，首次部署时随机生成 |
 | 题库 | `/opt/offercoach/data/qbank/questions.jsonl`（22,409 条，仅 MIT 来源：mianstack / agent-interview / ai-agent-interview-240）；非宽松许可来源已在 V9 迁移与导入器中排除 |
 | 演示账号 | 生产演示账号由种子脚本/服务器环境维护，凭据不写入文档；本地开发默认演示账号见 `oc.demo.*` |
@@ -304,6 +304,6 @@ spec:
 - 生产验证（0.7.1）：工作台 1366px 视口页头与概览卡间距恢复 24px，右上「上传简历 / 开始模拟面试」不再压住卡片；`index-BD-OHtiX.js` 已上线。
 - 生产验证（0.8.3 / 0.7.2）：`GET /dashboard` 返回额度、就绪状态、最近报告与平均分；工作台刷新只请求 `refresh / me / quota / dashboard`，四个分页列表请求已移除；`index-C42T_-IH.js` 已上线。
 - 生产验证（0.8.5）：评分规则升级为 `rules-v3`，空答/跑题/短答上限、要点覆盖与关键词堆砌校准由 7 个评分测试覆盖；登录、工作台聚合与登出冒烟通过。
-- 生产验证（0.8.7 / 0.7.4）：文档解析上限、AI 网关 DNS 保存/请求前校验、前端请求超时/登出语义/轮询恢复已上线；登录、工作台聚合与登出冒烟通过；`index-DgHeVwTb.js` 已上线。
+- 生产验证（0.8.9 / 0.7.6）：报告生成租约、Access Token 版本、隐私开关（关闭时跳过模型解析）、索引迁移与 Redis `volatile-lru` 已上线；计时器刷新/暂停修正；登录、工作台聚合与登出冒烟通过；`index-DticHyIO.js` 已上线。
 - 已知：单实例、无异地备份/监控告警；每日 dump 只在本机；AI 未配置密钥时走启发式；题库已剔除 NC/ND/GPL/UNLICENSED 来源。
 - 事故记录：20:59 因资源/IO 卡顿导致 Cloud Assistant 掉线，经实例重启恢复；随后按用户要求停掉 9router/newapi，释放内存。

@@ -1,5 +1,9 @@
 package com.offercoach.common.cache;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 public final class RedisKeys {
 
     private RedisKeys() {}
@@ -10,6 +14,11 @@ public final class RedisKeys {
 
     public static String accessBlacklist(String jwtId) {
         return "oc:auth:blacklist:" + jwtId;
+    }
+
+    /** 用户 Access Token 版本号：角色/状态/密码变化时递增，使旧 Access 立即失效。 */
+    public static String accessTokenEpoch(long userId) {
+        return "oc:auth:token-epoch:" + userId;
     }
 
     /** Refresh Token 家族：Set 成员为该家族所有 Refresh Token 的 SHA-256 摘要。 */
@@ -33,19 +42,19 @@ public final class RedisKeys {
     }
 
     public static String registerRateLimit(String ip) {
-        return "oc:ratelimit:register:" + ip;
+        return "oc:ratelimit:register:" + digest(ip);
     }
 
     public static String loginRateLimit(String ip) {
-        return "oc:ratelimit:login:" + ip;
+        return "oc:ratelimit:login:" + digest(ip);
     }
 
     public static String loginFailAccount(String account) {
-        return "oc:login:fail:acct:" + account;
+        return "oc:login:fail:acct:" + digest(account);
     }
 
     public static String loginFailIp(String ip) {
-        return "oc:login:fail:ip:" + ip;
+        return "oc:login:fail:ip:" + digest(ip);
     }
 
     public static String quotaCache(long userId) {
@@ -68,7 +77,7 @@ public final class RedisKeys {
 
     /** 注册风控：单 IP / 单设备每日成功注册计数。 */
     public static String registerIpDaily(String ip, String date) {
-        return "oc:ratelimit:register:ipday:" + ip + ":" + date;
+        return "oc:ratelimit:register:ipday:" + digest(ip) + ":" + date;
     }
 
     public static String registerDeviceDaily(String deviceHash, String date) {
@@ -83,5 +92,20 @@ public final class RedisKeys {
     /** 简历重解析小时窗口计数。 */
     public static String resumeReparse(long userId, long resumeId) {
         return "oc:resume:reparse:" + userId + ":" + resumeId;
+    }
+
+    /** 邮箱、IP 等 PII 不落 Redis 键名，仅保留不可逆摘要。 */
+    private static String digest(String value) {
+        try {
+            byte[] bytes = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
+                hex.append(Character.forDigit(b & 0xF, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 不可用", exception);
+        }
     }
 }

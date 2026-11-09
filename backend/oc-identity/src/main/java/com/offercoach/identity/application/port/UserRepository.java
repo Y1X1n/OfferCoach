@@ -44,6 +44,11 @@ public interface UserRepository {
      */
     void updateProfile(long id, String nickname, String timezone, String avatarUrl, OffsetDateTime at);
 
+    void updateAllowRawResumeToLlm(long id, boolean allow);
+
+    /** 用户是否允许简历原文用于模型；未设置时按允许处理。 */
+    boolean allowRawResumeToLlm(long id);
+
     /**
      * 管理端检索账号；keyword 为空时不加条件，status 为空时返回全部状态。
      */
