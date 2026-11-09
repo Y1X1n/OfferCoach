@@ -15,7 +15,7 @@ services:
       POSTGRES_USER: oc
       POSTGRES_PASSWORD: ${PG_PASSWORD:-change_me_local}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -35,9 +35,9 @@ services:
       - --maxmemory
       - 512mb
       - --maxmemory-policy
-      - allkeys-lru
+      - volatile-lru
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -53,8 +53,8 @@ services:
       RABBITMQ_DEFAULT_USER: oc
       RABBITMQ_DEFAULT_PASS: ${MQ_PASSWORD:-change_me_local}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmqdata:/var/lib/rabbitmq
     healthcheck:
@@ -72,8 +72,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change_me_local}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - miniodata:/data
     healthcheck:
@@ -100,7 +100,7 @@ services:
       - --listen-client-urls=http://0.0.0.0:2379
       - --data-dir=/etcd
     ports:
-      - "2379:2379"
+      - "127.0.0.1:2379:2379"
     volumes:
       - etcddata:/etcd
     healthcheck:
@@ -120,8 +120,8 @@ services:
       MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-change_me_local}
     ports:
-      - "19530:19530"
-      - "9091:9091"
+      - "127.0.0.1:19530:19530"
+      - "127.0.0.1:9091:9091"
     volumes:
       - milvusdata:/var/lib/milvus
     depends_on:

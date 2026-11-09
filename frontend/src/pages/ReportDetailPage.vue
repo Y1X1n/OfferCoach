@@ -192,7 +192,7 @@ onBeforeUnmount(() => {
         <Alert
           variant="danger"
           title="报告生成失败"
-          description="重试不会重复扣额度，每份报告最多重试 3 次。"
+          description="重试不会重复扣额度，失败后可由你手动重新发起生成。"
           class="mt-1"
         >
           <Button variant="outline" size="sm" class="mt-3" :loading="retrying" @click="retryGenerate">

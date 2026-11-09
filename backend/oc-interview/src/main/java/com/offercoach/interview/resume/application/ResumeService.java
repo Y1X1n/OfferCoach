@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -115,7 +116,7 @@ public class ResumeService {
         });
 
         String safeTitle = normalizeTitle(title, originalName);
-        String fileKey = "resumes/" + userId + "/" + sha256 + "." + extension;
+        String fileKey = "resumes/" + userId + "/" + sha256 + "-" + UUID.randomUUID() + "." + extension;
         fileStorage.store(fileKey, content);
         if (isDefault) {
             resumeRepository.clearDefault(userId);
@@ -142,6 +143,7 @@ public class ResumeService {
                     quota.charged() ? 1 : 0,
                     quota.balanceAfter());
         } catch (DuplicateKeyException exception) {
+            fileStorage.delete(fileKey);
             throw new BizException(ErrorCode.STATE_CONFLICT);
         } catch (RuntimeException exception) {
             fileStorage.delete(fileKey);

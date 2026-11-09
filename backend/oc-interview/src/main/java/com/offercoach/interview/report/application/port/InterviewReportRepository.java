@@ -24,9 +24,10 @@ public interface InterviewReportRepository {
 
     List<Long> findStaleGenerating(int staleSeconds, int limit);
 
-    boolean claim(long id, int staleSeconds);
+    boolean claim(long id, int staleSeconds, String generationToken);
 
-    void markReady(
+    /** 仅当前 owner 可完成，返回影响行数；0 表示租约已丢失或状态已变化。 */
+    int markReady(
             long id,
             BigDecimal overallScore,
             String radarJson,
@@ -34,12 +35,14 @@ public interface InterviewReportRepository {
             String highlightsJson,
             String risksJson,
             String improvementPlanJson,
-            String questionBreakdownJson);
+            String questionBreakdownJson,
+            String generationToken);
 
-    /** 失败重试计数：返回自增后的 attempts，行不存在或非 GENERATING 时返回 0。 */
-    int incrementAttempts(long id, String lastError);
+    /** 失败重试计数：返回自增后的 attempts，行不存在、非 GENERATING 或租约丢失时返回 0。 */
+    int incrementAttempts(long id, String lastError, String generationToken);
 
-    void markFailed(long id, String lastError);
+    /** 仅当前 owner 可置失败，返回影响行数。 */
+    int markFailed(long id, String lastError, String generationToken);
 
     boolean resetForRetry(long userId, long id);
 }

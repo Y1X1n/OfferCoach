@@ -13,4 +13,5 @@ public record MeResponse(
         String role,
         String timezone,
         String planCode,
-        OffsetDateTime createdAt) {}
+        OffsetDateTime createdAt,
+        boolean allowRawResumeToLlm) {}

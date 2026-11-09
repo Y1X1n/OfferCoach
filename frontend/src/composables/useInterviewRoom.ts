@@ -46,6 +46,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const feedbackRef = ref<HTMLElement | null>(null)
   const feedbackByQuestion = reactive<Record<string, Feedback>>({})
   const answerIds = reactive<Record<string, string>>({})
+  const submitKeys = new Map<string, string>()
   const durations = reactive<Record<string, number>>({})
 
   let timerId: number | null = null
@@ -188,6 +189,37 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     }
   }
 
+  function timerDeadlineKey(questionId: string): string {
+    return `oc_timer_${sessionKey()}_${questionId}`
+  }
+
+  function readDeadline(questionId: string): number | null {
+    try {
+      const value = localStorage.getItem(timerDeadlineKey(questionId))
+      return value ? Number(value) : null
+    } catch {
+      return null
+    }
+  }
+
+  function writeDeadline(questionId: string, deadline: number): void {
+    try {
+      localStorage.setItem(timerDeadlineKey(questionId), String(deadline))
+    } catch {
+      // 存储不可用时不阻塞计时
+    }
+  }
+
+  function clearTimerState(questionId?: string): void {
+    const id = questionId ?? currentQuestion.value?.id
+    if (!id) return
+    try {
+      localStorage.removeItem(timerDeadlineKey(id))
+    } catch {
+      // 忽略
+    }
+  }
+
   /** 立即落盘当前未提交回答；切题、提交、卸载与 beforeunload 都调用。 */
   function flushDraft(): void {
     clearDraftTimer()
@@ -224,11 +256,21 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   function startTimer(): void {
     clearTimer()
     if (!isSessionActive.value) return
+    const question = currentQuestion.value
+    if (!question) return
+    const now = Date.now()
+    let deadline = readDeadline(question.id)
+    if (deadline === null || deadline <= now) {
+      deadline = now + remaining.value * 1000
+      writeDeadline(question.id, deadline)
+    } else {
+      remaining.value = Math.max(1, Math.ceil((deadline - now) / 1000))
+    }
     timerId = window.setInterval(() => {
       if (!isSessionActive.value) return
-      if (remaining.value <= 0) return
-      remaining.value -= 1
-      if (remaining.value === 0) {
+      const left = Math.max(0, Math.ceil((deadline! - Date.now()) / 1000))
+      remaining.value = left
+      if (left === 0) {
         clearTimer()
         handleTimeout()
       }
@@ -388,12 +430,15 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       durationMs: Math.max(0, Date.now() - questionStartedAt.value),
       inputMode: 'TEXT',
     }
-    const key = createRequestId()
+    const key = submitKeys.get(question.id) ?? createRequestId()
+    submitKeys.set(question.id, key)
     try {
       const result = await interviewsApi.submitAnswer(sessionKey(), payload, key)
       answerIds[question.id] = result.answerId
       durations[question.id] = payload.durationMs
       question.status = 'ANSWERED'
+      submitKeys.delete(question.id)
+      clearTimerState(question.id)
       clearDraft(question.id)
       // 后端异步生成反馈；前端轮询结果，完成后一次性展示。
       void reload(true, true)
@@ -442,6 +487,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     try {
       await interviewsApi.skipQuestion(sessionKey(), question.id)
       question.status = 'SKIPPED'
+      clearTimerState(question.id)
       clearDraft(question.id)
       if (!auto) toast('已跳过本题，跳过题按 0 分计入报告', 'info')
       if (currentIndex.value < questions.value.length - 1) currentIndex.value += 1
@@ -483,6 +529,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       await interviewsApi.pauseInterview(sessionKey())
       if (session.value) session.value.status = 'PAUSED'
       clearTimer()
+      clearTimerState()
       flushDraft()
       toast('已暂停，计时同步停止', 'info')
     } catch (cause) {
@@ -514,6 +561,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       await interviewsApi.abandonInterview(sessionKey())
       if (session.value) session.value.status = 'ABANDONED'
       clearTimer()
+      clearTimerState()
       abortStream()
       toast('已放弃本场面试', 'info')
       return true
@@ -541,9 +589,11 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
         session.value.status = 'REPORT_GENERATING'
         session.value.reportId = result.reportId
       }
+      clearTimerState()
       return result
     } catch (cause) {
       toast(errorMessage(cause, '结束面试失败，请稍后重试'), 'error')
+      if (isSessionActive.value) startTimer()
       return null
     } finally {
       ending.value = false

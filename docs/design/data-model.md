@@ -413,11 +413,18 @@ CREATE TABLE interview_report (
     pdf_expires_at    TIMESTAMPTZ,
     attempts          SMALLINT NOT NULL DEFAULT 0,
     last_error        VARCHAR(64),
+    generation_token  VARCHAR(36),
     generated_at      TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_report_user_time ON interview_report(user_id, created_at DESC);
+CREATE INDEX idx_report_pending ON interview_report(status, updated_at) WHERE status = 'GENERATING';
+CREATE INDEX idx_answer_scoring ON interview_answer(submitted_at) WHERE status = 'SCORING';
+CREATE INDEX idx_session_preparing ON interview_session(updated_at) WHERE status = 'PREPARING';
+CREATE INDEX idx_session_idle ON interview_session(status, last_active_at) WHERE status IN ('IN_PROGRESS','PAUSED');
+CREATE INDEX idx_resume_parsing ON resume(updated_at) WHERE parse_status IN ('PENDING','PARSING') AND deleted_at IS NULL;
+CREATE INDEX idx_question_family_lower ON question_bank(status, lower(job_family), dimension, difficulty);
 ```
 
 **状态机约束（应用层 + 定时清理）**：
@@ -425,6 +432,7 @@ CREATE INDEX idx_report_user_time ON interview_report(user_id, created_at DESC);
 - `interview_session` 的合法迁移见 PRD 6.4；不允许跨级跳转（如 `CREATED → COMPLETED`）。
 - 24h 无活动的 `IN_PROGRESS/PAUSED` 会话由定时任务置为 `ABANDONED`。
 - 每题只能有一条 `interview_answer`；重复提交返回已有记录。
+- `interview_report.generation_token` 是生成租约：只有持有当前 token 的 worker 能写入 READY/FAILED，避免慢任务或重试覆盖新结果。
 - `answer_feedback.evidence` 格式：`[{"quote":"原文片段","reason":"评分依据"}]`，最多 3 条。
 - `interview_question.dimension` 是**题目主题**（专业深度/项目/行为/岗位匹配）；`answer_feedback.dimensions` 的 5 个键是**评分维度**，两套枚举不可混用。
 

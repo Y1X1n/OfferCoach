@@ -2,6 +2,8 @@
 
 > 状态：生效 ｜ 版本：v1.1 ｜ 更新：2026-11-07
 > 本文只讲**怎么构建、怎么打 tag、怎么发布与回滚**；环境、端口、Compose、K8s 与 Nginx 见 [deployment.md](deployment.md)；监控告警与故障处置见 [observability.md](observability.md)。
+>
+> **当前实现**：`.github/workflows/ci.yml` 在 push main 与 PR 上执行后端 `mvn verify` 与前端 `pnpm check`；镜像构建、推送、金丝雀与自动回滚仍按本文手动执行，尚未接入 CI/CD。
 
 ## 1. 一页结论
 

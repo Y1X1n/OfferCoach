@@ -5,6 +5,7 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.offercoach.identity.application.TokenEpochService;
 import com.offercoach.identity.config.AuthProperties;
 import java.time.Instant;
 import java.util.List;
@@ -32,14 +33,17 @@ import org.springframework.stereotype.Component;
 public class JwtService {
 
     private static final String ROLE_CLAIM = "role";
+    private static final String VERSION_CLAIM = "ver";
 
     private final AuthProperties properties;
     private final JwtKeyProvider keyProvider;
+    private final TokenEpochService tokenEpochService;
     private final JwtEncoder jwtEncoder;
 
-    public JwtService(AuthProperties properties, JwtKeyProvider keyProvider) {
+    public JwtService(AuthProperties properties, JwtKeyProvider keyProvider, TokenEpochService tokenEpochService) {
         this.properties = properties;
         this.keyProvider = keyProvider;
+        this.tokenEpochService = tokenEpochService;
 
         RSAKey rsaKey = new RSAKey.Builder(keyProvider.publicKey())
                 .privateKey(keyProvider.privateKey())
@@ -51,7 +55,7 @@ public class JwtService {
     }
 
     /**
-     * 签发 Access Token：sub=userId、role、jti、iss、aud、iat、exp。
+     * 签发 Access Token：sub=userId、role、ver、jti、iss、aud、iat、exp。
      */
     public IssuedAccessToken issue(long userId, String role) {
         Instant issuedAt = Instant.now();
@@ -64,6 +68,7 @@ public class JwtService {
                 .audience(List.of(properties.getJwt().getAudience()))
                 .subject(Long.toString(userId))
                 .claim(ROLE_CLAIM, role)
+                .claim(VERSION_CLAIM, tokenEpochService.current(userId))
                 .id(UUID.randomUUID().toString())
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)

@@ -66,11 +66,11 @@ public interface InterviewReportMapper {
     @Update(
             """
             UPDATE interview_report
-            SET updated_at = now()
+            SET generation_token = #{token}, updated_at = now()
             WHERE id = #{id} AND status = 'GENERATING'
               AND updated_at < now() - (#{staleSeconds} * interval '1 second')
             """)
-    int claim(@Param("id") long id, @Param("staleSeconds") int staleSeconds);
+    int claim(@Param("id") long id, @Param("staleSeconds") int staleSeconds, @Param("token") String token);
 
     @Update(
             """
@@ -82,8 +82,8 @@ public interface InterviewReportMapper {
                 risks = CAST(#{risksJson,jdbcType=VARCHAR} AS jsonb),
                 improvement_plan = CAST(#{improvementPlanJson,jdbcType=VARCHAR} AS jsonb),
                 question_breakdown = CAST(#{questionBreakdownJson,jdbcType=VARCHAR} AS jsonb),
-                last_error = NULL, generated_at = now(), updated_at = now()
-            WHERE id = #{id} AND status = 'GENERATING'
+                last_error = NULL, generated_at = now(), updated_at = now(), generation_token = NULL
+            WHERE id = #{id} AND status = 'GENERATING' AND generation_token = #{token}
             """)
     int markReady(
             @Param("id") long id,
@@ -93,29 +93,31 @@ public interface InterviewReportMapper {
             @Param("highlightsJson") String highlightsJson,
             @Param("risksJson") String risksJson,
             @Param("improvementPlanJson") String improvementPlanJson,
-            @Param("questionBreakdownJson") String questionBreakdownJson);
+            @Param("questionBreakdownJson") String questionBreakdownJson,
+            @Param("token") String token);
 
     @Select(
             """
             UPDATE interview_report
             SET attempts = attempts + 1, last_error = #{lastError}, updated_at = now()
-            WHERE id = #{id} AND status = 'GENERATING'
+            WHERE id = #{id} AND status = 'GENERATING' AND generation_token = #{token}
             RETURNING attempts
             """)
-    Integer incrementAttempts(@Param("id") long id, @Param("lastError") String lastError);
+    Integer incrementAttempts(@Param("id") long id, @Param("lastError") String lastError, @Param("token") String token);
 
     @Update(
             """
             UPDATE interview_report
-            SET status = 'FAILED', last_error = #{lastError}, updated_at = now()
-            WHERE id = #{id} AND status = 'GENERATING'
+            SET status = 'FAILED', last_error = #{lastError}, updated_at = now(), generation_token = NULL
+            WHERE id = #{id} AND status = 'GENERATING' AND generation_token = #{token}
             """)
-    int markFailed(@Param("id") long id, @Param("lastError") String lastError);
+    int markFailed(@Param("id") long id, @Param("lastError") String lastError, @Param("token") String token);
 
     @Update(
             """
             UPDATE interview_report
-            SET status = 'GENERATING', attempts = 0, last_error = NULL, updated_at = now()
+            SET status = 'GENERATING', attempts = 0, last_error = NULL, updated_at = now(),
+                generation_token = NULL
             WHERE id = #{id} AND user_id = #{userId} AND status = 'FAILED'
             """)
     int resetForRetry(@Param("userId") long userId, @Param("id") long id);

@@ -87,6 +87,22 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public void updateAllowRawResumeToLlm(long id, boolean allow) {
+        userMapper.update(
+                null,
+                Wrappers.<AppUserDO>lambdaUpdate()
+                        .eq(AppUserDO::getId, id)
+                        .set(AppUserDO::getAllowRawResumeToLlm, allow)
+                        .set(AppUserDO::getUpdatedAt, OffsetDateTime.now(ZoneOffset.UTC)));
+    }
+
+    @Override
+    public boolean allowRawResumeToLlm(long id) {
+        AppUserDO row = userMapper.selectById(id);
+        return row == null || row.getAllowRawResumeToLlm() == null || Boolean.TRUE.equals(row.getAllowRawResumeToLlm());
+    }
+
+    @Override
     public List<UserAccount> search(String keyword, String status, int offset, int limit) {
         return userMapper
                 .selectList(searchWrapper(keyword, status)
