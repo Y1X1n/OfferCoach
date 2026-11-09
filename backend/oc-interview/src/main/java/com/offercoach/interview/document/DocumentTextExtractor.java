@@ -23,10 +23,13 @@ public class DocumentTextExtractor {
 
     private static final double CHARS_PER_PAGE = 2500.0;
     private static final int MAX_PDF_PAGES = 50;
+    private static final int MAX_TEXT_CHARS = 300_000;
 
     static {
         // 防止 DOCX zip bomb 在解压阶段耗尽内存。
         ZipSecureFile.setMinInflateRatio(0.01);
+        ZipSecureFile.setMaxEntrySize(32L * 1024 * 1024);
+        ZipSecureFile.setMaxTextSize(2_000_000L);
     }
 
     public ExtractedDocument extract(byte[] content, String extension) {
@@ -52,7 +55,7 @@ public class DocumentTextExtractor {
             }
             PDFTextStripper stripper = new PDFTextStripper();
             stripper.setSortByPosition(true);
-            String text = clean(stripper.getText(document));
+            String text = limitText(stripper.getText(document));
             return new ExtractedDocument(text, document.getNumberOfPages());
         }
     }
@@ -66,11 +69,21 @@ public class DocumentTextExtractor {
                 } else if (element instanceof XWPFTable table) {
                     appendTable(builder, table);
                 }
+                if (builder.length() > MAX_TEXT_CHARS) {
+                    throw new DocumentExtractionException("文档文本超过 " + MAX_TEXT_CHARS + " 字符");
+                }
             }
             String text = clean(builder.toString());
             int pages = Math.max(1, (int) Math.ceil(text.length() / CHARS_PER_PAGE));
             return new ExtractedDocument(text, pages);
         }
+    }
+
+    private static String limitText(String text) {
+        if (text.length() > MAX_TEXT_CHARS) {
+            throw new DocumentExtractionException("文档文本超过 " + MAX_TEXT_CHARS + " 字符");
+        }
+        return clean(text);
     }
 
     private void appendTable(StringBuilder builder, XWPFTable table) {

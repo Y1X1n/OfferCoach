@@ -44,8 +44,9 @@ const poller = usePolling(async () => {
     if (next.status === 'GENERATING') return true
     if (next.status === 'READY') toast('报告已生成', 'success')
     return false
-  } catch {
-    return false
+  } catch (cause) {
+    // 404 说明报告不存在；其他瞬时错误继续轮询，避免一次断网就永久停在“生成中”。
+    return !(cause instanceof ApiError && cause.status === 404)
   }
 }, 2000)
 

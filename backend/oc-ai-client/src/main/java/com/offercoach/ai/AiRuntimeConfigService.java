@@ -2,8 +2,10 @@ package com.offercoach.ai;
 
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -216,7 +218,31 @@ public class AiRuntimeConfigService {
         if (!allowPrivateHosts && isPrivateHost(host)) {
             throw fieldError("baseUrl", "AI 网关不允许指向内网或本机地址");
         }
+        if (!allowPrivateHosts) {
+            requirePublicResolution(host);
+        }
         return trimTrailingSlash(value);
+    }
+
+    /**
+     * 解析主机并拒绝任一非公网地址，拦截 localhost 别名、内网域名与 DNS 重绑定到私网的情况。
+     */
+    private static void requirePublicResolution(String host) {
+        InetAddress[] addresses;
+        try {
+            addresses = InetAddress.getAllByName(host);
+        } catch (UnknownHostException exception) {
+            throw fieldError("baseUrl", "无法解析主机名");
+        }
+        for (InetAddress address : addresses) {
+            if (address.isAnyLocalAddress()
+                    || address.isLoopbackAddress()
+                    || address.isLinkLocalAddress()
+                    || address.isSiteLocalAddress()
+                    || address.isMulticastAddress()) {
+                throw fieldError("baseUrl", "AI 网关不允许指向内网或本机地址");
+            }
+        }
     }
 
     private static boolean isLocalHost(String host) {

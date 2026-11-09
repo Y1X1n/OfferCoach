@@ -44,6 +44,22 @@ class DocumentTextExtractorTest {
                 .isInstanceOf(DocumentExtractionException.class);
     }
 
+    @Test
+    void rejectsDocxWithExcessiveText() throws IOException {
+        byte[] docx = buildHugeDocx();
+
+        assertThatThrownBy(() -> extractor.extract(docx, "docx")).isInstanceOf(DocumentExtractionException.class);
+    }
+
+    private static byte[] buildHugeDocx() throws IOException {
+        try (XWPFDocument document = new XWPFDocument();
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            document.createParagraph().createRun().setText("字".repeat(300_001));
+            document.write(output);
+            return output.toByteArray();
+        }
+    }
+
     private static byte[] buildDocx() throws IOException {
         try (XWPFDocument document = new XWPFDocument();
                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {

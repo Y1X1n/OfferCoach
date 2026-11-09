@@ -29,6 +29,8 @@ class AiRuntimeConfigServiceTest {
         assertEquals(ErrorCode.VALIDATION_FAILED, exception.errorCode());
         assertThrows(BizException.class, () -> AiRuntimeConfigService.validateBaseUrl("https://127.0.0.1/v1", false));
         assertThrows(BizException.class, () -> AiRuntimeConfigService.validateBaseUrl("https://10.0.0.1/v1", false));
+        assertThrows(BizException.class, () -> AiRuntimeConfigService.validateBaseUrl("https://127.0.0.2/v1", false));
+        assertThrows(BizException.class, () -> AiRuntimeConfigService.validateBaseUrl("https://0.0.0.0/v1", false));
     }
 
     @Test

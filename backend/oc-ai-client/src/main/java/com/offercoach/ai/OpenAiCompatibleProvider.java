@@ -39,8 +39,10 @@ public class OpenAiCompatibleProvider implements AiProvider {
     public OpenAiCompatibleProvider(AiRuntimeConfigService runtimeConfig, ObjectMapper objectMapper) {
         this.runtimeConfig = runtimeConfig;
         this.objectMapper = objectMapper;
-        this.httpClient =
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
     }
 
     @Override

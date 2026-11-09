@@ -53,6 +53,18 @@ export const useAppStore = defineStore('app', () => {
     quota.value = { ...EMPTY_QUOTA }
     quotaLoaded.value = false
     restoreAttempted.value = true
+    clearDrafts()
+  }
+
+  function clearDrafts(): void {
+    try {
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index)
+        if (key?.startsWith('oc_draft_')) localStorage.removeItem(key)
+      }
+    } catch {
+      // 本地存储不可用时忽略
+    }
   }
 
   async function loadMe(): Promise<Me | null> {
@@ -140,14 +152,15 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function logout(): Promise<void> {
+  async function logout(): Promise<boolean> {
     try {
       await authApi.logout()
     } catch {
-      // 本地仍然清理会话；服务端吊销失败不影响前端登出
-    } finally {
-      clearSession()
+      // 服务端吊销失败时保留本地会话，避免“看似登出、刷新后自动重登”。
+      return false
     }
+    clearSession()
+    return true
   }
 
   async function updateProfile(input: {
