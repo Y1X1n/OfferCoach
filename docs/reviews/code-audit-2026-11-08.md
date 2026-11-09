@@ -94,7 +94,7 @@
 | 索引缺失 | 已修复 | `V202611090001` 增加评分/清理/解析/题库表达式索引 |
 | CI 缺失 | 已修复 | `.github/workflows/ci.yml`（backend verify + frontend check）与 Dependabot |
 | 前端幂等键/PRO 提示/重试文案 | 已修复 | 按题复用幂等键；PRO 无改写不再误示升级；重试文案与后端一致 |
-| 可信代理头 | 已修复 | 应用要求 `X-Proxy-Secret` 匹配才采信 `X-Real-IP`；生产 Nginx 已配置，伪造头被忽略 |
+| 可信代理头 | 已修复 | 应用要求 `X-Proxy-Secret` 匹配才采信 `X-Real-IP`；生产 Nginx 已配置，伪造头被忽略；生产启动强制校验、漏配每分钟告警 |
 | 邀请名额原子上限 | 已修复 | 事务级 `pg_advisory_xact_lock` 串行化名额检查与奖励写入 |
 | 账号枚举耗时 | 已修复 | 未知邮箱执行 dummy BCrypt 校验 |
 | 限流计数原子性 | 已修复 | Redis Lua `INCR + PEXPIRE` |

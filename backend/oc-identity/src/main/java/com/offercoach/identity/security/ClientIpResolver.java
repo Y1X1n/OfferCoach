@@ -4,6 +4,9 @@ import com.offercoach.identity.config.AuthProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.concurrent.atomic.AtomicLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,11 +16,14 @@ import org.springframework.stereotype.Component;
 public class ClientIpResolver {
 
     public static final String PROXY_SECRET_HEADER = "X-Proxy-Secret";
+    private static final Logger log = LoggerFactory.getLogger(ClientIpResolver.class);
+    private static final long WARN_INTERVAL_MILLIS = 60_000L;
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
     private static final String X_REAL_IP = "X-Real-IP";
     private static final String UNKNOWN_IP = "unknown";
 
     private final AuthProperties properties;
+    private final AtomicLong lastSecretWarnAt = new AtomicLong(0L);
 
     public ClientIpResolver(AuthProperties properties) {
         this.properties = properties;
@@ -35,6 +41,7 @@ public class ClientIpResolver {
         if (proxySecret != null && !proxySecret.isBlank()) {
             String provided = request.getHeader(PROXY_SECRET_HEADER);
             if (!secretMatches(proxySecret, provided)) {
+                warnMissingSecret();
                 return remoteAddress;
             }
             String realIp = request.getHeader(X_REAL_IP);
@@ -50,6 +57,18 @@ public class ClientIpResolver {
         }
         String first = forwardedFor.split(",")[0].trim();
         return isIpLiteral(first) ? first : remoteAddress;
+    }
+
+    /**
+     * 启动配置了代理密钥但请求未携带/不匹配时，每分钟告警一次，便于发现 Nginx 漏配。
+     */
+    private void warnMissingSecret() {
+        long now = System.currentTimeMillis();
+        long previous = lastSecretWarnAt.get();
+        if (now - previous < WARN_INTERVAL_MILLIS || !lastSecretWarnAt.compareAndSet(previous, now)) {
+            return;
+        }
+        log.warn("代理密钥缺失或不匹配，已回退为直连地址；请检查 Nginx X-Proxy-Secret 配置");
     }
 
     private static boolean secretMatches(String expected, String provided) {
