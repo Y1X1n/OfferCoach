@@ -8,11 +8,13 @@ import com.offercoach.identity.config.RateLimitProperties;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,6 +30,16 @@ public class AuthAttemptService {
     private static final Duration WINDOW = Duration.ofSeconds(60);
     private static final int MAX_ACCOUNT_KEY_LENGTH = 320;
     private static final DateTimeFormatter DAY_KEY = DateTimeFormatter.BASIC_ISO_DATE;
+    /** INCR 与首次 TTL 在同一脚本内完成，避免中断产生永久计数键。 */
+    private static final DefaultRedisScript<Long> INCREMENT_WITH_TTL = new DefaultRedisScript<>(
+            """
+            local value = redis.call('INCR', KEYS[1])
+            if value == 1 then
+                redis.call('PEXPIRE', KEYS[1], ARGV[1])
+            end
+            return value
+            """,
+            Long.class);
 
     private final StringRedisTemplate redisTemplate;
     private final RateLimitProperties properties;
@@ -100,10 +112,7 @@ public class AuthAttemptService {
 
     private void incrementDaily(String key) {
         try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, Duration.ofDays(2));
-            }
+            increment(key, Duration.ofDays(2));
         } catch (RuntimeException ex) {
             log.warn("注册日计数写入失败，本次不累计：{}", ex.getClass().getSimpleName());
         }
@@ -122,10 +131,7 @@ public class AuthAttemptService {
             return LoginAttempt.untracked();
         }
         try {
-            Long attempts = redisTemplate.opsForValue().increment(key);
-            if (attempts != null && attempts == 1L) {
-                redisTemplate.expire(key, properties.getFailWindow());
-            }
+            Long attempts = increment(key, properties.getFailWindow());
             if (attempts != null && attempts > properties.getFailThreshold()) {
                 log.warn("账号登录失败次数达到阈值，暂时锁定：{}", mask(account));
                 throw new BizException(ErrorCode.RATE_LIMITED);
@@ -152,10 +158,7 @@ public class AuthAttemptService {
             return;
         }
         try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, properties.getFailWindow());
-            }
+            increment(key, properties.getFailWindow());
         } catch (RuntimeException ex) {
             log.warn("登录失败计数写入失败，本次不累计：{}", ex.getClass().getSimpleName());
         }
@@ -192,10 +195,7 @@ public class AuthAttemptService {
         }
         Long count;
         try {
-            count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, WINDOW);
-            }
+            count = increment(key, WINDOW);
         } catch (RuntimeException ex) {
             log.warn("{}限流计数不可用，放行本次请求：{}", action, ex.getClass().getSimpleName());
             return;
@@ -204,6 +204,10 @@ public class AuthAttemptService {
             log.warn("{}请求超过限流阈值 {} 次/分钟", action, limit);
             throw new BizException(ErrorCode.RATE_LIMITED);
         }
+    }
+
+    private Long increment(String key, Duration ttl) {
+        return redisTemplate.execute(INCREMENT_WITH_TTL, List.of(key), Long.toString(ttl.toMillis()));
     }
 
     private Long readCounter(String key) {

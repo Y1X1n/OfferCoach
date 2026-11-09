@@ -17,6 +17,7 @@ import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import { createRequestId, errorMessage } from '@/api/client'
@@ -103,6 +104,15 @@ const statusTarget = ref<AdminUser | null>(null)
 const statusOpen = ref(false)
 const statusSaving = ref(false)
 
+const statusConfirmText = computed(() => {
+  const target = statusTarget.value
+  if (!target) return ''
+  const name = target.email || target.nickname
+  return target.role === 'ADMIN'
+    ? `${name} 是管理员，停用后其管理后台登录与全部写权限会立即失效，重新启用后可恢复。`
+    : `${name} 将立即无法登录，重新启用后可恢复。`
+})
+
 function requestToggle(user: AdminUser): void {
   if (user.status === 'ACTIVE') {
     statusTarget.value = user
@@ -155,6 +165,8 @@ const roleOpen = ref(false)
 const roleValue = ref<AdminRole>('USER')
 const roleError = ref('')
 const roleSaving = ref(false)
+/** 提升为 ADMIN 前的二次确认。 */
+const adminConfirmOpen = ref(false)
 
 const roleChanged = computed(
   () => roleTarget.value !== null && roleValue.value !== roleTarget.value.role,
@@ -170,6 +182,28 @@ function openRole(user: AdminUser): void {
 function selectRole(value: AdminRole): void {
   roleValue.value = value
   roleError.value = ''
+}
+
+const adminConfirmText = computed(() => {
+  const target = roleTarget.value
+  if (!target) return ''
+  const name = target.email || target.nickname
+  return `${name} 将立即获得管理后台全部权限：用户与角色管理、题库、Prompt、AI 配置与平台策略的读写操作，变更会写入审计日志。`
+})
+
+/** 目标角色为 ADMIN 时先二次确认，其余角色直接提交。 */
+function requestRoleSubmit(): void {
+  if (!roleChanged.value || roleSaving.value) return
+  if (roleValue.value === 'ADMIN') {
+    adminConfirmOpen.value = true
+    return
+  }
+  void submitRole()
+}
+
+function confirmAdminRole(): void {
+  adminConfirmOpen.value = false
+  void submitRole()
 }
 
 async function submitRole(): Promise<void> {
@@ -454,7 +488,9 @@ watch(resetOpen, (open) => {
                 </p>
               </td>
               <td class="px-3 py-3">
-                <Badge :variant="roleMeta(user.role).variant">{{ roleMeta(user.role).label }}</Badge>
+                <Badge :variant="roleMeta(user.role).variant">{{
+                  roleMeta(user.role).label
+                }}</Badge>
               </td>
               <td class="px-3 py-3">
                 <Badge :variant="userStatusMeta(user.status).variant" dot>
@@ -545,24 +581,20 @@ watch(resetOpen, (open) => {
       />
     </AsyncState>
 
-    <Dialog
+    <ConfirmDialog
       :open="statusOpen"
       title="停用账号"
       description="停用后该用户无法登录，已生成的报告仍会保留。"
       size="sm"
+      alert-variant="warning"
+      alert-title="确认停用"
+      :alert-description="statusConfirmText"
+      confirm-label="确认停用"
+      confirm-variant="danger"
+      :loading="statusSaving"
       @update:open="statusOpen = $event"
-    >
-      <Alert
-        v-if="statusTarget"
-        variant="warning"
-        title="确认停用"
-        :description="`${statusTarget.email || statusTarget.nickname} 将立即无法登录，重新启用后可恢复。`"
-      />
-      <template #footer>
-        <Button variant="outline" @click="statusOpen = false">取消</Button>
-        <Button variant="danger" :loading="statusSaving" @click="confirmDisable">确认停用</Button>
-      </template>
-    </Dialog>
+      @confirm="confirmDisable"
+    />
 
     <Dialog
       v-model:open="quotaOpen"
@@ -658,11 +690,25 @@ watch(resetOpen, (open) => {
 
       <template #footer>
         <Button variant="outline" @click="roleOpen = false">取消</Button>
-        <Button :loading="roleSaving" :disabled="!roleChanged" @click="submitRole">
+        <Button :loading="roleSaving" :disabled="!roleChanged" @click="requestRoleSubmit">
           确认调整
         </Button>
       </template>
     </Dialog>
+
+    <ConfirmDialog
+      v-model:open="adminConfirmOpen"
+      title="提升为管理员"
+      description="管理员可访问管理后台全部功能，包括用户、题库、Prompt、AI 配置与平台策略的写操作。"
+      size="sm"
+      alert-variant="danger"
+      alert-title="授予全部管理权限"
+      :alert-description="adminConfirmText"
+      confirm-label="确认授予 ADMIN"
+      confirm-variant="danger"
+      :loading="roleSaving"
+      @confirm="confirmAdminRole"
+    />
 
     <Dialog
       v-model:open="resetOpen"
@@ -675,12 +721,7 @@ watch(resetOpen, (open) => {
       size="md"
     >
       <form id="reset-password-form" class="space-y-4" novalidate @submit.prevent="submitReset">
-        <Alert
-          v-if="resetError"
-          variant="danger"
-          title="密码未重置"
-          :description="resetError"
-        />
+        <Alert v-if="resetError" variant="danger" title="密码未重置" :description="resetError" />
         <Alert
           v-if="resetTarget && isSelf(resetTarget)"
           variant="warning"

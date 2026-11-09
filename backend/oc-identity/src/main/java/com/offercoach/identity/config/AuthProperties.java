@@ -29,6 +29,9 @@ public class AuthProperties {
     /** 设备指纹散列盐；留空时使用空盐，仅影响散列不可逆性。 */
     private String deviceSalt = "";
 
+    /** 可信代理共享密钥；配置后仅当请求携带匹配的 X-Proxy-Secret 才采信 X-Real-IP。 */
+    private String proxySecret = "";
+
     private DevVerifyCode devVerifyCode = new DevVerifyCode();
 
     private InviteCode inviteCode = new InviteCode();

@@ -9,6 +9,7 @@ import com.offercoach.identity.api.dto.UserSummary;
 import com.offercoach.identity.application.AuthService;
 import com.offercoach.identity.application.RefreshCookieFactory;
 import com.offercoach.identity.application.captcha.CaptchaService;
+import com.offercoach.identity.security.ClientIpResolver;
 import com.offercoach.identity.security.CurrentUser;
 import com.offercoach.identity.security.DeviceFingerprint;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,27 +33,26 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    private static final String X_FORWARDED_FOR = "X-Forwarded-For";
-    private static final String X_REAL_IP = "X-Real-IP";
-    private static final String UNKNOWN_IP = "unknown";
-
     private final AuthService authService;
     private final RefreshCookieFactory refreshCookieFactory;
     private final CurrentUser currentUser;
     private final CaptchaService captchaService;
     private final DeviceFingerprint deviceFingerprint;
+    private final ClientIpResolver clientIpResolver;
 
     public AuthController(
             AuthService authService,
             RefreshCookieFactory refreshCookieFactory,
             CurrentUser currentUser,
             CaptchaService captchaService,
-            DeviceFingerprint deviceFingerprint) {
+            DeviceFingerprint deviceFingerprint,
+            ClientIpResolver clientIpResolver) {
         this.authService = authService;
         this.refreshCookieFactory = refreshCookieFactory;
         this.currentUser = currentUser;
         this.captchaService = captchaService;
         this.deviceFingerprint = deviceFingerprint;
+        this.clientIpResolver = clientIpResolver;
     }
 
     /**
@@ -77,14 +77,14 @@ public class AuthController {
      */
     @PostMapping("/captcha")
     public CaptchaResponse captcha(HttpServletRequest request) {
-        CaptchaService.Challenge challenge = captchaService.issue(clientIp(request));
+        CaptchaService.Challenge challenge = captchaService.issue(clientIpResolver.resolve(request));
         return new CaptchaResponse(challenge.captchaId(), challenge.question(), challenge.expiresIn());
     }
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(
             @Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
-        String ip = clientIp(httpRequest);
+        String ip = clientIpResolver.resolve(httpRequest);
         AuthService.AuthSession session = authService.register(new AuthService.RegisterCommand(
                 request.email(),
                 request.password(),
@@ -102,7 +102,7 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(
             @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         AuthService.AuthSession session =
-                authService.login(request.account(), request.password(), clientIp(httpRequest));
+                authService.login(request.account(), request.password(), clientIpResolver.resolve(httpRequest));
         return withRefreshCookie(HttpStatus.OK, session);
     }
 
@@ -119,79 +119,6 @@ public class AuthController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, refreshCookieFactory.clear().toString())
                 .build();
-    }
-
-    private String clientIp(HttpServletRequest request) {
-        String remoteAddress = request.getRemoteAddr();
-        if (remoteAddress == null || remoteAddress.isBlank()) {
-            return UNKNOWN_IP;
-        }
-        if (!isPrivateAddress(remoteAddress)) {
-            return remoteAddress;
-        }
-        // Nginx 覆写 X-Real-IP；不要信任客户端可伪造的 X-Forwarded-For 首段。
-        String realIp = request.getHeader(X_REAL_IP);
-        if (realIp != null && isIpLiteral(realIp.trim())) {
-            return realIp.trim();
-        }
-        String forwardedFor = request.getHeader(X_FORWARDED_FOR);
-        if (forwardedFor == null || forwardedFor.isBlank()) {
-            return remoteAddress;
-        }
-        String first = forwardedFor.split(",")[0].trim();
-        return isIpLiteral(first) ? first : remoteAddress;
-    }
-
-    private static boolean isPrivateAddress(String address) {
-        if (address.startsWith("::ffff:")) {
-            return isPrivateAddress(address.substring("::ffff:".length()));
-        }
-        if ("::1".equals(address) || "0:0:0:0:0:0:0:1".equals(address)) {
-            return true;
-        }
-        if (address.startsWith("127.")
-                || address.startsWith("10.")
-                || address.startsWith("192.168.")
-                || address.startsWith("169.254.")
-                || address.startsWith("fe80:")
-                || address.startsWith("fc")
-                || address.startsWith("fd")) {
-            return true;
-        }
-        if (address.startsWith("172.")) {
-            String[] parts = address.split("\\.");
-            if (parts.length < 2) {
-                return false;
-            }
-            try {
-                int second = Integer.parseInt(parts[1]);
-                return second >= 16 && second <= 31;
-            } catch (NumberFormatException ex) {
-                return false;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isIpLiteral(String value) {
-        if (value.isEmpty() || value.length() > 45) {
-            return false;
-        }
-        if (value.indexOf('.') < 0 && value.indexOf(':') < 0) {
-            return false;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            boolean allowed = (ch >= '0' && ch <= '9')
-                    || (ch >= 'a' && ch <= 'f')
-                    || (ch >= 'A' && ch <= 'F')
-                    || ch == ':'
-                    || ch == '.';
-            if (!allowed) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private ResponseEntity<AuthResponse> withRefreshCookie(HttpStatus status, AuthService.AuthSession session) {
