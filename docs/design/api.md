@@ -14,6 +14,7 @@
 | 认证 | `POST /auth/logout` | USER | 登出 |
 | 用户 | `GET/PATCH/DELETE /users/me` | USER | 资料、隐私、注销 |
 | 额度 | `GET /quota` | USER | 余额与每日用量 |
+| 工作台 | `GET /dashboard` | USER | 首屏聚合：额度、简历/JD 就绪、进行中会话、最近报告 |
 | 套餐 | `GET /plans`、`POST /orders` | USER | 套餐与下单（V1.1） |
 | 简历 | `POST/GET /resumes` | USER | 上传、列表 |
 | 简历 | `GET/PATCH/DELETE /resumes/{id}` | USER | 详情、修正、删除 |
@@ -266,6 +267,32 @@
 `201` → `{"orderId":"7001","orderNo":"OC202611070001","amountCents":3900,"status":"CREATED","payUrl":"https://pay.example.com/..."}`
 
 - `POST /payments/mock-callback`（仅开发环境）模拟支付成功；生产由支付网关回调，验签后发额度。
+
+### 3.3 工作台聚合
+
+`GET /dashboard`：工作台首屏一次请求返回额度、简历/JD 就绪状态、进行中会话与最近报告，替代简历/JD/面试/报告四个分页列表请求。
+
+```json
+{
+  "quota": {"planCode": "FREE", "planName": "免费版", "interviewCredits": 2, "resumeCredits": 1,
+    "periodEnd": "2026-12-01", "daily": {"date": "2026-11-09", "sessionsUsed": 1, "sessionsLimit": 3},
+    "features": {"rewrittenAnswer": false, "pdfExport": false}},
+  "resumeReady": true,
+  "jdCount": 1,
+  "activeSession": {"id": "97", "status": "READY", "resumeId": "41", "jdId": "18",
+    "resumeTitle": "后端简历", "jdTitle": "高级后端工程师", "jdCompany": "示例公司",
+    "questionCount": 2, "answeredCount": 0, "startedAt": null, "lastActiveAt": "2026-11-09T10:00:00Z"},
+  "recentReports": [{"id": "12", "sessionId": "90", "status": "READY", "overallScore": 73.3,
+    "summary": "完成 2 题，总分 73.3。", "title": "后端简历", "company": "示例公司",
+    "role": "高级后端工程师", "questionCount": 2, "createdAt": "2026-11-09T09:30:00Z"}],
+  "reportTotal": 1,
+  "averageScore": 73.3,
+  "scoredReportCount": 1
+}
+```
+
+- `activeSession` 取最近活跃的未结束会话（`CREATED/READY/IN_PROGRESS/PAUSED`），无则 `null`。
+- `recentReports` 最多 4 条；`averageScore` 与 `scoredReportCount` 统计最近 20 份已出分报告。
 
 ## 4. 简历
 

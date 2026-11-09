@@ -449,6 +449,32 @@ export interface ReportSummary {
   createdAt: string
 }
 
+export interface DashboardActiveSession {
+  id: string
+  status: InterviewStatus
+  resumeId?: string | null | undefined
+  jdId?: string | null | undefined
+  resumeTitle?: string | null | undefined
+  jdTitle?: string | null | undefined
+  jdCompany?: string | null | undefined
+  questionCount: number
+  answeredCount: number
+  startedAt?: string | null | undefined
+  lastActiveAt?: string | null | undefined
+}
+
+/** 工作台聚合数据：一次请求返回额度、就绪状态、进行中会话与最近报告。 */
+export interface DashboardData {
+  quota: Quota
+  resumeReady: boolean
+  jdCount: number
+  activeSession?: DashboardActiveSession | null | undefined
+  recentReports: ReportSummary[]
+  reportTotal: number
+  averageScore?: number | null | undefined
+  scoredReportCount: number
+}
+
 export interface Report {
   id: string
   sessionId: string

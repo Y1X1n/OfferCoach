@@ -21,6 +21,9 @@ public interface ResumeRepository {
 
     long count(long userId);
 
+    /** 已完成解析的简历数，用于工作台就绪判断。 */
+    long countReady(long userId);
+
     void clearDefault(long userId);
 
     void setDefault(long userId, long id);
