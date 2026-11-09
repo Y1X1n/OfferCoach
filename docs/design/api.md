@@ -1,6 +1,6 @@
 # API 接口契约
 
-> 状态：生效 ｜ 版本：v1.7 ｜ 更新：2026-11-08
+> 状态：生效 ｜ 版本：v1.8 ｜ 更新：2026-11-09
 > Base URL：`https://api.offercoach.example.com/api/v1` ｜ 内部接口：`http://<service>/internal/v1`
 > 关联：[数据模型](./data-model.md)、[前端规范](../dev/frontend.md)、[契约流程](../dev/workflow.md)
 
@@ -281,7 +281,7 @@
   "jdCount": 1,
   "activeSession": {"id": "97", "status": "READY", "resumeId": "41", "jdId": "18",
     "resumeTitle": "后端简历", "jdTitle": "高级后端工程师", "jdCompany": "示例公司",
-    "questionCount": 2, "answeredCount": 0, "startedAt": null, "lastActiveAt": "2026-11-09T10:00:00Z"},
+    "questionCount": 2, "answeredCount": 0, "startedAt": "2026-11-09T09:55:00Z", "lastActiveAt": "2026-11-09T10:00:00Z"},
   "recentReports": [{"id": "12", "sessionId": "90", "status": "READY", "overallScore": 73.3,
     "summary": "完成 2 题，总分 73.3。", "title": "后端简历", "company": "示例公司",
     "role": "高级后端工程师", "questionCount": 2, "createdAt": "2026-11-09T09:30:00Z"}],
@@ -292,7 +292,7 @@
 ```
 
 - `activeSession` 取最近活跃的未结束会话（`CREATED/READY/IN_PROGRESS/PAUSED`），无则 `null`。
-- `recentReports` 最多 4 条；`averageScore` 与 `scoredReportCount` 统计最近 20 份已出分报告。
+- `recentReports` 最多 4 条；`averageScore` 与 `scoredReportCount` 取最近 20 份报告中已出分的记录统计。
 
 ## 4. 简历
 
