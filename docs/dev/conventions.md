@@ -8,13 +8,14 @@
 
 | 分支 | 用途 | 规则 |
 |---|---|---|
-| `main` | 唯一可发布基线 | 受保护；禁止直接 push；合并前 CI 全绿 + 至少 1 次独立 review |
+| `main` | 唯一可发布基线 | 受保护；禁止直接 push；门禁与尺寸限制见 [pr-workflow.md](pr-workflow.md) |
 | `feat/<简述>` | 新功能 | 从 `main` 拉出；完成后 PR 合回并删除 |
 | `fix/<简述>` | 缺陷修复 | 同上；紧急线上问题用 `hotfix/<简述>`，合回后打 tag |
 | `chore/<简述>` | 构建、依赖、文档 | 同上 |
 
 - 分支名用小写英文 + 中划线：`feat/sse-reconnect`。
 - 一个 PR 只做一件事；跨端改动拆成后端契约 / 前端实现 / 文档三个 PR，按依赖顺序合并。
+- PR 尺寸、评审、CI 与例外规则见 [pr-workflow.md](pr-workflow.md)，不得自审自合。
 - 禁止 force push 到 `main`；禁止用 `--no-verify` 绕过钩子。
 - 发布以 tag 为准：`v<major>.<minor>.<patch>[-stage]`；tag 触发 CI 构建镜像，`main` 的普通提交不发布。
 - 开发/联调允许 `SNAPSHOT`；**生产镜像与发布制品禁止 `SNAPSHOT`**，CI 直接阻断。

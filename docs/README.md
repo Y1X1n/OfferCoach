@@ -68,6 +68,7 @@
 |---|---|---|
 | [conventions.md](dev/conventions.md) | 跨端开发规范：分支/提交/代码组织/接口/数据库摘要（细节走指针） | 生效 |
 | [workflow.md](dev/workflow.md) | 开发流程与契约管理：骨架层/字段层、冻结与变更、自测、联调 | 生效 |
+| [pr-workflow.md](dev/pr-workflow.md) | PR 提交流程与硬性限制：分支、尺寸、评审、CI、合并、例外 | 生效 |
 | [frontend.md](dev/frontend.md) | Vue 3 目录、TypeScript 约束、状态、SSE 封装、性能与安全 | 生效 |
 | [ui-system.md](dev/ui-system.md) | Design Token、组件清单、核心组件规格、页面模板、交互铁律 | 生效 |
 | [backend.md](dev/backend.md) | Spring Boot 分层、事务、幂等、额度、MQ、LangChain4j | 生效 |
