@@ -59,9 +59,9 @@ public class ResumeStructurer {
         this.summaryBuilder = summaryBuilder;
     }
 
-    public StructuredResume structure(String rawText) {
+    public StructuredResume structure(String rawText, boolean allowRawToLlm) {
         Map<String, Object> structured = null;
-        if (aiGateway.available()) {
+        if (allowRawToLlm && aiGateway.available()) {
             structured = viaAi(rawText);
         }
         if (structured == null) {

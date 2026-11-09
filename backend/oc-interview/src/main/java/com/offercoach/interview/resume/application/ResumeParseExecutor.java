@@ -1,5 +1,6 @@
 package com.offercoach.interview.resume.application;
 
+import com.offercoach.identity.application.port.UserRepository;
 import com.offercoach.identity.application.quota.QuotaService;
 import com.offercoach.identity.domain.quota.QuotaType;
 import com.offercoach.interview.document.DocumentExtractionException;
@@ -33,6 +34,7 @@ public class ResumeParseExecutor {
     private final ResumeStructurer resumeStructurer;
     private final ResumeParseFinalizer finalizer;
     private final QuotaService quotaService;
+    private final UserRepository userRepository;
 
     public ResumeParseExecutor(
             ResumeRepository resumeRepository,
@@ -40,13 +42,15 @@ public class ResumeParseExecutor {
             DocumentTextExtractor documentTextExtractor,
             ResumeStructurer resumeStructurer,
             ResumeParseFinalizer finalizer,
-            QuotaService quotaService) {
+            QuotaService quotaService,
+            UserRepository userRepository) {
         this.resumeRepository = resumeRepository;
         this.fileStorage = fileStorage;
         this.documentTextExtractor = documentTextExtractor;
         this.resumeStructurer = resumeStructurer;
         this.finalizer = finalizer;
         this.quotaService = quotaService;
+        this.userRepository = userRepository;
     }
 
     public void execute(long resumeId) {
@@ -73,7 +77,7 @@ public class ResumeParseExecutor {
                 fail(resume, ERROR_NEED_MANUAL);
                 return;
             }
-            ResumeStructurer.StructuredResume structured = resumeStructurer.structure(text);
+            ResumeStructurer.StructuredResume structured = resumeStructurer.structure(text, allowRawToLlm(resume));
             finalizer.markReady(resumeId, text, structured, Math.max(1, extracted.pageCount()));
         } catch (DocumentExtractionException exception) {
             log.warn("简历文本抽取失败：resumeId={} reason={}", resumeId, exception.getMessage());
@@ -84,6 +88,18 @@ public class ResumeParseExecutor {
                     resumeId,
                     exception.getClass().getSimpleName());
             fail(resume, ERROR_PARSE_FAILED);
+        }
+    }
+
+    private boolean allowRawToLlm(Resume resume) {
+        try {
+            return userRepository.allowRawResumeToLlm(resume.userId());
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "读取简历原文授权失败，按不允许处理：resumeId={} reason={}",
+                    resume.id(),
+                    exception.getClass().getSimpleName());
+            return false;
         }
     }
 

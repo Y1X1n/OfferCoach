@@ -193,6 +193,10 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     return `oc_timer_${sessionKey()}_${questionId}`
   }
 
+  function timerRemainingKey(questionId: string): string {
+    return `oc_timer_rem_${sessionKey()}_${questionId}`
+  }
+
   function readDeadline(questionId: string): number | null {
     try {
       const value = localStorage.getItem(timerDeadlineKey(questionId))
@@ -210,11 +214,38 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     }
   }
 
+  function readRemaining(questionId: string): number | null {
+    try {
+      const value = localStorage.getItem(timerRemainingKey(questionId))
+      return value ? Number(value) : null
+    } catch {
+      return null
+    }
+  }
+
+  function writeRemaining(questionId: string, seconds: number): void {
+    try {
+      localStorage.setItem(timerRemainingKey(questionId), String(seconds))
+    } catch {
+      // 忽略
+    }
+  }
+
   function clearTimerState(questionId?: string): void {
     const id = questionId ?? currentQuestion.value?.id
     if (!id) return
     try {
       localStorage.removeItem(timerDeadlineKey(id))
+      localStorage.removeItem(timerRemainingKey(id))
+    } catch {
+      // 忽略
+    }
+  }
+
+  function pauseTimerState(question: Question): void {
+    writeRemaining(question.id, remaining.value)
+    try {
+      localStorage.removeItem(timerDeadlineKey(question.id))
     } catch {
       // 忽略
     }
@@ -259,16 +290,34 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     const question = currentQuestion.value
     if (!question) return
     const now = Date.now()
-    let deadline = readDeadline(question.id)
-    if (deadline === null || deadline <= now) {
+    const stored = readDeadline(question.id)
+    let deadline: number
+    if (stored !== null) {
+      const left = Math.max(0, Math.ceil((stored - now) / 1000))
+      remaining.value = left
+      deadline = stored
+      if (left <= 0) {
+        clearTimerState(question.id)
+        handleTimeout()
+        return
+      }
+    } else {
+      const saved = readRemaining(question.id)
+      if (saved !== null) {
+        remaining.value = Math.max(0, saved)
+        try {
+          localStorage.removeItem(timerRemainingKey(question.id))
+        } catch {
+          // 忽略
+        }
+      }
+      if (remaining.value <= 0) return
       deadline = now + remaining.value * 1000
       writeDeadline(question.id, deadline)
-    } else {
-      remaining.value = Math.max(1, Math.ceil((deadline - now) / 1000))
     }
     timerId = window.setInterval(() => {
       if (!isSessionActive.value) return
-      const left = Math.max(0, Math.ceil((deadline! - Date.now()) / 1000))
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
       remaining.value = left
       if (left === 0) {
         clearTimer()
@@ -465,7 +514,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
         }
       } else {
         toast(errorMessage(cause, '提交失败，请稍后重试'), 'error')
-        if (isSessionActive.value && !isAnswered.value) startTimer()
+        if (isSessionActive.value && !isAnswered.value && remaining.value > 0) startTimer()
       }
     } finally {
       submitting.value = false
@@ -494,7 +543,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       void reload(true, true)
     } catch (cause) {
       toast(errorMessage(cause, '跳过失败，请重试'), 'error')
-      if (isSessionActive.value) startTimer()
+      if (isSessionActive.value && remaining.value > 0) startTimer()
     }
   }
 
@@ -528,8 +577,9 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     try {
       await interviewsApi.pauseInterview(sessionKey())
       if (session.value) session.value.status = 'PAUSED'
+      const question = currentQuestion.value
+      if (question) pauseTimerState(question)
       clearTimer()
-      clearTimerState()
       flushDraft()
       toast('已暂停，计时同步停止', 'info')
     } catch (cause) {
@@ -593,7 +643,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       return result
     } catch (cause) {
       toast(errorMessage(cause, '结束面试失败，请稍后重试'), 'error')
-      if (isSessionActive.value) startTimer()
+      if (isSessionActive.value && remaining.value > 0) startTimer()
       return null
     } finally {
       ending.value = false

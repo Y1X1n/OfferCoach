@@ -13,7 +13,7 @@
 - **M1–M4**：简历上传/手录/解析/修正/软删/重解析、JD 结构化/匹配、题库导入与检索、会话状态机、RAG 出题、答题、SSE 五维评分、异步报告与重试、每日额度与流水全部实现；单元测试与生产全链路冒烟通过。
 - **题库**：7 个公开仓库归一化为 26,385 条；公开部署仅保留 3 个 MIT 来源共 22,409 条（NC/ND/GPL/UNLICENSED 已排除），`pg_trgm` + 关键词打分为无 Milvus 方案。
 - **M5 管理端**：`/admin` 已上线，覆盖题库 CRUD/导入/发布归档、用户状态与额度补偿、指标概览、AI 调用日志、Prompt 模板/版本/发布、实验 CRUD、审计日志；管理员账号由 `OC_ADMIN_*` 引导创建。
-- **部署**：`https://<PUBLIC_DOMAIN>`（ECS cn-beijing，Docker Compose；app `0.8.8`、web `0.7.5`、PG 16、Redis 7.2）；每日 03:15 数据库 dump + 每周证书巡检；newapi/9router 容器、卷、镜像与旧备份已清理。
+- **部署**：`https://<PUBLIC_DOMAIN>`（ECS cn-beijing，Docker Compose；app `0.8.9`、web `0.7.6`、PG 16、Redis 7.2）；每日 03:15 数据库 dump + 每周证书巡检；newapi/9router 容器、卷、镜像与旧备份已清理。
 - **AI**：OpenAI 兼容客户端已接入；未配置密钥时简历/JD/出题/评分/报告自动走启发式降级（`degraded=true`）；管理端发布的 Prompt 版本会被运行时读取（60s 缓存）。
 - **下一步**：配置真实模型密钥、Git/CI 发布基线、异地备份与监控告警、管理端 MFA 与 Prompt 注入防护、题库检索召回优化。
 - **未决**：见 [README.md](README.md) §4。
@@ -41,11 +41,11 @@
 - Access Token 版本化：JWT 写入 `ver`，停用/降权/重置密码时递增 Redis 版本，旧 Access 立即失效。
 - 简历文件改为每次上传唯一 key，失败/重复清理只删自己的文件，避免并发互删。
 - Redis PII 收敛：登录/注册限流与失败计数键改用 SHA-256 摘要；生产与本地 Redis 淘汰策略改为 `volatile-lru`；本地 Compose 端口绑回环。
-- 隐私开关落地：`allow_raw_resume_to_llm` 支持保存与 `GET /users/me` 返回（当前 AI 链路未发送简历原文）。
+- 隐私开关落地：`allow_raw_resume_to_llm` 支持保存与 `GET /users/me` 返回；关闭时简历解析跳过模型调用、仅走本地启发式，原文不外发。
 - 新增迁移 `V202611090001`：补充报告 token、答题评分、会话清理、简历解析与题库岗位族表达式索引。
-- 前端：单题剩余时间按 deadline 持久化，刷新不重置；提交幂等键按题复用；PRO 无改写时不再误示升级；报告重试文案与后端一致。
+- 前端：单题剩余时间按 deadline 持久化，刷新按实际剩余恢复；暂停保留剩余时间、超时后不会重复触发；提交幂等键按题复用；PRO 无改写时不再误示升级；报告重试文案与后端一致。
 - CI：新增 `.github/workflows/ci.yml`（后端 verify + 前端 check）与 Dependabot。
-- 发布 `offercoach-app:0.8.8`、`offercoach-web:0.7.5`；生产迁移 `V202611090001` 已应用，Redis 策略切为 `volatile-lru`；登录、工作台聚合、登出冒烟通过。
+- 发布 `offercoach-app:0.8.9`、`offercoach-web:0.7.6`；生产迁移 `V202611090001` 已应用，Redis 策略切为 `volatile-lru`；隐私开关关闭时简历原文不再进入模型，计时器刷新/暂停行为修正；登录、工作台聚合、登出冒烟通过。
 - 仍未完成：异地备份需要用户提供对象存储/远端；可信代理头需与 Nginx 部署配置同步；Spring Boot 等大版本升级另行评估。
 
 ### v2.14（2026-11-09）——审计遗留项复核修复

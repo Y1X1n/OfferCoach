@@ -89,7 +89,7 @@
 | 简历文件删除竞态 | 已修复 | 每次上传唯一 key，失败/重复只清理自己的文件 |
 | 限时刷新重置 | 已修复 | 单题 deadline 存 localStorage，刷新按剩余时间恢复 |
 | Redis PII / 淘汰策略 | 已修复 | 登录注册键 SHA-256 摘要；生产与本地 `volatile-lru` |
-| 隐私开关失效 | 已修复 | `allow_raw_resume_to_llm` 支持保存与返回（当前 AI 链路未发送简历原文） |
+| 隐私开关失效 | 已修复 | `allow_raw_resume_to_llm` 支持保存与返回；关闭时简历解析跳过模型、原文不外发 |
 | Compose 暴露面 | 已修复 | 本地 Compose 中 PG/Redis/MQ/MinIO 端口绑回环 |
 | 索引缺失 | 已修复 | `V202611090001` 增加评分/清理/解析/题库表达式索引 |
 | CI 缺失 | 已修复 | `.github/workflows/ci.yml`（backend verify + frontend check）与 Dependabot |
