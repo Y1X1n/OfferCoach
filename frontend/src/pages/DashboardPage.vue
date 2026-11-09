@@ -229,15 +229,12 @@ onMounted(() => {
       </template>
     </PageHeader>
 
-    <AsyncState
-      v-if="loadError"
-      class="mt-6"
-      :error="loadError"
-      error-title="工作台加载失败"
-      @retry="loadAll"
-    />
+    <div v-if="loadError" class="mt-6">
+      <AsyncState :error="loadError" error-title="工作台加载失败" @retry="loadAll" />
+    </div>
 
-    <AsyncState v-else :loading="loading" :loading-lines="6" class="mt-6">
+    <div v-else class="mt-6 flex min-h-0 min-w-0 flex-1 flex-col">
+      <AsyncState :loading="loading" :loading-lines="6">
       <MetricStrip :items="overviewItems" label="概览数据" />
 
       <div class="mt-5 grid min-w-0 flex-1 gap-5 lg:grid-cols-3">
@@ -478,6 +475,7 @@ onMounted(() => {
           </Card>
         </aside>
       </div>
-    </AsyncState>
+      </AsyncState>
+    </div>
   </div>
 </template>
