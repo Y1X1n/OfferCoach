@@ -96,7 +96,7 @@
 | 全量 | 监控 24h；回滚镜像与开关可用 |
 | 发布后 | CHANGELOG 更新；文档与代码同批；遗留项登记 |
 
-详细门禁见 [testing.md](testing.md) 与 [../ops/ci-cd.md](../ops/ci-cd.md)。
+详细门禁见 [testing.md](testing.md) 与 [../ops/ci-cd.md](../ops/ci-cd.md)；分支、尺寸、评审与合并规则见 [pr-workflow.md](pr-workflow.md)。
 
 ## 8. 交付六阶段（产品上线视角）
 

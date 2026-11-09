@@ -1,14 +1,14 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.16 ｜ 更新：2026-11-09
+> 状态：生效 ｜ 版本：v2.17 ｜ 更新：2026-11-09
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
 
 - **阶段**：M1–M4 全链路完成并上线；真实前端已接真实后端。
 - **前端**：登录/简历/JD/面试/SSE 评分/报告/套餐/设置全部走 `/api/v1`；简历编辑支持 Markdown/JSON/打印 PDF 导出；全站页头、卡片、按钮与空态统一。
-- **文档**：26 份，覆盖产品、架构、数据、接口、AI、前端、UI、后端、测试、部署、CI/CD、可观测性、排期与复查。
-- **前端质量**：ESLint + Prettier + Vitest + `pnpm check` 通过（19 单测、typecheck 0、lint 0、build 成功）。
+- **文档**：35 份，覆盖产品、架构、数据、接口、AI、前端、UI、后端、测试、部署、CI/CD、可观测性、排期与复查。
+- **前端质量**：ESLint + Prettier + Vitest + `pnpm check` 通过（26 单测、typecheck 0、lint 0、build 成功）。
 - **后端规范**：阿里 Java 手册、Spring Cloud 实践与 CSDN REST 规范融合生效；Palantir 4 空格、Checkstyle、JaCoCo、Enforcer 均通过。
 - **M1–M4**：简历上传/手录/解析/修正/软删/重解析、JD 结构化/匹配、题库导入与检索、会话状态机、RAG 出题、答题、SSE 五维评分、异步报告与重试、每日额度与流水全部实现；单元测试与生产全链路冒烟通过。
 - **题库**：7 个公开仓库归一化为 26,385 条；公开部署仅保留 3 个 MIT 来源共 22,409 条（NC/ND/GPL/UNLICENSED 已排除），`pg_trgm` + 关键词打分为无 Milvus 方案。
@@ -34,6 +34,13 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.17（2026-11-09）——PR 流程与门禁固化
+
+- 新增 [dev/pr-workflow.md](dev/pr-workflow.md)：分支、PR 尺寸硬上限、独立评审、CI、合并、发布与例外规则。
+- 新增 `.github/pull_request_template.md`：强制填写验证、风险/回滚、迁移、安全与尺寸声明。
+- 仓库启用 `main` 分支保护：必须 PR、Backend/Frontend 两项 CI、分支最新、squash-only、禁止强推/删除；新增 `size:large`、`risk:high`、`hotfix` 标签。
+- conventions/workflow/README 索引与门禁入口同步。
 
 ### v2.16（2026-11-09）——剩余审计项收尾与框架升级
 
