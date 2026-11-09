@@ -83,6 +83,7 @@ public final class FeedbackScorer {
         double structure = structureScore(text, analysis);
         double depth = depthScore(text, analysis, metrics, domainTerms);
         double fit = fitScore(text, analysis, jdTotal, jdMatchedCount, metrics);
+        fit = Math.min(fit, content + 1.0);
         double language = languageScore(text, analysis);
         if (text.isBlank()) {
             content = 0.0;
@@ -103,11 +104,7 @@ public final class FeedbackScorer {
             fit = Math.min(fit, 5.0);
             language = Math.min(language, 5.0);
         }
-        boolean offTopic = analysis.referenceTotal() > 0
-                && analysis.referenceCovered() == 0
-                && relevance == 0.0
-                && analysis.skills().isEmpty()
-                && domainTerms.isEmpty();
+        boolean offTopic = analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0 && relevance == 0.0;
 
         Map<String, BigDecimal> dimensions = new LinkedHashMap<>();
         dimensions.put("content", round(content));
@@ -355,11 +352,7 @@ public final class FeedbackScorer {
             score -= 0.3;
         }
         score -= duplicateSentenceRatio(analysis.sentences()) * 1.5;
-        if (analysis.referenceTotal() > 0
-                && analysis.referenceCovered() == 0
-                && relevance == 0.0
-                && analysis.skills().isEmpty()
-                && domainTerms.isEmpty()) {
+        if (analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0 && relevance == 0.0) {
             score = Math.min(score, 3.0);
         }
         return clamp(score);
@@ -617,11 +610,11 @@ public final class FeedbackScorer {
             }
             default -> {}
         }
-        addFallbackStrengths(result, scenario);
+        addFallbackStrengths(result, scenario, analysis);
         return distinctLimit(result, 4);
     }
 
-    private static void addFallbackStrengths(List<String> result, Scenario scenario) {
+    private static void addFallbackStrengths(List<String> result, Scenario scenario, Analysis analysis) {
         if (result.size() >= 2) {
             return;
         }
@@ -632,7 +625,11 @@ public final class FeedbackScorer {
             }
             case TECHNICAL -> {
                 result.add("回答给出了基本结论，下一步补原理与失效场景会更有说服力");
-                result.add("围绕题目给出了自己的理解，没有明显跑题");
+                if (analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0) {
+                    result.add("表达比较完整，具备进一步展开的基础，下一步先对齐题目要点");
+                } else {
+                    result.add("围绕题目给出了自己的理解，没有明显跑题");
+                }
             }
             case BEHAVIOR -> {
                 result.add("能围绕行为问题给出真实经历，下一步把冲突和行动讲细");

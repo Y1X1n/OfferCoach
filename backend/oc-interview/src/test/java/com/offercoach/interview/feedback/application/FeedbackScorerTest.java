@@ -96,16 +96,25 @@ class FeedbackScorerTest {
 
     @Test
     void offTopicLongAnswerIsPenalized() {
-        String answer = "今天天气很好，我早上吃了豆浆油条，下午去公园散步，晚上准备看一场电影，然后早点休息，保持好的状态迎接明天。" + "最近小区门口新开了一家面馆，味道不错，周末打算再带朋友去尝尝。";
+        String answer = "今天天气不错，我沿着河边走了很久。中午和同事吃了牛肉面，味道比上周那家更好。"
+                + "下午把房间收拾了一遍，扔掉不少旧纸箱。晚上打算看一部纪录片，十一点前睡觉。"
+                + "周末准备去郊区爬山，顺便拍些照片，再买点水果带回来。";
         FeedbackScorer.Result result = raw(
-                answer.repeat(3),
-                "Redis 缓存和数据库如何保证一致性？",
-                List.of("延迟双删", "主从延迟", "异常场景"),
-                List.of("Redis", "MySQL"),
-                "DEPTH");
+                answer, "Redis 缓存和数据库如何保证一致性？", List.of("延迟双删", "主从延迟", "异常场景"), List.of("Redis", "MySQL"), "DEPTH");
 
         assertThat(result.dimensions().get("content").doubleValue()).isLessThanOrEqualTo(3.0);
         assertThat(result.overallScore().doubleValue()).isLessThanOrEqualTo(4.0);
+        assertThat(String.join(" ", result.strengths())).doesNotContain("没有明显跑题");
+    }
+
+    @Test
+    void veryShortAnswerIsCappedBelowThree() {
+        FeedbackScorer.Result result =
+                raw("Redis 缓存加延迟双删。", "Redis 缓存和数据库如何保证一致性？", List.of("延迟双删"), List.of("Redis"), "DEPTH");
+
+        assertThat(result.dimensions().values())
+                .allSatisfy(score -> assertThat(score.doubleValue()).isLessThanOrEqualTo(3.0));
+        assertThat(result.overallScore().doubleValue()).isLessThan(3.0);
     }
 
     @Test
@@ -160,6 +169,7 @@ class FeedbackScorerTest {
                 .isGreaterThan(stuffedResult.overallScore().doubleValue());
         assertThat(stuffedResult.dimensions().get("structure").doubleValue()).isLessThan(6.0);
         assertThat(stuffedResult.dimensions().get("content").doubleValue()).isLessThan(6.0);
+        assertThat(stuffedResult.dimensions().get("fit").doubleValue()).isLessThan(6.0);
     }
 
     @Test
