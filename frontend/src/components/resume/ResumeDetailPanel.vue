@@ -213,7 +213,7 @@ function confidenceOf(key: ResumeSectionKey): number {
           </div>
 
           <template v-if="project.highlights.length">
-            <p class="mt-3 text-2xs font-medium uppercase tracking-wider text-text-muted">
+            <p class="mt-3 text-2xs text-muted">
               关键动作
             </p>
             <ul class="mt-1.5 space-y-1.5">
@@ -232,7 +232,7 @@ function confidenceOf(key: ResumeSectionKey): number {
           </template>
 
           <template v-if="project.metrics.length">
-            <p class="mt-3 text-2xs font-medium uppercase tracking-wider text-text-muted">
+            <p class="mt-3 text-2xs text-muted">
               量化结果
             </p>
             <div class="mt-1.5 flex flex-wrap gap-1.5">

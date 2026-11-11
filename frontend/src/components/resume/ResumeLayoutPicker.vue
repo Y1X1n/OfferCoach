@@ -35,10 +35,10 @@ function choose(layout: ResumeLayout) {
         :aria-label="`应用版式：${layout.name}`"
         :class="
           cn(
-            'flex cursor-pointer flex-col rounded-lg border p-3 text-left transition-colors focus-visible:border-brand focus-visible:outline-none',
+            'flex cursor-pointer flex-col rounded-lg border p-3 text-left transition-colors focus-visible:border-text/40',
             layout.id === props.current
-              ? 'border-brand/60 bg-brand/5'
-              : 'border-border bg-surface hover:border-brand/40 hover:bg-surface-2/60',
+              ? 'border-text/30 bg-surface-2'
+              : 'border-border bg-surface hover:border-text/20 hover:bg-surface-2',
           )
         "
         @click="choose(layout.id)"

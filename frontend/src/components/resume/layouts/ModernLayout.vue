@@ -29,7 +29,7 @@ const levelLabel: Record<SkillItem['level'], string> = {
       <div class="min-w-0 flex-1 space-y-6">
         <section v-if="resume.summary">
           <h2
-            class="border-l-2 border-brand pl-2 text-2xs font-semibold uppercase tracking-label text-text"
+            class="border-l-2 border-text/40 pl-2 text-2xs font-semibold uppercase tracking-label text-text"
           >
             个人简介
           </h2>
@@ -38,7 +38,7 @@ const levelLabel: Record<SkillItem['level'], string> = {
 
         <section v-if="data.experiences.length">
           <h2
-            class="border-l-2 border-brand pl-2 text-2xs font-semibold uppercase tracking-label text-text"
+            class="border-l-2 border-text/40 pl-2 text-2xs font-semibold uppercase tracking-label text-text"
           >
             工作经历
           </h2>
@@ -70,7 +70,7 @@ const levelLabel: Record<SkillItem['level'], string> = {
 
         <section v-if="data.projects.length">
           <h2
-            class="border-l-2 border-brand pl-2 text-2xs font-semibold uppercase tracking-label text-text"
+            class="border-l-2 border-text/40 pl-2 text-2xs font-semibold uppercase tracking-label text-text"
           >
             项目经历
           </h2>
