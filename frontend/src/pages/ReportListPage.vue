@@ -5,17 +5,14 @@ import { ArrowRight, FileText, Plus, RotateCcw, Search, X } from 'lucide-vue-nex
 import PageHeader from '@/components/common/PageHeader.vue'
 import MetricStrip from '@/components/common/MetricStrip.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
-import ScoreRing from '@/components/charts/ScoreRing.vue'
-import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
-import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { errorMessage } from '@/api/client'
 import * as reportsApi from '@/api/reports'
 import { usePolling } from '@/composables/usePolling'
 import { useToast } from '@/composables/useToast'
 import type { ReportSummary } from '@/types'
-import { formatDate, formatRelative, formatScore, mean, round1 } from '@/utils/format'
+import { formatDate, formatRelative, formatScore, mean, round1, scoreTone } from '@/utils/format'
 
 type RangeOption = 'all' | '30d'
 
@@ -121,13 +118,17 @@ function resetFilters(): void {
   range.value = 'all'
 }
 
-function statusMeta(report: ReportSummary): {
-  variant: 'success' | 'brand' | 'danger'
-  label: string
-} {
-  if (report.status === 'READY') return { variant: 'success', label: '已完成' }
-  if (report.status === 'GENERATING') return { variant: 'brand', label: '生成中' }
-  return { variant: 'danger', label: '生成失败' }
+const toneText: Record<ReturnType<typeof scoreTone>, string> = {
+  success: 'text-success-strong',
+  accent: 'text-accent-strong',
+  warning: 'text-warning-strong',
+  danger: 'text-danger-strong',
+}
+
+function statusMeta(report: ReportSummary): { label: string } {
+  if (report.status === 'READY') return { label: '已完成' }
+  if (report.status === 'GENERATING') return { label: '生成中' }
+  return { label: '生成失败' }
 }
 
 onMounted(() => {
@@ -143,12 +144,12 @@ onBeforeUnmount(() => {
   <div class="animate-fade-up">
     <PageHeader
       title="面试报告"
-      description="每一次练习都留下可复盘的证据：总分、五维能力、证据引用与改进计划。"
+      description="每一次练习都留下可复盘的证据：总分、五维能力、证据引用与改进计划"
     >
       <template #actions>
         <RouterLink
           to="/interview/new"
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground shadow-sm transition-all duration-150 hover:brightness-105 active:scale-98"
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90"
         >
           <Plus class="h-4 w-4" aria-hidden="true" />
           开始模拟面试
@@ -170,7 +171,7 @@ onBeforeUnmount(() => {
       <template #action>
         <RouterLink
           to="/interview/new"
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground shadow-sm transition-all duration-150 hover:brightness-105 active:scale-98"
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90"
         >
           <Plus class="h-4 w-4" aria-hidden="true" />
           去开始模拟面试
@@ -180,7 +181,7 @@ onBeforeUnmount(() => {
       <MetricStrip class="mt-5" :items="overviewItems" label="报告概览" />
 
       <section
-        class="mt-5 flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 shadow-card sm:flex-row sm:items-center"
+        class="mt-5 flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-center"
         aria-label="筛选报告"
       >
         <div class="relative flex-1">
@@ -194,7 +195,7 @@ onBeforeUnmount(() => {
             v-model="keyword"
             type="search"
             placeholder="搜索公司或岗位，例如「云帆科技」"
-            class="h-10 w-full rounded-md border border-border bg-surface pl-9 pr-9 text-sm text-text outline-none transition-colors placeholder:text-text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/20"
+            class="h-10 w-full rounded-md border border-border bg-surface pl-9 pr-9 text-sm text-text transition-colors placeholder:text-muted focus:border-accent/60"
           />
           <button
             v-if="keyword"
@@ -237,75 +238,85 @@ onBeforeUnmount(() => {
         <button
           v-if="hasFilters"
           type="button"
-          class="text-xs font-medium text-brand underline-offset-4 hover:underline max-sm:inline-flex max-sm:h-11 max-sm:items-center"
+          class="text-xs font-medium text-text-2 hover:text-text max-sm:inline-flex max-sm:h-11 max-sm:items-center"
           @click="resetFilters"
         >
           清除筛选
         </button>
       </div>
 
-      <ul v-if="filteredReports.length" class="mt-3 grid gap-3" role="list">
+      <ul v-if="filteredReports.length" class="mt-3 divide-y divide-border" role="list">
         <li v-for="report in filteredReports" :key="report.id">
-          <Card padding="md" class="transition-shadow duration-200 hover:shadow-pop">
-            <div class="flex items-start gap-4 sm:items-center sm:gap-6">
-              <div class="shrink-0">
-                <ScoreRing
-                  :score="report.overallScore ?? 0"
-                  :size="80"
-                  :label="report.overallScore === null ? '生成中' : '总分'"
-                />
+          <div class="flex items-start gap-5 py-4">
+            <span class="w-16 shrink-0 text-right">
+              <span
+                :class="[
+                  'figure block text-2xl leading-8',
+                  report.overallScore === null
+                    ? 'text-text'
+                    : toneText[scoreTone(report.overallScore)],
+                ]"
+              >
+                {{ report.overallScore === null ? '—' : formatScore(report.overallScore) }}
+              </span>
+              <span class="block text-3xs text-muted">总分</span>
+            </span>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <RouterLink
+                  :to="`/reports/${report.id}`"
+                  class="truncate text-sm font-medium text-text transition-colors hover:text-accent-strong"
+                >
+                  {{ report.title }}
+                </RouterLink>
+                <span
+                  :class="[
+                    'text-2xs',
+                    report.status === 'FAILED' ? 'text-danger-strong' : 'text-text-muted',
+                  ]"
+                >
+                  {{ statusMeta(report).label }}
+                </span>
               </div>
 
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <RouterLink
-                    :to="`/reports/${report.id}`"
-                    class="truncate text-base font-semibold text-text transition-colors hover:text-brand"
-                  >
-                    {{ report.title }}
-                  </RouterLink>
-                  <Badge :variant="statusMeta(report).variant" dot>
-                    {{ statusMeta(report).label }}
-                  </Badge>
-                </div>
+              <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
+                <span>{{ report.company }}</span>
+                <span aria-hidden="true">·</span>
+                <span>{{ report.role }}</span>
+                <span aria-hidden="true">·</span>
+                <span :title="formatDate(report.createdAt, true)">{{
+                  formatRelative(report.createdAt)
+                }}</span>
+                <span aria-hidden="true">·</span>
+                <span class="figure">{{ report.questionCount }} 题</span>
+              </p>
 
-                <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
-                  <span>{{ report.company }}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{{ report.role }}</span>
-                  <span aria-hidden="true">·</span>
-                  <span :title="formatDate(report.createdAt, true)">{{
-                    formatRelative(report.createdAt)
-                  }}</span>
-                </p>
+              <p class="mt-2 line-clamp-2 text-sm leading-6 text-text-2">
+                {{ report.summary || '报告生成后这里会展示总评摘要' }}
+              </p>
 
-                <p class="mt-2 line-clamp-2 text-sm leading-6 text-text-muted">
-                  {{ report.summary || '报告生成后这里会展示总评摘要。' }}
-                </p>
-
-                <div class="mt-3 flex flex-wrap items-center gap-2">
-                  <Badge variant="neutral">共 {{ report.questionCount }} 题</Badge>
-                  <Button
-                    v-if="report.status === 'FAILED'"
-                    variant="outline"
-                    size="sm"
-                    :loading="retryingId === report.id"
-                    @click="retryReport(report)"
-                  >
-                    <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
-                    重试生成
-                  </Button>
-                  <RouterLink
-                    :to="`/reports/${report.id}`"
-                    class="ml-auto inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
-                  >
-                    查看详情
-                    <ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
-                  </RouterLink>
-                </div>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <Button
+                  v-if="report.status === 'FAILED'"
+                  variant="outline"
+                  size="sm"
+                  :loading="retryingId === report.id"
+                  @click="retryReport(report)"
+                >
+                  <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
+                  重试生成
+                </Button>
+                <RouterLink
+                  :to="`/reports/${report.id}`"
+                  class="ml-auto inline-flex items-center gap-1 text-xs text-text-2 transition-colors hover:text-text"
+                >
+                  查看详情
+                  <ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
+                </RouterLink>
               </div>
             </div>
-          </Card>
+          </div>
         </li>
       </ul>
 
