@@ -312,7 +312,7 @@ onMounted(() => {
 
           <section class="border-t border-border pt-5">
             <h3 class="flex items-center gap-1.5 text-sm font-medium text-text">
-              <ShieldCheck class="h-4 w-4 text-brand" aria-hidden="true" />
+              <ShieldCheck class="h-4 w-4 text-text-muted" aria-hidden="true" />
               邀请奖励
             </h3>
             <p class="mt-0.5 text-xs text-text-muted">
