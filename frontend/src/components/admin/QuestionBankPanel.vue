@@ -44,7 +44,7 @@ const PAGE_SIZE = 20
 const { toast } = useToast()
 
 const selectClass =
-  'h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 sm:h-9'
+  'h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:h-9'
 
 const questions = ref<AdminQuestion[]>([])
 const total = ref(0)
@@ -429,7 +429,7 @@ onMounted(() => {
             v-model="keyword"
             type="search"
             placeholder="搜索标题、题干或公司"
-            class="h-11 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/20 sm:h-9"
+            class="h-11 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-text transition-colors placeholder:text-muted focus:border-accent/60 sm:h-9"
           />
         </div>
 
@@ -440,7 +440,7 @@ onMounted(() => {
             v-model="jobFamilyFilter"
             type="text"
             placeholder="岗位族，如 后端"
-            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/20 sm:h-9"
+            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors placeholder:text-muted focus:border-accent/60 sm:h-9"
           />
         </div>
 

@@ -54,7 +54,7 @@ const nicknameError = computed(() => {
   return ''
 })
 const nicknameHint = computed(
-  () => `2–40 个字符，当前 ${nickname.value.trim().length}/40；会用于工作台问候语。`,
+  () => `2–40 个字符，当前 ${nickname.value.trim().length}/40；显示在用户菜单与个人资料中。`,
 )
 const isDirty = computed(
   () =>
@@ -174,7 +174,6 @@ onMounted(async () => {
     <PageHeader
       title="设置"
       description="管理个人资料、外观与隐私偏好；账号与偏好均保存在服务端。"
-      eyebrow="设置"
     />
 
     <div class="mt-6 grid gap-5 lg:grid-cols-2 lg:items-start">
@@ -188,7 +187,7 @@ onMounted(async () => {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-text">个人资料</h2>
-              <p class="text-xs text-text-muted">昵称会出现在工作台问候语与报告中。</p>
+              <p class="text-xs text-text-muted">昵称会显示在用户菜单与个人资料中</p>
             </div>
           </div>
 
@@ -215,7 +214,7 @@ onMounted(async () => {
               <select
                 id="settings-timezone"
                 v-model="timezone"
-                class="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20"
+                class="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60"
               >
                 <option v-for="option in timezoneOptions" :key="option.value" :value="option.value">
                   {{ option.label }}
@@ -257,7 +256,7 @@ onMounted(async () => {
               :class="[
                 'flex flex-col items-center gap-2 rounded-md border px-2 py-3 text-xs font-medium transition-colors',
                 themeChoice === option.value
-                  ? 'border-brand bg-brand/10 text-brand'
+                  ? 'border-text/30 bg-surface-2 text-text'
                   : 'border-border bg-surface text-text-muted hover:bg-surface-2 hover:text-text',
               ]"
               @click="chooseTheme(option.value)"
@@ -354,7 +353,7 @@ onMounted(async () => {
               <dt class="text-text-muted">套餐</dt>
               <dd class="flex items-center gap-2">
                 <Badge :variant="isPro ? 'brand' : 'neutral'" dot>{{ planName }}</Badge>
-                <RouterLink to="/plans" class="text-xs font-medium text-brand hover:underline">
+                <RouterLink to="/plans" class="text-xs font-medium text-text-2 hover:text-text">
                   查看套餐
                 </RouterLink>
               </dd>
@@ -370,7 +369,7 @@ onMounted(async () => {
         <Card>
           <div class="flex items-center gap-2">
             <span
-              class="flex h-8 w-8 items-center justify-center rounded-md bg-surface-2 text-brand"
+              class="flex h-8 w-8 items-center justify-center rounded-md bg-surface-2 text-text-2"
             >
               <Gift class="h-4 w-4" aria-hidden="true" />
             </span>

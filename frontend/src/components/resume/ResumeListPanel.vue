@@ -18,7 +18,7 @@ const statusMeta: Record<
 }
 
 function selectedClass(selected: boolean): string {
-  return selected ? 'border-brand/50 bg-brand/5' : 'border-border bg-surface hover:bg-surface-2'
+  return selected ? 'border-text/30 bg-surface-2' : 'border-border bg-surface hover:bg-surface-2'
 }
 </script>
 
@@ -37,7 +37,7 @@ function selectedClass(selected: boolean): string {
           :title="`右键可删除 · 更新于 ${formatDate(resume.updatedAt, true)}`"
           :class="
             cn(
-              'w-full rounded-md border p-3 pr-11 text-left transition-colors focus-visible:border-brand',
+              'w-full rounded-md border p-3 pr-11 text-left transition-colors focus-visible:border-text/40',
               selectedClass(resume.id === selectedId),
             )
           "
@@ -52,7 +52,7 @@ function selectedClass(selected: boolean): string {
                   resume.status === 'FAILED'
                     ? 'bg-danger/10 text-danger'
                     : resume.status === 'PARSING'
-                      ? 'bg-brand/10 text-brand'
+                      ? 'bg-surface-2 text-text-2'
                       : 'bg-surface-2 text-text-muted',
                 )
               "

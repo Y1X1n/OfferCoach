@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { ArrowLeft, FileText, ListChecks, Loader2, Printer, Radar, RotateCcw } from 'lucide-vue-next'
+import { ArrowLeft, FileText, Loader2, Printer, RotateCcw } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
 import RadarChart from '@/components/charts/RadarChart.vue'
@@ -11,7 +11,6 @@ import ImprovementPlanList from '@/components/report/ImprovementPlanList.vue'
 import ReportInsightCards from '@/components/report/ReportInsightCards.vue'
 import ReportQuestionItem from '@/components/report/ReportQuestionItem.vue'
 import Alert from '@/components/ui/Alert.vue'
-import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import Spinner from '@/components/ui/Spinner.vue'
@@ -128,7 +127,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="animate-fade-up">
-    <PageHeader title="面试报告" description="逐题证据、五维能力与下一步改进计划，都可以带走复盘。">
+    <PageHeader title="面试报告" description="逐题证据、五维能力与下一步改进计划，都可以带走复盘">
       <template #actions>
         <Button v-if="report?.status === 'READY'" variant="secondary" class="print:hidden" @click="onPrintReport">
           <Printer class="h-4 w-4" aria-hidden="true" />
@@ -177,7 +176,7 @@ onBeforeUnmount(() => {
 
       <Card v-else-if="report.status === 'GENERATING'" padding="lg" class="mt-1">
         <div class="flex flex-col items-center py-10 text-center">
-          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand/10 text-brand">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-2">
             <Loader2 class="h-5 w-5 animate-spin" aria-hidden="true" />
           </span>
           <h2 class="mt-4 text-base font-semibold text-text">报告生成中</h2>
@@ -204,8 +203,8 @@ onBeforeUnmount(() => {
 
       <template v-else>
         <Card padding="none" class="mt-5 overflow-hidden print:mt-2 print:border-0 print:shadow-none">
-          <div class="bg-gradient-to-br from-brand/5 via-surface to-accent/10 p-5 sm:p-6 lg:p-8">
-            <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-8">
+          <div class="p-6 lg:p-8">
+            <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
               <div class="flex justify-center lg:block">
                 <ScoreRing
                   :score="report.overallScore ?? 0"
@@ -216,37 +215,31 @@ onBeforeUnmount(() => {
               </div>
 
               <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <Badge variant="brand">模拟面试</Badge>
-                  <Badge variant="neutral">报告 #{{ report.id }}</Badge>
-                  <span class="tabular text-xs text-text-muted">
-                    {{ formatDate(report.generatedAt, true) }}
-                  </span>
-                </div>
+                <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-text-muted">
+                  <span>模拟面试</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{{ formatDate(report.generatedAt, true) }}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>报告 #{{ report.id }}</span>
+                </p>
 
-                <h2 class="mt-2 text-xl font-semibold tracking-tight text-text sm:text-2xl">
+                <h2 class="mt-2 text-xl font-medium tracking-tight text-text">
                   本场面试总评
                 </h2>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-text-muted">{{ report.summary }}</p>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-text-2">{{ report.summary }}</p>
 
-                <dl class="mt-4 grid max-w-md grid-cols-3 gap-3">
-                  <div class="rounded-md border border-border bg-surface/70 p-3">
-                    <dt class="text-xs text-text-muted">覆盖题目</dt>
-                    <dd class="tabular mt-1 text-lg font-semibold text-text">
-                      {{ report.breakdown.length }}
-                    </dd>
+                <dl class="mt-6 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-4">
+                  <div>
+                    <dt class="text-2xs text-text-muted">覆盖题目</dt>
+                    <dd class="figure mt-1 text-lg text-text">{{ report.breakdown.length }}</dd>
                   </div>
-                  <div class="rounded-md border border-border bg-surface/70 p-3">
-                    <dt class="text-xs text-text-muted">表现亮点</dt>
-                    <dd class="tabular mt-1 text-lg font-semibold text-text">
-                      {{ report.highlights.length }}
-                    </dd>
+                  <div>
+                    <dt class="text-2xs text-text-muted">表现亮点</dt>
+                    <dd class="figure mt-1 text-lg text-text">{{ report.highlights.length }}</dd>
                   </div>
-                  <div class="rounded-md border border-border bg-surface/70 p-3">
-                    <dt class="text-xs text-text-muted">风险项</dt>
-                    <dd class="tabular mt-1 text-lg font-semibold text-text">
-                      {{ report.risks.length }}
-                    </dd>
+                  <div>
+                    <dt class="text-2xs text-text-muted">风险项</dt>
+                    <dd class="figure mt-1 text-lg text-text">{{ report.risks.length }}</dd>
                   </div>
                 </dl>
               </div>
@@ -255,24 +248,23 @@ onBeforeUnmount(() => {
         </Card>
 
         <div class="mt-4 grid gap-4 lg:grid-cols-5">
-          <Card padding="lg" class="lg:col-span-3 print:border-0 print:shadow-none">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <h2 class="flex items-center gap-2 text-base font-semibold text-text">
-                <Radar class="h-4 w-4 text-brand" aria-hidden="true" />
-                五维能力
-              </h2>
-              <span class="text-xs text-text-muted">单项满分 10 分</span>
+          <Card class="lg:col-span-3 print:border-0 print:shadow-none">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 class="text-base font-medium text-text">五维能力</h2>
+              <span class="text-2xs text-text-muted">单项满分 10 分</span>
             </div>
 
-            <div class="mt-4 grid items-center gap-6 sm:grid-cols-2">
+            <div class="mt-4 grid items-center gap-8 sm:grid-cols-[minmax(0,1fr)_auto]">
               <RadarChart v-if="report.radar.length" :items="report.radar" :size="260" />
               <div
                 v-else
-                class="flex h-48 items-center justify-center rounded-md border border-dashed border-border bg-surface-2/40 px-4 text-center text-sm text-text-muted"
+                class="flex h-48 items-center justify-center rounded-md border border-dashed border-border px-4 text-center text-sm text-text-muted"
               >
-                本次没有生成雷达图数据。
+                本次没有生成雷达图数据
               </div>
-              <DimensionBars :items="report.radar" />
+              <div class="w-full sm:w-56">
+                <DimensionBars :items="report.radar" />
+              </div>
             </div>
           </Card>
 
@@ -286,17 +278,13 @@ onBeforeUnmount(() => {
         </div>
 
         <section class="mt-4 print:mt-2" aria-labelledby="report-breakdown-title">
-          <Card padding="lg" class="print:border-0 print:shadow-none">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <h2
-                id="report-breakdown-title"
-                class="flex items-center gap-2 text-base font-semibold text-text"
-              >
-                <ListChecks class="h-4 w-4 text-brand" aria-hidden="true" />
+          <Card class="print:border-0 print:shadow-none">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="report-breakdown-title" class="text-base font-medium text-text">
                 逐题拆解
               </h2>
-              <div class="flex items-center gap-2 text-xs text-text-muted">
-                <Badge variant="neutral">{{ report.breakdown.length }} 题</Badge>
+              <div class="flex items-baseline gap-2 text-xs text-text-muted">
+                <span class="figure">{{ report.breakdown.length }} 题</span>
                 <span>展开查看回答、证据与建议</span>
               </div>
             </div>
@@ -310,7 +298,7 @@ onBeforeUnmount(() => {
               />
             </div>
             <p v-else class="mt-4 text-sm leading-6 text-text-muted">
-              这份报告还没有逐题记录，可以重新完成一场模拟面试获取完整拆解。
+              这份报告还没有逐题记录，可以重新完成一场模拟面试获取完整拆解
             </p>
           </Card>
         </section>

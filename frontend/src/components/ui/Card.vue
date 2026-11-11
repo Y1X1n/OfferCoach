@@ -12,7 +12,7 @@ const props = withDefaults(
 )
 
 const paddingClass = computed(
-  () => ({ none: '', sm: 'p-3', md: 'p-5', lg: 'p-6 sm:p-8' })[props.padding],
+  () => ({ none: '', sm: 'p-4', md: 'p-5', lg: 'p-6' })[props.padding],
 )
 </script>
 
@@ -20,9 +20,9 @@ const paddingClass = computed(
   <div
     :class="
       cn(
-        'rounded-lg border border-border bg-surface shadow-card',
+        'rounded-lg border border-border bg-surface',
         paddingClass,
-        hover && 'transition-shadow duration-200 hover:shadow-pop',
+        hover && 'transition-colors duration-150 hover:border-text/15',
         props.class,
       )
     "

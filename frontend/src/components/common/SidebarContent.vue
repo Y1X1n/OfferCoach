@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { Sparkles } from 'lucide-vue-next'
 import { adminNavItem, navItems } from '@/components/common/navigation'
 import { useAppStore } from '@/stores/app'
 
@@ -18,33 +17,35 @@ function active(to: string, exact = false) {
 </script>
 
 <template>
-  <aside class="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface">
-    <RouterLink to="/" class="flex items-center gap-2.5 px-5 py-5" @click="emit('navigate')">
+  <aside class="flex h-full w-60 shrink-0 flex-col border-r border-border bg-surface max-lg:w-full">
+    <RouterLink
+      to="/"
+      class="flex h-14 items-center gap-2.5 px-5"
+      aria-label="OfferCoach 工作台"
+      @click="emit('navigate')"
+    >
       <span
-        class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-brand-foreground shadow-sm"
+        class="flex h-7 w-7 items-center justify-center rounded-sm bg-text text-sm font-semibold leading-none text-surface"
+        aria-hidden="true"
       >
-        <Sparkles class="h-5 w-5" aria-hidden="true" />
+        O
       </span>
-      <span class="min-w-0">
-        <span class="block text-sm font-semibold tracking-tight text-text">OfferCoach</span>
-        <span class="block text-2xs text-text-muted">AI 模拟面试</span>
-      </span>
+      <span class="text-sm font-medium tracking-tight text-text">OfferCoach</span>
     </RouterLink>
 
     <div class="flex-1 overflow-y-auto px-3 pb-4">
-      <p class="px-2 pb-2 pt-2 text-3xs font-semibold uppercase tracking-wider text-text-muted">
-        功能
-      </p>
-      <nav class="space-y-1" aria-label="主导航">
+      <p class="px-2 pb-1.5 pt-4 text-2xs text-muted">练习</p>
+      <nav class="space-y-0.5" aria-label="主导航">
         <RouterLink
           v-for="item in navItems"
           :key="item.to"
           :to="item.to"
+          :aria-current="active(item.to, item.exact) ? 'page' : undefined"
           :class="[
-            'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+            'flex h-8 items-center gap-2.5 rounded-md px-2 text-sm transition-colors duration-150 max-lg:min-h-11',
             active(item.to, item.exact)
-              ? 'bg-brand/10 font-medium text-brand'
-              : 'text-text-muted hover:bg-surface-2 hover:text-text',
+              ? 'bg-surface-2 font-medium text-text'
+              : 'text-text-2 hover:bg-surface-2 hover:text-text',
           ]"
           @click="emit('navigate')"
         >
@@ -53,18 +54,17 @@ function active(to: string, exact = false) {
         </RouterLink>
       </nav>
 
-      <div v-if="isAdmin" class="mt-4 border-t border-border pt-3">
-        <p class="px-2 pb-2 text-3xs font-semibold uppercase tracking-wider text-text-muted">
-          管理员
-        </p>
-        <nav class="space-y-1" aria-label="管理导航">
+      <template v-if="isAdmin">
+        <p class="px-2 pb-1.5 pt-6 text-2xs text-muted">管理</p>
+        <nav aria-label="管理导航">
           <RouterLink
             :to="adminNavItem.to"
+            :aria-current="active(adminNavItem.to) ? 'page' : undefined"
             :class="[
-              'flex min-h-11 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+              'flex h-8 items-center gap-2.5 rounded-md px-2 text-sm transition-colors duration-150 max-lg:min-h-11',
               active(adminNavItem.to)
-                ? 'bg-brand/10 font-medium text-brand'
-                : 'text-text-muted hover:bg-surface-2 hover:text-text',
+                ? 'bg-surface-2 font-medium text-text'
+                : 'text-text-2 hover:bg-surface-2 hover:text-text',
             ]"
             @click="emit('navigate')"
           >
@@ -72,24 +72,20 @@ function active(to: string, exact = false) {
             <span class="truncate">{{ adminNavItem.label }}</span>
           </RouterLink>
         </nav>
-      </div>
+      </template>
     </div>
 
-    <div class="border-t border-border p-4">
-      <div v-if="isPro" class="flex items-center gap-2 text-xs text-text-muted">
-        <span
-          class="inline-flex h-5 items-center rounded-full bg-success/10 px-2 font-medium text-success-strong"
-          >PRO</span
-        >
-        已解锁建议改写
-      </div>
+    <div class="border-t border-border px-5 py-4">
+      <p v-if="isPro" class="text-2xs text-text-2">
+        专业版 · 已解锁建议改写
+      </p>
       <RouterLink
         v-else
         to="/plans"
-        class="flex items-center justify-between text-xs text-text-muted hover:text-brand"
+        class="flex items-center justify-between gap-2 text-2xs text-text-muted transition-colors hover:text-text"
         @click="emit('navigate')"
       >
-        <span>升级 PRO 解锁建议改写</span>
+        <span>升级专业版解锁建议改写</span>
         <span aria-hidden="true">→</span>
       </RouterLink>
     </div>

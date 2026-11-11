@@ -15,8 +15,10 @@ export default {
           2: 'hsl(var(--surface-2) / <alpha-value>)',
         },
         border: 'hsl(var(--border) / <alpha-value>)',
+        muted: 'hsl(var(--muted) / <alpha-value>)',
         text: {
           DEFAULT: 'hsl(var(--text) / <alpha-value>)',
+          2: 'hsl(var(--text-2) / <alpha-value>)',
           muted: 'hsl(var(--muted) / <alpha-value>)',
         },
         brand: {
@@ -38,24 +40,24 @@ export default {
       },
       fontFamily: {
         sans: [
-          'Inter',
-          'Noto Sans SC',
-          'PingFang SC',
-          'Microsoft YaHei',
           'system-ui',
+          '-apple-system',
+          '"Segoe UI"',
+          '"PingFang SC"',
+          '"Microsoft YaHei"',
           'sans-serif',
         ],
-        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        mono: ['"Cascadia Mono"', '"SF Mono"', 'Consolas', 'ui-monospace', 'monospace'],
       },
       fontSize: {
-        '2xs': ['11px', '16px'],
-        '3xs': ['10px', '14px'],
+        '2xs': ['12px', '16px'],
+        '3xs': ['11px', '16px'],
       },
       letterSpacing: {
-        label: '0.14em',
-        badge: '0.16em',
-        caption: '0.18em',
-        hero: '0.3em',
+        label: '0.04em',
+        badge: '0.04em',
+        caption: '0.06em',
+        hero: '0.14em',
       },
       scale: {
         '98': '.98',
@@ -68,8 +70,7 @@ export default {
       },
       boxShadow: {
         card: '0 1px 2px rgb(15 23 42 / 0.04)',
-        pop: '0 10px 30px rgb(15 23 42 / 0.12)',
-        focus: '0 0 0 3px hsl(var(--brand) / 0.2)',
+        pop: '0 8px 24px rgb(15 23 42 / 0.08)',
       },
       transitionTimingFunction: {
         out: 'cubic-bezier(.22,1,.36,1)',
@@ -88,20 +89,16 @@ export default {
           from: { opacity: '0', transform: 'scale(.97)' },
           to: { opacity: '1', transform: 'scale(1)' },
         },
-        shimmer: {
-          '100%': { transform: 'translateX(100%)' },
-        },
         'pulse-soft': {
           '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '.55' },
+          '50%': { opacity: '.4' },
         },
       },
       animation: {
         'fade-up': 'fade-up .32s cubic-bezier(.22,1,.36,1) both',
         'fade-in': 'fade-in .2s ease-out both',
         'scale-in': 'scale-in .2s cubic-bezier(.22,1,.36,1) both',
-        shimmer: 'shimmer 1.6s infinite',
-        'pulse-soft': 'pulse-soft 1.8s ease-in-out infinite',
+        'pulse-soft': 'pulse-soft 1.4s ease-in-out infinite',
       },
       zIndex: {
         sticky: '20',

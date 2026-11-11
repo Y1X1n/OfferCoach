@@ -249,7 +249,7 @@ onMounted(() => {
 
     <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] lg:items-start">
       <Card padding="sm" class="min-w-0">
-        <h3 class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+        <h3 class="px-1 pb-2 text-xs font-semibold text-text-muted">
           模板列表
         </h3>
         <AsyncState
@@ -271,7 +271,7 @@ onMounted(() => {
                 :class="[
                   'w-full rounded-md px-3 py-2.5 text-left transition-colors min-h-11',
                   selectedCode === template.code
-                    ? 'bg-brand/10 text-brand'
+                    ? 'bg-surface-2 text-text-2'
                     : 'text-text hover:bg-surface-2',
                 ]"
                 @click="selectTemplate(template.code)"

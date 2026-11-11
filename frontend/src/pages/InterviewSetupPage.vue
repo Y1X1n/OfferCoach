@@ -4,7 +4,6 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ArrowRight, CircleAlert, Loader2 } from 'lucide-vue-next'
 import type { InterviewConfig, InterviewSession, Jd, ResumeSummary } from '@/types'
 import PageHeader from '@/components/common/PageHeader.vue'
-import QuotaBadge from '@/components/common/QuotaBadge.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
 import InterviewConfigPanel from '@/components/interview/setup/InterviewConfigPanel.vue'
 import JdPicker from '@/components/interview/setup/JdPicker.vue'
@@ -224,14 +223,9 @@ onBeforeUnmount(() => {
 <template>
   <div class="space-y-6">
     <PageHeader
-      eyebrow="模拟面试"
       title="创建模拟面试"
       description="基于简历与目标岗位生成针对性题目。默认 8 道题约 10 分钟，可按需调整题量、难度与面试官风格。"
-    >
-      <template #actions>
-        <QuotaBadge />
-      </template>
-    </PageHeader>
+    />
 
     <AsyncState
       :loading="loading"
