@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { computed } from 'vue'
 import type { RadarItem } from '@/types'
 
 const props = withDefaults(defineProps<{ items: RadarItem[]; size?: number }>(), { size: 280 })
 
 const center = computed(() => props.size / 2)
 const radius = computed(() => props.size * 0.3)
-const labelRadius = computed(() => radius.value + 24)
-const gradientId = `radar-fill-${useId()}`
+const labelRadius = computed(() => radius.value + 26)
 
 function point(index: number, ratio: number): { x: number; y: number } {
   const count = Math.max(3, props.items.length)
@@ -57,12 +56,6 @@ const labels = computed(() =>
     role="img"
     aria-label="五维能力雷达图"
   >
-    <defs>
-      <linearGradient :id="gradientId" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="hsl(var(--brand))" stop-opacity="0.28" />
-        <stop offset="100%" stop-color="hsl(var(--accent))" stop-opacity="0.12" />
-      </linearGradient>
-    </defs>
     <g>
       <polygon
         v-for="level in levels"
@@ -84,9 +77,9 @@ const labels = computed(() =>
       />
       <polygon
         :points="valuePolygon"
-        :fill="`url(#${gradientId})`"
-        stroke="hsl(var(--brand))"
-        stroke-width="2"
+        fill="hsl(var(--accent) / 0.1)"
+        stroke="hsl(var(--accent))"
+        stroke-width="1.5"
         stroke-linejoin="round"
       />
       <circle
@@ -94,8 +87,8 @@ const labels = computed(() =>
         :key="`${item.dimension}-dot`"
         :cx="point(index, Math.min(1, Math.max(0, item.score / 10))).x"
         :cy="point(index, Math.min(1, Math.max(0, item.score / 10))).y"
-        r="3"
-        fill="hsl(var(--brand))"
+        r="2.5"
+        fill="hsl(var(--accent))"
       />
       <text
         v-for="item in labels"
@@ -104,8 +97,8 @@ const labels = computed(() =>
         :y="item.y"
         :text-anchor="item.anchor"
         dominant-baseline="middle"
-        fill="hsl(var(--muted))"
-        font-size="11"
+        fill="hsl(var(--text-2))"
+        font-size="12"
       >
         {{ item.label }}
       </text>
@@ -116,9 +109,9 @@ const labels = computed(() =>
         :y="item.y + 13"
         :text-anchor="item.anchor"
         dominant-baseline="middle"
-        fill="hsl(var(--text))"
-        font-size="10"
-        font-weight="600"
+        fill="hsl(var(--text-2))"
+        font-size="11"
+        font-weight="500"
       >
         {{ item.score.toFixed(1) }}
       </text>

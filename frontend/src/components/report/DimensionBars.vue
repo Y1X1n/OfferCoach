@@ -21,10 +21,10 @@ function tone(score: number): ReturnType<typeof scoreTone> {
   <div class="space-y-4">
     <div v-for="item in items" :key="item.dimension">
       <div class="flex items-baseline justify-between gap-3">
-        <span class="text-sm text-text-muted">{{ item.label }}</span>
-        <span :class="['tabular text-sm font-semibold', toneText[tone(item.score)]]">
+        <span class="text-sm text-text-2">{{ item.label }}</span>
+        <span :class="['figure text-sm font-medium', toneText[tone(item.score)]]">
           {{ formatScore(item.score) }}
-          <span class="text-xs font-normal text-text-muted">/ 10</span>
+          <span class="text-2xs font-normal text-muted">/ 10</span>
         </span>
       </div>
       <Progress
@@ -35,6 +35,6 @@ function tone(score: number): ReturnType<typeof scoreTone> {
         :label="`${item.label} ${formatScore(item.score)} 分，满分 10 分`"
       />
     </div>
-    <p v-if="items.length === 0" class="text-sm text-text-muted">本次没有生成维度分数。</p>
+    <p v-if="items.length === 0" class="text-sm leading-6 text-text-2">本次没有生成维度分数。</p>
   </div>
 </template>
