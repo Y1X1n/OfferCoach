@@ -49,7 +49,7 @@ const inputType = computed(() =>
         :aria-describedby="error ? errorId : hint ? hintId : undefined"
         :class="
           cn(
-            'h-10 w-full rounded-md border bg-surface px-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-surface-2',
+            'h-10 w-full rounded-md border bg-surface px-3 text-sm text-text transition-colors duration-150 placeholder:text-muted focus:border-text/40 disabled:cursor-not-allowed disabled:bg-surface-2',
             error ? 'border-danger' : 'border-border',
             props.type === 'password' && 'pr-10',
             inputClass,
@@ -59,7 +59,7 @@ const inputType = computed(() =>
       <button
         v-if="type === 'password'"
         type="button"
-        class="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded text-text-muted hover:bg-surface-2 hover:text-text"
+        class="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-sm text-text-muted transition-colors hover:bg-surface-2 hover:text-text"
         :aria-label="showPassword ? '隐藏密码' : '显示密码'"
         @click="showPassword = !showPassword"
       >

@@ -8,7 +8,6 @@ import {
   Lock,
   Moon,
   RefreshCw,
-  Sparkles,
   Sun,
 } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
@@ -221,43 +220,36 @@ async function handleSubmit() {
       <section
         class="relative hidden overflow-hidden border-r border-border bg-surface-2 lg:flex lg:flex-col"
       >
-        <div
-          class="grid-pattern pointer-events-none absolute inset-0 opacity-60"
-          aria-hidden="true"
-        />
-        <div
-          class="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/15 via-transparent to-brand/20"
-          aria-hidden="true"
-        />
         <div class="relative flex h-full flex-col justify-between gap-12 p-10 xl:p-14">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2.5">
             <span
-              class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-brand-foreground shadow-pop"
+              class="flex h-7 w-7 items-center justify-center rounded-sm bg-text text-sm font-semibold leading-none text-surface"
+              aria-hidden="true"
             >
-              <Sparkles class="h-5 w-5" aria-hidden="true" />
+              O
             </span>
             <div>
-              <p class="text-base font-semibold tracking-tight">OfferCoach</p>
-              <p class="text-xs text-text-muted">AI 模拟面试与简历诊断</p>
+              <p class="text-sm font-medium tracking-tight">OfferCoach</p>
+              <p class="text-xs text-text-muted">面试练习与复盘</p>
             </div>
           </div>
 
           <div class="max-w-md">
-            <h1 class="text-3xl font-semibold leading-tight tracking-tight text-text xl:text-4xl">
-              从第一份简历，<br />开始认真准备。
+            <h1 class="text-3xl font-medium leading-tight tracking-tight text-text xl:text-4xl">
+              从第一份简历，<br />开始认真准备
             </h1>
-            <p class="mt-4 text-sm leading-relaxed text-text-muted">
+            <p class="mt-4 text-sm leading-relaxed text-text-2">
               注册即可获得免费模拟额度，把模糊的自我感觉换成具体的分数与改进建议。
             </p>
             <ul class="mt-8 space-y-4">
               <li v-for="item in highlights" :key="item.title" class="flex gap-3">
-                <span
-                  class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-brand"
-                >
-                  <component :is="item.icon" class="h-4 w-4" aria-hidden="true" />
-                </span>
+                <component
+                  :is="item.icon"
+                  class="mt-1 h-4 w-4 shrink-0 text-muted"
+                  aria-hidden="true"
+                />
                 <div>
-                  <p class="text-sm font-medium text-text">{{ item.title }}</p>
+                  <p class="text-sm text-text">{{ item.title }}</p>
                   <p class="mt-0.5 text-xs leading-relaxed text-text-muted">
                     {{ item.description }}
                   </p>
@@ -285,18 +277,19 @@ async function handleSubmit() {
         <header class="flex items-center justify-between gap-4 px-5 py-5 sm:px-8 lg:px-10">
           <div class="flex items-center gap-2.5 lg:hidden">
             <span
-              class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-brand-foreground"
+              class="flex h-7 w-7 items-center justify-center rounded-sm bg-text text-sm font-semibold leading-none text-surface"
+              aria-hidden="true"
             >
-              <Sparkles class="h-4 w-4" aria-hidden="true" />
+              O
             </span>
             <div class="leading-tight">
-              <p class="text-sm font-semibold">OfferCoach</p>
-              <p class="text-xs text-text-muted">AI 模拟面试与简历诊断</p>
+              <p class="text-sm font-medium">OfferCoach</p>
+              <p class="text-xs text-text-muted">面试练习与复盘</p>
             </div>
           </div>
           <button
             type="button"
-            class="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-text-muted transition-colors hover:bg-surface-2 hover:text-text"
+            class="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-2 hover:text-text max-sm:h-11 max-sm:w-11"
             :aria-label="isDark ? '切换到浅色模式' : '切换到深色模式'"
             @click="toggleTheme"
           >
@@ -309,9 +302,9 @@ async function handleSubmit() {
           <div class="w-full max-w-md">
             <Card padding="lg" class="animate-fade-up">
               <div class="mb-6">
-                <h2 class="text-2xl font-semibold tracking-tight text-text">创建账号</h2>
+                <h2 class="text-xl font-medium tracking-tight text-text">创建账号</h2>
                 <p class="mt-1.5 text-sm text-text-muted">
-                  注册后自动登录，直接开始第一轮模拟面试。
+                  注册后自动登录，直接开始第一轮模拟面试
                 </p>
               </div>
 
@@ -473,7 +466,7 @@ async function handleSubmit() {
 
               <p class="mt-5 text-center text-sm text-text-muted">
                 已有账号？
-                <RouterLink :to="{ name: 'login' }" class="font-medium text-brand hover:underline"
+                <RouterLink :to="{ name: 'login' }" class="font-medium text-text-2 hover:text-text"
                   >去登录</RouterLink
                 >
               </p>

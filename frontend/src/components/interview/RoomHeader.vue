@@ -43,7 +43,7 @@ const timeLimitText = computed(() => {
   >
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
-        <p class="text-2xs font-medium uppercase tracking-wider text-brand">模拟面试</p>
+        <p class="text-2xs font-medium text-text-muted">模拟面试</p>
         <h1 class="mt-0.5 truncate text-lg font-semibold text-text sm:text-xl">
           {{ jdTitle }}
         </h1>

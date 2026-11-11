@@ -13,7 +13,7 @@ const dashOffset = computed(() => circumference * (1 - ratio.value))
 const tone = computed(() =>
   ratio.value <= 0.1 ? 'danger' : ratio.value <= 0.3 ? 'warning' : 'brand',
 )
-const toneClass = { brand: 'text-brand', warning: 'text-warning', danger: 'text-danger' }
+const toneClass = { brand: 'text-accent', warning: 'text-warning', danger: 'text-danger' }
 const label = computed(() => {
   const minutes = Math.floor(props.remaining / 60)
   const seconds = props.remaining % 60
@@ -43,7 +43,7 @@ const label = computed(() => {
           stroke-linecap="round"
           :stroke-dasharray="circumference"
           :stroke-dashoffset="dashOffset"
-          :class="['transition-all duration-500', toneClass[tone]]"
+          :class="['transition-[stroke-dashoffset] duration-500', toneClass[tone]]"
         />
       </svg>
       <span

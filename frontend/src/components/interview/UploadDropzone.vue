@@ -58,7 +58,7 @@ function onDrop(event: DragEvent) {
     <div
       :class="[
         'flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-5 py-10 text-center transition-colors',
-        dragging ? 'border-brand bg-brand/5' : 'border-border bg-surface hover:bg-surface-2/60',
+        dragging ? 'border-text/30 bg-surface-2' : 'border-border bg-surface hover:bg-surface-2/60',
       ]"
       role="button"
       tabindex="0"
@@ -71,7 +71,7 @@ function onDrop(event: DragEvent) {
       @drop.prevent="onDrop"
     >
       <input ref="inputRef" type="file" class="hidden" :accept="accept" @change="onInputChange" />
-      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-brand/10 text-brand">
+      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-2">
         <UploadCloud class="h-5 w-5" aria-hidden="true" />
       </div>
       <p class="mt-4 text-sm font-medium text-text">拖拽简历到这里，或点击选择文件</p>

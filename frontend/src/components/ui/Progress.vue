@@ -17,14 +17,14 @@ const props = withDefaults(
 
 const percent = computed(() => Math.min(100, Math.max(0, (props.value / props.max) * 100)))
 const toneClass: Record<Tone, string> = {
-  brand: 'bg-brand',
+  brand: 'bg-text',
   success: 'bg-success',
   warning: 'bg-warning',
   danger: 'bg-danger',
   accent: 'bg-accent',
 }
 const classes = computed(() =>
-  cn('h-1.5 w-full overflow-hidden rounded-full bg-surface-2', props.size === 'md' && 'h-2'),
+  cn('h-1 w-full overflow-hidden rounded-sm bg-surface-2', props.size === 'md' && 'h-1.5'),
 )
 const currentTone = computed(() => props.tone ?? 'brand')
 </script>
@@ -41,7 +41,7 @@ const currentTone = computed(() => props.tone ?? 'brand')
     >
       <div
         :class="[
-          'h-full rounded-full transition-all duration-500 ease-out',
+          'h-full rounded-sm transition-[width] duration-500 ease-out',
           toneClass[currentTone],
         ]"
         :style="{ width: `${percent}%` }"
