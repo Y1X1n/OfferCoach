@@ -4,18 +4,15 @@ import { RouterLink } from 'vue-router'
 import {
   CheckCircle2,
   ChevronDown,
+  Lightbulb,
   Lock,
   MessagesSquare,
   Quote,
-  Sparkles,
   TriangleAlert,
 } from 'lucide-vue-next'
-import Badge from '@/components/ui/Badge.vue'
 import { useAppStore } from '@/stores/app'
 import type { QuestionDimension, ReportBreakdownItem } from '@/types'
 import { formatScore, scoreTone } from '@/utils/format'
-
-type BadgeVariant = 'brand' | 'success' | 'warning' | 'danger' | 'neutral' | 'accent'
 
 const props = withDefaults(defineProps<{ item: ReportBreakdownItem; open?: boolean }>(), {
   open: false,
@@ -23,11 +20,11 @@ const props = withDefaults(defineProps<{ item: ReportBreakdownItem; open?: boole
 
 const store = useAppStore()
 
-const dimensionMeta: Record<QuestionDimension, { label: string; variant: BadgeVariant }> = {
-  PROJECT: { label: '项目经历', variant: 'brand' },
-  DEPTH: { label: '专业深度', variant: 'accent' },
-  BEHAVIOR: { label: '行为面试', variant: 'success' },
-  FIT: { label: '岗位匹配', variant: 'warning' },
+const dimensionMeta: Record<QuestionDimension, string> = {
+  PROJECT: '项目经历',
+  DEPTH: '专业深度',
+  BEHAVIOR: '行为面试',
+  FIT: '岗位匹配',
 }
 
 const toneText: Record<ReturnType<typeof scoreTone>, string> = {
@@ -39,10 +36,8 @@ const toneText: Record<ReturnType<typeof scoreTone>, string> = {
 
 const meta = computed(() => dimensionMeta[props.item.dimension])
 const scoreText = computed(() => (props.item.score === null ? '—' : formatScore(props.item.score)))
-const tone = computed(() => scoreTone((props.item.score ?? 0) * 10))
-const question = computed(
-  () => props.item.question?.trim() || `第 ${props.item.seq} 题`,
-)
+const tone = computed(() => (props.item.score === null ? null : scoreTone(props.item.score * 10)))
+const question = computed(() => props.item.question?.trim() || `第 ${props.item.seq} 题`)
 const feedback = computed(() => props.item.feedback ?? null)
 const evidence = computed(() => feedback.value?.evidence ?? [])
 const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
@@ -51,13 +46,13 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
 <template>
   <details
     :open="open"
-    class="group rounded-md border border-border bg-surface transition-colors open:border-brand/30 print:break-inside-avoid print:border-border"
+    class="group rounded-md border border-border bg-surface transition-colors open:border-text/30 print:break-inside-avoid print:border-border"
   >
     <summary
       class="flex cursor-pointer list-none items-start gap-3 rounded-md p-3.5 transition-colors hover:bg-surface-2/60 focus-visible:bg-surface-2/60 sm:items-center sm:p-4 [&::-webkit-details-marker]:hidden"
     >
       <span
-        class="tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-semibold text-brand"
+        class="tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xs font-medium text-text-2"
         aria-hidden="true"
       >
         {{ item.seq }}
@@ -67,11 +62,11 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
           question
         }}</span>
         <span class="mt-1 flex flex-wrap items-center gap-2">
-          <Badge :variant="meta.variant">{{ meta.label }}</Badge>
-          <span class="tabular text-xs text-text-muted">满分 10 分</span>
+          <span class="text-2xs text-text-muted">{{ meta }}</span>
+          <span class="text-2xs text-muted">满分 10 分</span>
         </span>
       </span>
-      <span :class="['tabular shrink-0 text-lg font-semibold', toneText[tone]]">
+      <span :class="['figure shrink-0 text-lg', tone ? toneText[tone] : 'text-text']">
         {{ scoreText }}
       </span>
       <ChevronDown
@@ -83,9 +78,9 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
     <div class="space-y-5 border-t border-border p-3.5 sm:p-5">
       <section v-if="item.summary">
         <h4
-          class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-muted"
+          class="flex items-center gap-1.5 text-xs text-text-muted"
         >
-          <Sparkles class="h-3.5 w-3.5" aria-hidden="true" />
+          <Lightbulb class="h-3.5 w-3.5" aria-hidden="true" />
           本题结论
         </h4>
         <p class="mt-2 whitespace-pre-line rounded-md bg-surface-2/70 p-3 text-sm leading-6 text-text">
@@ -95,7 +90,7 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
 
       <section v-if="item.answer">
         <h4
-          class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-muted"
+          class="flex items-center gap-1.5 text-xs text-text-muted"
         >
           <MessagesSquare class="h-3.5 w-3.5" aria-hidden="true" />
           我的回答
@@ -110,7 +105,7 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
       <div v-if="feedback" class="grid gap-4 sm:grid-cols-2">
         <section>
           <h4
-            class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-success-strong"
+            class="flex items-center gap-1.5 text-xs font-medium text-success-strong"
           >
             <CheckCircle2 class="h-3.5 w-3.5" aria-hidden="true" />
             做得好的地方
@@ -133,7 +128,7 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
 
         <section>
           <h4
-            class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-warning-strong"
+            class="flex items-center gap-1.5 text-xs font-medium text-warning-strong"
           >
             <TriangleAlert class="h-3.5 w-3.5" aria-hidden="true" />
             建议改进
@@ -157,7 +152,7 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
 
       <section v-if="feedback">
         <h4
-          class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-muted"
+          class="flex items-center gap-1.5 text-xs text-text-muted"
         >
           <Quote class="h-3.5 w-3.5" aria-hidden="true" />
           证据引用
@@ -166,7 +161,7 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
           <li
             v-for="entry in evidence"
             :key="entry.quote"
-            class="rounded-md border-l-2 border-brand/50 bg-surface-2/50 py-2 pl-3 pr-2"
+            class="rounded-md border-l-2 border-text/30 bg-surface-2/50 py-2 pl-3 pr-2"
           >
             <p class="text-sm leading-6 text-text">「{{ entry.quote }}」</p>
             <p class="mt-0.5 text-xs leading-5 text-text-muted">{{ entry.reason }}</p>
@@ -177,14 +172,14 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
 
       <section v-if="feedback">
         <h4
-          class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-muted"
+          class="flex items-center gap-1.5 text-xs text-text-muted"
         >
-          <Sparkles class="h-3.5 w-3.5" aria-hidden="true" />
+          <Lightbulb class="h-3.5 w-3.5" aria-hidden="true" />
           建议改写
         </h4>
         <p
           v-if="rewrittenAnswer"
-          class="mt-2 rounded-md border border-brand/20 bg-brand/5 p-3 text-sm leading-6 text-text"
+          class="mt-2 rounded-md border border-text/15 bg-surface-2 p-3 text-sm leading-6 text-text"
         >
           {{ rewrittenAnswer }}
         </p>
@@ -204,7 +199,7 @@ const rewrittenAnswer = computed(() => feedback.value?.rewrittenAnswer ?? null)
           </p>
           <RouterLink
             to="/plans"
-            class="text-sm font-medium text-brand underline-offset-4 hover:underline"
+            class="text-sm font-medium text-text-2 hover:text-text"
           >
             查看套餐
           </RouterLink>

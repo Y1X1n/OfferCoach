@@ -111,7 +111,7 @@ onMounted(() => {
           <select
             id="ai-scene"
             v-model="sceneFilter"
-            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 sm:h-9"
+            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:h-9"
           >
             <option value="">全部场景</option>
             <option v-for="option in sceneOptions" :key="option.value" :value="option.value">
@@ -125,7 +125,7 @@ onMounted(() => {
           <select
             id="ai-status"
             v-model="statusFilter"
-            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 sm:h-9"
+            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:h-9"
           >
             <option value="">全部状态</option>
             <option value="SUCCESS">成功</option>

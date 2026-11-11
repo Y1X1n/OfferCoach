@@ -146,7 +146,7 @@ setSessionExpiredHandler(() => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} · OfferCoach` : 'OfferCoach · AI 模拟面试'
+  document.title = to.meta.title ? `${to.meta.title} · OfferCoach` : 'OfferCoach · 模拟面试'
 })
 
 export default router
