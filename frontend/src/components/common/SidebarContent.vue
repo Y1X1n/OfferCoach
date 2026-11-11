@@ -25,7 +25,7 @@ function active(to: string, exact = false) {
       @click="emit('navigate')"
     >
       <span
-        class="flex h-6 w-6 items-center justify-center rounded-sm bg-text text-[13px] font-semibold leading-none text-surface"
+        class="flex h-7 w-7 items-center justify-center rounded-sm bg-text text-sm font-semibold leading-none text-surface"
         aria-hidden="true"
       >
         O
