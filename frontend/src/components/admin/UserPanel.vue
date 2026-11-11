@@ -413,7 +413,7 @@ watch(resetOpen, (open) => {
             v-model="keyword"
             type="search"
             placeholder="搜索邮箱或昵称"
-            class="h-11 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/20 sm:h-9"
+            class="h-11 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-text transition-colors placeholder:text-muted focus:border-accent/60 sm:h-9"
           />
         </div>
 
@@ -422,7 +422,7 @@ watch(resetOpen, (open) => {
           <select
             id="user-status"
             v-model="statusFilter"
-            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 sm:h-9"
+            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:h-9"
           >
             <option value="">全部状态</option>
             <option value="ACTIVE">正常</option>
@@ -612,7 +612,7 @@ watch(resetOpen, (open) => {
             <select
               id="quota-type"
               v-model="quotaType"
-              class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 sm:h-9"
+              class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:h-9"
             >
               <option value="INTERVIEW">面试次数</option>
               <option value="RESUME">简历解析次数</option>
@@ -673,7 +673,7 @@ watch(resetOpen, (open) => {
             :class="[
               'flex min-h-11 w-full items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-left transition-colors',
               roleValue === option.value
-                ? 'border-brand bg-brand/10'
+                ? 'border-text/30 bg-surface-2'
                 : 'border-border hover:bg-surface-2',
             ]"
             @click="selectRole(option.value)"

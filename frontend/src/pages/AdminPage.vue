@@ -118,7 +118,6 @@ function onTabKeydown(event: KeyboardEvent, index: number): void {
     <PageHeader
       title="管理后台"
       description="题库、用户、AI 调用与 Prompt 版本集中管理；所有写操作都会写入审计日志。"
-      eyebrow="管理"
     >
       <template #actions>
         <Badge variant="brand" size="md" dot>ADMIN</Badge>
@@ -146,7 +145,7 @@ function onTabKeydown(event: KeyboardEvent, index: number): void {
           :class="[
             'flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors sm:min-h-9',
             activeTab === tab.key
-              ? 'bg-brand/10 text-brand'
+              ? 'bg-surface-2 text-text'
               : 'text-text-muted hover:bg-surface-2 hover:text-text',
           ]"
           @click="selectTab(tab.key)"
