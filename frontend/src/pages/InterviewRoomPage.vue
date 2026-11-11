@@ -220,7 +220,7 @@ onBeforeRouteLeave(() => {
     <Card v-else-if="isPreparing" padding="lg">
       <div class="flex flex-col items-center justify-center py-10 text-center">
         <span
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-brand/10 text-brand"
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-2"
         >
           <Loader2 class="h-5 w-5 animate-spin" aria-hidden="true" />
         </span>

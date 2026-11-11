@@ -62,7 +62,7 @@ async function copyRewrite() {
   >
     <header class="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
       <div class="flex items-center gap-2">
-        <span class="flex h-7 w-7 items-center justify-center rounded-md bg-brand/10 text-brand">
+        <span class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-2 text-text-2">
           <Sparkles class="h-3.5 w-3.5" aria-hidden="true" />
         </span>
         <div>
@@ -97,7 +97,7 @@ async function copyRewrite() {
         class="flex h-full min-h-[320px] flex-col items-center justify-center text-center"
       >
         <div
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-brand/10 text-brand"
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-2"
         >
           <span class="flex items-center gap-1" aria-hidden="true">
             <span class="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-brand" />
@@ -193,7 +193,7 @@ async function copyRewrite() {
         <div>
           <h3 class="text-xs font-semibold text-text">证据</h3>
           <blockquote
-            class="mt-2 rounded-md border-l-2 border-brand/40 bg-brand/5 px-3 py-2 text-xs leading-5 text-text-muted"
+            class="mt-2 rounded-md border-l-2 border-text/25 bg-surface-2 px-3 py-2 text-xs leading-5 text-text-muted"
           >
             <p>“{{ feedback.evidence[0]?.quote }}”</p>
             <p class="mt-1 text-2xs text-text-muted/80">{{ feedback.evidence[0]?.reason }}</p>
@@ -203,11 +203,11 @@ async function copyRewrite() {
         <div v-if="feedback.rewrittenAnswer">
           <div class="flex items-center justify-between gap-2">
             <h3 class="flex items-center gap-1.5 text-xs font-semibold text-text">
-              <Wand2 class="h-3.5 w-3.5 text-brand" /> 建议改写
+              <Wand2 class="h-3.5 w-3.5 text-text-muted" /> 建议改写
             </h3>
             <button
               type="button"
-              class="-m-1 inline-flex min-h-8 items-center gap-1 rounded p-1 text-2xs text-text-muted hover:text-brand max-sm:min-h-11"
+              class="-m-1 inline-flex min-h-8 items-center gap-1 rounded p-1 text-2xs text-text-muted hover:text-text max-sm:min-h-11"
               @click="copyRewrite"
             >
               <Check v-if="copied" class="h-3 w-3" />
