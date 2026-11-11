@@ -56,7 +56,7 @@ function planFeatures(plan: Plan): FeatureRow[] {
   const features = plan.features ?? {}
   const keys = Object.keys(features)
   if (keys.length === 0) {
-    return [{ label: '套餐能力以服务端额度与功能开关为准', state: 'coming', note: '待补充' }]
+    return [{ label: '套餐能力以服务端额度与功能开关为准', state: 'coming' }]
   }
   return keys.map((key) => {
     const value = features[key]
@@ -147,18 +147,12 @@ onMounted(() => {
     <PageHeader
       title="套餐与额度"
       description="按求职节奏选择套餐。在线支付开放前，套餐变更由运营在后台配置。"
-      eyebrow="套餐"
     >
       <template #actions>
-        <Badge :variant="isPro ? 'brand' : 'neutral'" size="md" dot>
-          当前套餐 · {{ store.quota.planName }}
-        </Badge>
-        <span class="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted">
-          剩余
-          <span class="tabular font-semibold text-text">{{ store.quota.interviewCredits }}</span>
-          次面试 ·
-          <span class="tabular font-semibold text-text">{{ store.quota.resumeCredits }}</span>
-          次解析
+        <span class="text-xs text-text-muted">
+          当前 {{ store.quota.planName }} · 剩余
+          <span class="figure text-text">{{ store.quota.interviewCredits }}</span> 次面试 ·
+          <span class="figure text-text">{{ store.quota.resumeCredits }}</span> 次解析
         </span>
       </template>
     </PageHeader>
@@ -179,7 +173,7 @@ onMounted(() => {
           :class="
             cn(
               'relative flex flex-col',
-              (plan.recommended ?? plan.code === 'PRO') && 'border-brand/50 shadow-pop ring-1 ring-brand/20',
+              (plan.recommended ?? plan.code === 'PRO') && 'border-text/25',
             )
           "
         >
@@ -223,9 +217,9 @@ onMounted(() => {
               >
                 {{ row.label }}
               </span>
-              <Badge v-if="row.state === 'coming'" variant="warning" size="sm">
+              <span v-if="row.state === 'coming' && row.note" class="text-2xs text-text-muted">
                 {{ row.note }}
-              </Badge>
+              </span>
             </li>
           </ul>
 

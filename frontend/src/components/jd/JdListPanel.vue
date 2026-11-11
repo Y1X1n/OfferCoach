@@ -29,9 +29,9 @@ const seniorityLabel: Record<Jd['structured']['seniority'], string> = {
           :aria-pressed="jd.id === selectedId"
           :class="
             cn(
-              'w-full rounded-md border p-3 pr-11 text-left transition-colors focus-visible:border-brand',
+              'w-full rounded-md border p-3 pr-11 text-left transition-colors focus-visible:border-text/40',
               jd.id === selectedId
-                ? 'border-brand/50 bg-brand/5'
+                ? 'border-text/30 bg-surface-2'
                 : 'border-border bg-surface hover:bg-surface-2',
             )
           "

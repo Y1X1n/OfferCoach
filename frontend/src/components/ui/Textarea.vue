@@ -52,7 +52,7 @@ const nearLimit = computed(() => (props.maxlength ? count.value / props.maxlengt
       :aria-describedby="error ? errorId : hint ? hintId : undefined"
       :class="
         cn(
-          'w-full resize-y rounded-md border bg-surface px-3 py-2.5 text-sm leading-6 text-text outline-none transition-colors placeholder:text-text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-surface-2',
+          'w-full resize-y rounded-md border bg-surface px-3 py-2.5 text-sm leading-6 text-text transition-colors placeholder:text-muted focus:border-accent/60 disabled:cursor-not-allowed disabled:bg-surface-2',
           error ? 'border-danger' : 'border-border',
         )
       "

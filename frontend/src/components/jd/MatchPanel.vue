@@ -126,7 +126,7 @@ const matchLevel = computed(() => {
         >
           <figure>
             <figcaption
-              class="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wider text-text-muted"
+              class="flex items-center gap-1.5 text-2xs text-text-muted"
             >
               <FileText class="h-3.5 w-3.5" aria-hidden="true" />
               JD 原文
@@ -137,7 +137,7 @@ const matchLevel = computed(() => {
           </figure>
           <figure class="border-t border-border pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
             <figcaption
-              class="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wider text-text-muted"
+              class="flex items-center gap-1.5 text-2xs text-text-muted"
             >
               <FileUser class="h-3.5 w-3.5" aria-hidden="true" />
               简历原文

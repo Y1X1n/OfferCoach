@@ -4,7 +4,6 @@ import { RouterLink } from 'vue-router'
 import { ArrowRight, CheckCircle2, Clock, FileText, Layers } from 'lucide-vue-next'
 import type { ResumeSummary } from '@/types'
 import Alert from '@/components/ui/Alert.vue'
-import Badge from '@/components/ui/Badge.vue'
 import Card from '@/components/ui/Card.vue'
 import { cn } from '@/utils/cn'
 import { formatDate, formatRelative } from '@/utils/format'
@@ -29,7 +28,7 @@ const emptyDescription = computed(() =>
     <section aria-labelledby="setup-resume">
       <div class="flex items-start gap-3">
         <span
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-semibold text-brand"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-sm font-medium text-text-2"
         >
           1
         </span>
@@ -39,7 +38,6 @@ const emptyDescription = computed(() =>
             题目会引用简历中的项目、技能与量化结果。
           </p>
         </div>
-        <Badge variant="brand">必选</Badge>
       </div>
 
       <div class="mt-4">
@@ -72,17 +70,17 @@ const emptyDescription = computed(() =>
             :aria-checked="selectedId === resume.id"
             :class="
               cn(
-                'flex h-full flex-col rounded-lg border p-4 text-left transition-all duration-150',
+                'flex h-full flex-col rounded-lg border p-4 text-left transition-colors duration-150',
                 selectedId === resume.id
-                  ? 'border-brand bg-brand/5 shadow-sm'
-                  : 'border-border bg-surface hover:border-brand/40 hover:bg-surface-2/60',
+                  ? 'border-text/40 bg-surface-2'
+                  : 'border-border bg-surface hover:border-text/20 hover:bg-surface-2',
               )
             "
             @click="selectedId = resume.id"
           >
             <span class="flex items-start justify-between gap-3">
               <span
-                class="flex h-9 w-9 items-center justify-center rounded-md bg-brand/10 text-brand"
+                class="flex h-9 w-9 items-center justify-center rounded-md bg-surface-2 text-text-2"
               >
                 <FileText class="h-4 w-4" aria-hidden="true" />
               </span>

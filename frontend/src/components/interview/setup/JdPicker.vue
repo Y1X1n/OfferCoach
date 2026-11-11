@@ -30,7 +30,7 @@ function matchLabel(jd: Jd): string {
     <section aria-labelledby="setup-jd">
       <div class="flex items-start gap-3">
         <span
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-semibold text-brand"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-sm font-medium text-text-2"
         >
           2
         </span>
@@ -40,7 +40,6 @@ function matchLabel(jd: Jd): string {
             题目与追问会围绕 JD 的职责与必备技能展开。
           </p>
         </div>
-        <Badge variant="brand">必选</Badge>
       </div>
 
       <div class="mt-4">
@@ -68,10 +67,10 @@ function matchLabel(jd: Jd): string {
             :aria-checked="selectedId === jd.id"
             :class="
               cn(
-                'flex h-full flex-col rounded-lg border p-4 text-left transition-all duration-150',
+                'flex h-full flex-col rounded-lg border p-4 text-left transition-colors duration-150',
                 selectedId === jd.id
-                  ? 'border-brand bg-brand/5 shadow-sm'
-                  : 'border-border bg-surface hover:border-brand/40 hover:bg-surface-2/60',
+                  ? 'border-text/40 bg-surface-2'
+                  : 'border-border bg-surface hover:border-text/20 hover:bg-surface-2',
               )
             "
             @click="selectedId = jd.id"

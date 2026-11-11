@@ -22,10 +22,10 @@ const gridClass = computed(() => {
     :aria-label="label ?? '概览数据'"
   >
     <div :class="['grid gap-px', gridClass]">
-      <div v-for="item in items" :key="item.label" class="bg-surface p-4 sm:p-5">
-        <p class="text-xs text-text-muted">{{ item.label }}</p>
-        <p class="tabular mt-2 text-2xl font-semibold tracking-tight text-text">{{ item.value }}</p>
-        <p v-if="item.hint" class="mt-1 text-xs text-text-muted">{{ item.hint }}</p>
+      <div v-for="item in items" :key="item.label" class="bg-surface px-5 py-4">
+        <p class="text-2xs text-text-muted">{{ item.label }}</p>
+        <p class="figure mt-1 text-2xl leading-8 text-text">{{ item.value }}</p>
+        <p v-if="item.hint" class="mt-0.5 text-2xs text-text-muted">{{ item.hint }}</p>
       </div>
     </div>
   </section>
