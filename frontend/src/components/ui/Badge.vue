@@ -11,30 +11,31 @@ const props = withDefaults(defineProps<{ variant?: Variant; size?: Size; dot?: b
   dot: false,
 })
 
+/* Quiet tags: status reads as text plus a dot, never a tinted pill. */
 const variantClass: Record<Variant, string> = {
-  brand: 'bg-brand/10 text-brand ring-brand/20',
-  success: 'bg-success/10 text-success-strong ring-success/20',
-  warning: 'bg-warning/10 text-warning-strong ring-warning/20',
-  danger: 'bg-danger/10 text-danger-strong ring-danger/20',
-  neutral: 'bg-surface-2 text-text-muted ring-border',
-  accent: 'bg-accent/10 text-accent-strong ring-accent/20',
+  brand: 'text-text',
+  success: 'text-success-strong',
+  warning: 'text-warning-strong',
+  danger: 'text-danger-strong',
+  neutral: 'text-text-muted',
+  accent: 'text-accent-strong',
 }
 
 const dotClass: Record<Variant, string> = {
-  brand: 'bg-brand',
+  brand: 'bg-text',
   success: 'bg-success',
   warning: 'bg-warning',
   danger: 'bg-danger',
-  neutral: 'bg-text-muted',
+  neutral: 'bg-muted',
   accent: 'bg-accent',
 }
 
 const currentVariant = computed(() => props.variant ?? 'neutral')
 const classes = computed(() =>
   cn(
-    'inline-flex items-center gap-1.5 rounded-full font-medium ring-1 ring-inset',
+    'inline-flex items-center gap-1.5 font-medium',
     variantClass[currentVariant.value],
-    props.size === 'sm' ? 'px-2 py-0.5 text-2xs' : 'px-2.5 py-1 text-xs',
+    props.size === 'sm' ? 'text-2xs' : 'text-xs',
   ),
 )
 </script>
