@@ -15,20 +15,12 @@ const props = withDefaults(
   { variant: 'info' },
 )
 
+/* Alerts keep the ramp and only tint the hairline and the icon, never a filled block. */
 const styles: Record<Variant, { wrapper: string; icon: string }> = {
-  info: { wrapper: 'border-info/30 bg-info/10 text-info-strong', icon: 'text-info-strong' },
-  success: {
-    wrapper: 'border-success/30 bg-success/10 text-success-strong',
-    icon: 'text-success-strong',
-  },
-  warning: {
-    wrapper: 'border-warning/30 bg-warning/10 text-warning-strong',
-    icon: 'text-warning-strong',
-  },
-  danger: {
-    wrapper: 'border-danger/30 bg-danger/10 text-danger-strong',
-    icon: 'text-danger-strong',
-  },
+  info: { wrapper: 'border-info/40 bg-surface text-text', icon: 'text-info-strong' },
+  success: { wrapper: 'border-success/40 bg-surface text-text', icon: 'text-success-strong' },
+  warning: { wrapper: 'border-warning/45 bg-surface text-text', icon: 'text-warning-strong' },
+  danger: { wrapper: 'border-danger/45 bg-surface text-text', icon: 'text-danger-strong' },
 }
 
 const icons = { info: Info, success: CircleCheck, warning: TriangleAlert, danger: CircleAlert }
@@ -38,9 +30,7 @@ const icon = computed(() => icons[currentVariant.value])
 
 <template>
   <div
-    :class="
-      cn('flex gap-3 rounded-md border p-3 text-sm', styles[currentVariant].wrapper, $props.class)
-    "
+    :class="cn('flex gap-3 rounded-md border p-4 text-sm', styles[currentVariant].wrapper, $props.class)"
     :role="currentVariant === 'danger' ? 'alert' : 'status'"
   >
     <component
@@ -48,9 +38,9 @@ const icon = computed(() => icons[currentVariant.value])
       :class="['mt-0.5 h-4 w-4 shrink-0', styles[currentVariant].icon]"
       aria-hidden="true"
     />
-    <div class="min-w-0">
-      <p v-if="title" class="font-medium">{{ title }}</p>
-      <p v-if="description" class="mt-0.5 opacity-80">{{ description }}</p>
+    <div class="min-w-0 flex-1">
+      <p v-if="title" class="font-medium text-text">{{ title }}</p>
+      <p v-if="description" class="mt-1 leading-6 text-text-2">{{ description }}</p>
       <slot />
     </div>
   </div>

@@ -1,7 +1,7 @@
 # UI 设计系统与组件库
 
-> 状态：生效 ｜ 版本：v1.3 ｜ 更新：2026-11-07
-> 组件基座：**shadcn-vue 风格（Reka UI + Tailwind CSS）**，源码归项目所有；当前采用中性黑白 + 单一靛蓝强调色。
+> 状态：生效 ｜ 版本：v1.4 ｜ 更新：2026-11-11
+> 组件基座：**shadcn-vue 风格（Reka UI + Tailwind CSS）**，源码归项目所有；当前采用中性墨灰 + 单一 ember 强调色，分数保留语义色。
 > 关联：[前端规范](./frontend.md)
 >
 > **选型结论**：选择 shadcn-vue，而不是 Element Plus / Ant Design Vue / PrimeVue 这类全量组件库，原因是 OfferCoach 的面试间、流式反馈与报告页需要强定制，且现有前端已经是同一路线。Dialog 等交互原语直接使用 Reka UI，保证焦点管理与无障碍；不引入第二套设计语言。
@@ -22,32 +22,33 @@
 
 | Token | 浅色 | 深色 | 用途 |
 |---|---|---|---|
-| `--bg` | `0 0% 100%` | `222 47% 5%` | 页面背景 |
-| `--surface` | `0 0% 100%` | `222 40% 8%` | 卡片、面板 |
-| `--surface-2` | `210 20% 96%` | `217 33% 14%` | 次级背景、代码块 |
-| `--border` | `214 32% 91%` | `217 33% 20%` | 分割线、输入框 |
-| `--text` | `222 47% 11%` | `210 40% 96%` | 正文 |
-| `--muted` | `215 16% 47%` | `215 20% 65%` | 辅助文字 |
-| `--brand` | `222 47% 11%` | `210 40% 98%` | 主操作、选中态（近黑/近白） |
-| `--brand-foreground` | `210 40% 98%` | `222 47% 11%` | 主色上的文字 |
-| `--accent` | `243 75% 59%` | `239 84% 67%` | 数据高亮、雷达图、中高分数 |
-| `--success` | `160 84% 39%` | `158 74% 45%` | 高分、成功 |
-| `--warning` | `38 92% 50%` | `43 96% 56%` | 中等分、注意 |
-| `--danger` | `0 84% 60%` | `0 91% 65%` | 低分、错误、删除 |
-| `--info` | `217 91% 60%` | `213 94% 68%` | 提示、链接 |
-| `--overlay` | `222 47% 7%` | `0 0% 0%` | 弹层遮罩 |
+| `--bg` | `214 20% 97%` | `220 20% 5%` | 页面背景 |
+| `--surface` | `0 0% 100%` | `218 19% 9%` | 卡片、面板 |
+| `--surface-2` | `214 22% 95%` | `218 19% 13%` | 次级背景、代码块 |
+| `--border` | `216 16% 89%` | `217 15% 20%` | 分割线、输入框 |
+| `--text` | `215 30% 9%` | `213 20% 94%` | 正文 |
+| `--text-2` | `214 16% 32%` | `215 13% 72%` | 次级文本 |
+| `--muted` | `214 10% 42%` | `214 10% 56%` | 辅助文字 |
+| `--brand` | `215 30% 9%` | `213 20% 94%` | 主操作、选中态（近黑/近白） |
+| `--brand-foreground` | `0 0% 100%` | `220 20% 7%` | 主色上的文字 |
+| `--accent` | `14 60% 41%` | `20 68% 62%` | 数据高亮、雷达图、中高分数 |
+| `--success` | `152 38% 40%` | `152 45% 55%` | 高分、成功 |
+| `--warning` | `36 62% 45%` | `38 65% 58%` | 中等分、注意 |
+| `--danger` | `4 55% 48%` | `4 65% 62%` | 低分、错误、删除 |
+| `--info` | `214 24% 45%` | `214 20% 62%` | 提示、链接 |
+| `--overlay` | `220 25% 8%` | `0 0% 0%` | 弹层遮罩 |
 
 **语义色规则**：
 
 - 分数 ≥ 8.5：`success`；7.0–8.4：`accent`；6.0–6.9：`warning`；< 6.0：`danger`。
 - 颜色不能是唯一信息：分数必须显示数字，进度必须显示百分比。
-- 主色是中性黑/白，承担主操作与选中态；靛蓝 `accent` 只做数据强调，避免整页多彩。
+- 主色是中性黑/白，承担主操作与选中态；ember `accent` 只做数据强调，避免整页多彩。
 
 ### 2.2 字体
 
 ```css
---font-sans: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
---font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+--font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+--font-mono: "Cascadia Mono", "SF Mono", Consolas, ui-monospace, monospace;
 ```
 
 | Token | 字号/行高 | 字重 | 用途 |
@@ -58,8 +59,8 @@
 | `text-base` | 16/24 | 600 | 卡片标题 |
 | `text-sm` | 14/20 | 400 | 正文 |
 | `text-xs` | 12/18 | 400 | 辅助说明、标签 |
-| `text-2xs` | 11/16 | 500 | 密集元数据（角标、导航副标题） |
-| `text-3xs` | 10/14 | 500 | 仅简历版式预览与极密元数据 |
+| `text-2xs` | 12/16 | 500 | 密集元数据（角标、导航副标题） |
+| `text-3xs` | 11/16 | 500 | 仅简历版式预览与极密元数据 |
 
 - 产品正文最小 12px；移动端正文 16px（防 iOS 缩放）。`text-2xs/3xs` 不得用于普通正文或错误提示。
 - 数字使用 `font-variant-numeric: tabular-nums`，分数与计时不跳动。
@@ -81,8 +82,9 @@
 | `radius-lg` | 12px | 面板、弹窗 |
 | `radius-full` | 9999px | 头像、胶囊 |
 | `shadow-card` | `0 1px 2px rgb(15 23 42 / .04)` | 卡片（几乎无阴影，以边框为主） |
-| `shadow-pop` | `0 10px 30px rgb(15 23 42 / .12)` | 弹窗、抽屉 |
-| `shadow-focus` | `0 0 0 3px hsl(var(--brand) / .2)` | 聚焦环 |
+| `shadow-pop` | `0 8px 24px rgb(15 23 42 / .08)` | 弹窗、抽屉 |
+
+焦点环不再使用阴影 Token：全局 `:focus-visible` 提供 `2px solid hsl(var(--accent))` 外 outline（见 `main.css`）；组件不得用 `outline-none` 覆盖。
 
 ### 2.4 动效与层级
 
@@ -100,6 +102,8 @@
 | `z-modal` | 60 | 对话框 |
 | `z-toast` | 70 | 全局提示 |
 
+动效仅保留 `fade-up` / `fade-in` / `scale-in` / `pulse-soft`；`shimmer` 已移除，骨架屏使用 `pulse-soft`。
+
 ### 2.5 Tailwind 映射
 
 ```ts
@@ -112,7 +116,8 @@ export default {
         bg: 'hsl(var(--bg))',
         surface: { DEFAULT: 'hsl(var(--surface))', 2: 'hsl(var(--surface-2))' },
         border: 'hsl(var(--border))',
-        text: { DEFAULT: 'hsl(var(--text))', muted: 'hsl(var(--muted))' },
+        muted: 'hsl(var(--muted))',
+        text: { DEFAULT: 'hsl(var(--text))', 2: 'hsl(var(--text-2))', muted: 'hsl(var(--muted))' },
         brand: { DEFAULT: 'hsl(var(--brand))', foreground: 'hsl(var(--brand-foreground))' },
         accent: 'hsl(var(--accent))',
         success: 'hsl(var(--success))',
@@ -121,7 +126,7 @@ export default {
         info: 'hsl(var(--info))',
       },
       borderRadius: { sm: 'var(--radius-sm)', md: 'var(--radius-md)', lg: 'var(--radius-lg)' },
-      boxShadow: { card: 'var(--shadow-card)', pop: 'var(--shadow-pop)', focus: 'var(--shadow-focus)' },
+      boxShadow: { card: 'var(--shadow-card)', pop: 'var(--shadow-pop)' },
       transitionTimingFunction: { out: 'cubic-bezier(.22,1,.36,1)' },
     },
   },
@@ -373,7 +378,7 @@ Props: score(0–100), size(120|160|200), label, animated
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ 早上好，小王                        [上传简历] [开始模拟面试] │
+│ 2026年11月                          [上传简历] [开始模拟面试] │
 │ 本月剩余：2 次面试 · 1 次解析        [升级 PRO]               │
 ├──────────────────────────────────────────────────────────────┤
 │ 继续上次：后端工程师 · 3/8 已完成           [继续作答 →]      │
@@ -386,6 +391,9 @@ Props: score(0–100), size(120|160|200), label, animated
 │ 快捷入口：简历诊断 · JD 匹配 · 题库练习（V1.1）                │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+- 工作台标题使用当前周期（如「2026年11月」），不再使用时段问候语；昵称仅显示在用户菜单与个人资料中。
+- 内容区至少撑满视口高度（`min-h-[calc(100vh-8rem)]`），最近报告卡片随列拉伸，避免高屏底部空白。
 
 ### 6.5 管理端题库
 
@@ -448,7 +456,7 @@ Props: score(0–100), size(120|160|200), label, animated
 ## 9. 暗色模式
 
 - 通过根节点 `.dark` 切换；跟随系统或用户设置，存 `localStorage`（仅偏好，不含敏感信息）。
-- 暗色下不使用纯黑；背景 `222 47% 7%`，卡片 `222 40% 10%`。
+- 暗色下不使用纯黑；背景 `220 20% 5%`，卡片 `218 19% 9%`。
 - 语义色提高亮度，保证对比度；图表网格线降低不透明度。
 - 图片/头像在暗色下加 1px 边框，避免融入背景。
 - 打印/PDF 始终使用浅色主题。
@@ -461,6 +469,7 @@ Props: score(0–100), size(120|160|200), label, animated
 - 分数解释用中性词：“建议加强”“可补充”，避免“很差”“不合格”。
 - 时间用相对 + 绝对：“3 分钟前（10:32）”。
 - 空状态避免卖萌；保持专业与简洁。
+- 产品副标题统一「模拟面试」/「面试练习与复盘」，不强调「AI」字样。
 
 ## 11. Storybook 与交付
 

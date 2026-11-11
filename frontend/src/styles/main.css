@@ -26,12 +26,12 @@
   }
 
   ::selection {
-    background: hsl(var(--brand) / 0.18);
+    background: hsl(var(--accent) / 0.18);
   }
 
   :focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px hsl(var(--brand) / 0.25);
+    outline: 2px solid hsl(var(--accent));
+    outline-offset: 2px;
   }
 
   button,
@@ -45,6 +45,12 @@
   input::placeholder,
   textarea::placeholder {
     color: hsl(var(--muted));
+  }
+
+  /* Numbers read like an instrument: one column width, one format. */
+  .tabular,
+  table {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -68,19 +74,16 @@
     border-radius: 9999px;
   }
 
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
-
   .contain-layout {
     contain: layout;
   }
 
-  .grid-pattern {
-    background-image:
-      linear-gradient(hsl(var(--border) / 0.5) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.5) 1px, transparent 1px);
-    background-size: 32px 32px;
+  /* Signature detail: every number reads like an instrument readout. */
+  .figure {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+    letter-spacing: -0.01em;
   }
 }
 

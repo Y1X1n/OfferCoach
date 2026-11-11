@@ -2,6 +2,7 @@
 defineProps<{
   title: string
   description?: string
+  /** Optional quiet context line; sentence case, never a tracked uppercase label. */
   eyebrow?: string
 }>()
 </script>
@@ -9,11 +10,9 @@ defineProps<{
 <template>
   <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div class="min-w-0">
-      <p v-if="eyebrow" class="mb-1 text-xs font-medium uppercase tracking-wider text-brand">
-        {{ eyebrow }}
-      </p>
-      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">{{ title }}</h1>
-      <p v-if="description" class="mt-1.5 max-w-2xl text-sm leading-6 text-text-muted">
+      <p v-if="eyebrow" class="mb-1.5 text-2xs text-text-muted">{{ eyebrow }}</p>
+      <h1 class="text-2xl font-medium tracking-tight text-text">{{ title }}</h1>
+      <p v-if="description" class="mt-2 max-w-2xl text-sm leading-6 text-text-2">
         {{ description }}
       </p>
     </div>
