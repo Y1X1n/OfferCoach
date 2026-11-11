@@ -23,7 +23,7 @@ const stage = computed(() => {
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex min-w-0 items-center gap-3">
         <span
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand/10 text-brand"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-2 text-text-2"
         >
           <ScanLine class="h-4 w-4" aria-hidden="true" />
         </span>

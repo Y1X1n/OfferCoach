@@ -222,7 +222,7 @@ function renderCertificates(structured: ResumeStructured): string {
 const PRINT_STYLES = `
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; color: #111827; }
-  body { font-family: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; font-size: 13px; line-height: 1.65; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 13px; line-height: 1.65; }
   .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 16mm 15mm; }
   h1 { margin: 0; font-size: 26px; line-height: 1.25; letter-spacing: .02em; }
   h2 { margin: 22px 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: #4b5563; border-bottom: 1px solid #d4d8de; padding-bottom: 4px; }

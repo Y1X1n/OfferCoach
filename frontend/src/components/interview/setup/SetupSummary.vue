@@ -41,7 +41,7 @@ function timeLimitText(seconds: number): string {
 <template>
   <Card padding="lg" class="lg:sticky lg:top-20">
     <div class="flex items-center gap-2">
-      <span class="flex h-8 w-8 items-center justify-center rounded-md bg-brand/10 text-brand">
+      <span class="flex h-8 w-8 items-center justify-center rounded-md bg-surface-2 text-text-2">
         <ClipboardList class="h-4 w-4" aria-hidden="true" />
       </span>
       <h2 class="text-sm font-semibold text-text">面试摘要</h2>
@@ -105,7 +105,7 @@ function timeLimitText(seconds: number): string {
       class="mt-3 flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5"
     >
       <span class="flex items-center gap-1.5 text-xs text-text-muted">
-        <Zap class="h-3.5 w-3.5 text-brand" aria-hidden="true" />
+        <Zap class="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
         额度消耗
       </span>
       <span class="text-xs font-medium text-text">

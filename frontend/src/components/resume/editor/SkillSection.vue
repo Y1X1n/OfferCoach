@@ -54,7 +54,7 @@ function removeSkill(index: number) {
             <select
               :id="`skill-level-${index}`"
               :value="skill.level"
-              class="h-10 w-full rounded-md border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20"
+              class="h-10 w-full rounded-md border border-border bg-surface px-2 text-sm text-text transition-colors focus:border-accent/60"
               @change="onLevelChange(skill, $event)"
             >
               <option value="BEGINNER">了解</option>
@@ -70,7 +70,7 @@ function removeSkill(index: number) {
               min="0"
               step="1"
               :value="skill.years"
-              class="tabular h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20"
+              class="tabular h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60"
               @input="onSkillYears(skill, $event)"
             />
           </div>

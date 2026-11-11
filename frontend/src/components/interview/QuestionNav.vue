@@ -23,7 +23,7 @@ const statusIcon = {
 const statusClass = {
   ANSWERED: 'text-success-strong',
   SKIPPED: 'text-text-muted',
-  ASKED: 'text-brand',
+  ASKED: 'text-accent',
   PENDING: 'text-text-muted/50',
 }
 
@@ -49,7 +49,7 @@ const statusLabels: Record<Question['status'], string> = {
         cn(
           'group flex min-w-[156px] items-center gap-2 rounded-md border p-2.5 text-left transition-colors lg:w-full lg:min-w-0',
           question.id === currentId
-            ? 'border-brand/40 bg-brand/10'
+            ? 'border-text/25 bg-surface-2'
             : 'border-border bg-surface hover:bg-surface-2',
         )
       "

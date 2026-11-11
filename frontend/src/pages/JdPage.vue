@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { BriefcaseBusiness, ClipboardPaste, Sparkles, Target, Trash2 } from 'lucide-vue-next'
+import { BriefcaseBusiness, ClipboardPaste, Target, Trash2, Wand2 } from 'lucide-vue-next'
 import type { Jd, JdMatch, ResumeSummary } from '@/types'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
@@ -228,7 +228,7 @@ onMounted(() => {
         <select
           id="jd-match-resume"
           v-model="selectedResumeId"
-          class="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 sm:w-64"
+          class="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:w-64"
           :disabled="readyResumes.length === 0 || matching"
         >
           <option value="">{{ readyResumes.length === 0 ? '暂无已解析简历' : '选择简历' }}</option>
@@ -242,7 +242,7 @@ onMounted(() => {
           :loading="matching"
           @click="runMatch()"
         >
-          <Sparkles class="h-4 w-4" aria-hidden="true" />
+          <Wand2 class="h-4 w-4" aria-hidden="true" />
           运行匹配
         </Button>
       </div>
@@ -324,7 +324,7 @@ onMounted(() => {
                     :disabled="!selectedResumeId"
                     @click="runMatch(selectedJd)"
                   >
-                    <Sparkles class="h-4 w-4" aria-hidden="true" />
+                    <Wand2 class="h-4 w-4" aria-hidden="true" />
                     运行匹配
                   </Button>
                   <RouterLink
