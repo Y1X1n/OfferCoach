@@ -56,7 +56,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
     <section aria-labelledby="setup-config">
       <div class="flex items-start gap-3">
         <span
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-semibold text-brand"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-sm font-medium text-text-2"
         >
           3
         </span>
@@ -66,7 +66,6 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
             配置会影响题目数量、难度梯度与追问方式。
           </p>
         </div>
-        <Badge variant="neutral">可调整</Badge>
       </div>
 
       <div class="mt-5 space-y-5">
@@ -85,7 +84,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
                 cn(
                   'rounded-md border px-2 py-2 text-center transition-colors',
                   config.questionCount === count
-                    ? 'border-brand bg-brand/10'
+                    ? 'border-text/30 bg-surface-2'
                     : 'border-border bg-surface hover:bg-surface-2',
                 )
               "
@@ -94,7 +93,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
               <span
                 :class="[
                   'tabular block text-sm font-semibold',
-                  config.questionCount === count ? 'text-brand' : 'text-text',
+                  config.questionCount === count ? 'text-text' : 'text-text-2',
                 ]"
               >
                 {{ count }}
@@ -117,7 +116,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
                   cn(
                     'rounded-md border px-2 py-2 text-center transition-colors',
                     config.difficulty === option.value
-                      ? 'border-brand bg-brand/10'
+                      ? 'border-text/30 bg-surface-2'
                       : 'border-border bg-surface hover:bg-surface-2',
                   )
                 "
@@ -126,7 +125,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
                 <span
                   :class="[
                     'block text-xs font-medium',
-                    config.difficulty === option.value ? 'text-brand' : 'text-text',
+                    config.difficulty === option.value ? 'text-text' : 'text-text-2',
                   ]"
                 >
                   {{ option.label }}
@@ -150,7 +149,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
                   cn(
                     'rounded-md border px-2 py-2 text-center transition-colors',
                     config.interviewerStyle === option.value
-                      ? 'border-brand bg-brand/10'
+                      ? 'border-text/30 bg-surface-2'
                       : 'border-border bg-surface hover:bg-surface-2',
                   )
                 "
@@ -159,7 +158,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
                 <span
                   :class="[
                     'block text-xs font-medium',
-                    config.interviewerStyle === option.value ? 'text-brand' : 'text-text',
+                    config.interviewerStyle === option.value ? 'text-text' : 'text-text-2',
                   ]"
                 >
                   {{ option.label }}
@@ -185,7 +184,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
                   cn(
                     'rounded-md border px-1 py-2 text-xs font-medium transition-colors',
                     config.timeLimitSec === option.value
-                      ? 'border-brand bg-brand/10 text-brand'
+                      ? 'border-text/30 bg-surface-2 text-text'
                       : 'border-border bg-surface text-text hover:bg-surface-2',
                   )
                 "
@@ -209,7 +208,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
                   cn(
                     'flex items-start gap-2 rounded-md border p-2.5 text-left transition-colors',
                     config.answerMode === option.value
-                      ? 'border-brand bg-brand/10'
+                      ? 'border-text/30 bg-surface-2'
                       : 'border-border bg-surface',
                     option.disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-surface-2',
                   )
@@ -220,7 +219,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
                   :is="option.value === 'TEXT' ? MessageSquareText : MicOff"
                   :class="[
                     'mt-0.5 h-4 w-4 shrink-0',
-                    config.answerMode === option.value ? 'text-brand' : 'text-text-muted',
+                    config.answerMode === option.value ? 'text-text' : 'text-text-muted',
                   ]"
                   aria-hidden="true"
                 />

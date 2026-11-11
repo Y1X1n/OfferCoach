@@ -62,7 +62,7 @@ const difficultyVariant = computed(() => difficultyVariants[props.question.diffi
 
       <details v-if="question.whyThisQuestion" class="group mt-3">
         <summary
-          class="flex w-fit cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-brand [&::-webkit-details-marker]:hidden"
+          class="flex w-fit cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text [&::-webkit-details-marker]:hidden"
         >
           <Sparkles class="h-3.5 w-3.5" aria-hidden="true" />
           为什么问这题
@@ -78,7 +78,7 @@ const difficultyVariant = computed(() => difficultyVariants[props.question.diffi
 
       <details v-if="question.referencePoints.length" class="group mt-2">
         <summary
-          class="flex w-fit cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-brand [&::-webkit-details-marker]:hidden"
+          class="flex w-fit cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text [&::-webkit-details-marker]:hidden"
         >
           <Lock class="h-3.5 w-3.5" aria-hidden="true" />
           参考要点
