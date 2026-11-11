@@ -21,7 +21,7 @@ const canCollapse = computed(() => props.text.length > 240)
     <button
       v-if="canCollapse"
       type="button"
-      class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+      class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-text-2 hover:text-text"
       :aria-expanded="expanded"
       @click="expanded = !expanded"
     >
