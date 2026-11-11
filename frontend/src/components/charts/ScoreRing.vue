@@ -39,37 +39,32 @@ const ringSize = computed(() => props.size ?? 140)
   <div class="inline-flex flex-col items-center" :style="{ width: `${ringSize}px` }">
     <div class="relative" :style="{ width: `${ringSize}px`, height: `${ringSize}px` }">
       <svg viewBox="0 0 120 120" class="h-full w-full -rotate-90" aria-hidden="true">
-        <circle
-          cx="60"
-          cy="60"
-          :r="radius"
-          fill="none"
-          stroke="hsl(var(--border))"
-          stroke-width="9"
-        />
+        <circle cx="60" cy="60" :r="radius" fill="none" stroke="hsl(var(--border))" stroke-width="6" />
         <circle
           cx="60"
           cy="60"
           :r="radius"
           fill="none"
           stroke="currentColor"
-          stroke-width="9"
-          stroke-linecap="round"
+          stroke-width="6"
+          stroke-linecap="butt"
           :stroke-dasharray="circumference"
           :stroke-dashoffset="dashOffset"
-          :class="['transition-all duration-700 ease-out', toneClass]"
+          :class="['transition-[stroke-dashoffset] duration-700 ease-out', toneClass]"
         />
       </svg>
       <div class="absolute inset-0 flex flex-col items-center justify-center">
         <span
-          :class="['tabular font-semibold leading-none', toneClass]"
-          :style="{ fontSize: `${ringSize * 0.22}px` }"
+          :class="['figure leading-none', toneClass]"
+          :style="{ fontSize: `${ringSize * 0.26}px` }"
         >
           {{ displayScore }}
         </span>
-        <span class="mt-1 text-2xs text-text-muted">{{ label }}</span>
+        <span class="mt-1.5 text-2xs text-text-muted">{{ label }}</span>
       </div>
     </div>
-    <p v-if="sublabel" class="mt-1 text-xs text-text-muted">{{ sublabel }}</p>
+    <p v-if="sublabel" class="mt-2 max-w-[14rem] text-center text-xs leading-5 text-text-2">
+      {{ sublabel }}
+    </p>
   </div>
 </template>
