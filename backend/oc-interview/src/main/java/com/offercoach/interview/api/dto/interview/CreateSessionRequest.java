@@ -9,7 +9,8 @@ import jakarta.validation.constraints.NotNull;
  */
 public record CreateSessionRequest(
         @NotBlank(message = "resumeId 不能为空") String resumeId,
-        @NotBlank(message = "jdId 不能为空") String jdId,
+        String jdId,
+        String previewToken,
         @NotNull(message = "config 不能为空") @Valid Config config) {
 
     public record Config(

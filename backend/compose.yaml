@@ -105,6 +105,156 @@ services:
         max-file: "3"
     restart: unless-stopped
 
+  # ---- AI 工具服务：仅内网可达，不映射宿主机端口；由 oc-app 通过服务名访问 ----
+  # 本地 dev 默认用 scripts/run-dev.sh 以 Maven 启动；需要容器化时启用本组服务。
+  ai-asr:
+    profiles: ["ai"]
+    build: ./oc-ai/oc-ai-asr
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:postgresql://postgres:5432/offercoach
+      DB_USER: oc
+      DB_PASSWORD: ${PG_PASSWORD:-change_me_local}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      OC_AI_SECRET: ${OC_AI_SECRET:-}
+      OC_AI_INTERNAL_TOKEN: ${OC_AI_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8094/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  ai-tts:
+    profiles: ["ai"]
+    build: ./oc-ai/oc-ai-tts
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:postgresql://postgres:5432/offercoach
+      DB_USER: oc
+      DB_PASSWORD: ${PG_PASSWORD:-change_me_local}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      OC_AI_SECRET: ${OC_AI_SECRET:-}
+      OC_AI_INTERNAL_TOKEN: ${OC_AI_INTERNAL_TOKEN:-}
+      AI_TTS_CACHE_DIR: /data/tts
+    volumes:
+      - ttscache:/data/tts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8095/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  ai-ocr:
+    profiles: ["ai"]
+    build: ./oc-ai/oc-ai-ocr
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:postgresql://postgres:5432/offercoach
+      DB_USER: oc
+      DB_PASSWORD: ${PG_PASSWORD:-change_me_local}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      OC_AI_SECRET: ${OC_AI_SECRET:-}
+      OC_AI_INTERNAL_TOKEN: ${OC_AI_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8096/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  ai-search:
+    profiles: ["ai"]
+    build: ./oc-ai/oc-ai-search
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:postgresql://postgres:5432/offercoach
+      DB_USER: oc
+      DB_PASSWORD: ${PG_PASSWORD:-change_me_local}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      OC_AI_SECRET: ${OC_AI_SECRET:-}
+      OC_AI_INTERNAL_TOKEN: ${OC_AI_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8097/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  ai-fetch:
+    profiles: ["ai"]
+    build: ./oc-ai/oc-ai-fetch
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:postgresql://postgres:5432/offercoach
+      DB_USER: oc
+      DB_PASSWORD: ${PG_PASSWORD:-change_me_local}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      OC_AI_SECRET: ${OC_AI_SECRET:-}
+      OC_AI_INTERNAL_TOKEN: ${OC_AI_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8098/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
   # 以下三个服务仅在 vector profile 下启用；Milvus 复用上面的 minio。
   etcd:
     image: quay.io/coreos/etcd:v3.5.5
@@ -165,3 +315,4 @@ volumes:
   miniodata:
   etcddata:
   milvusdata:
+  ttscache:

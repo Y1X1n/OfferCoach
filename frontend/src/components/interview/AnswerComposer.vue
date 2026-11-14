@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ArrowRight, FileText, Send, SkipForward, Timer } from 'lucide-vue-next'
 import type { QuestionStatus } from '@/types'
 import Button from '@/components/ui/Button.vue'
 import Textarea from '@/components/ui/Textarea.vue'
+import VoiceRecorder from '@/components/interview/VoiceRecorder.vue'
 
 defineProps<{
   canSubmit: boolean
@@ -16,12 +17,29 @@ defineProps<{
   canAdvance: boolean
   streamState: 'idle' | 'connecting' | 'streaming' | 'done' | 'error'
   hasReport: boolean
+  voiceTranscribing?: boolean
 }>()
 
 const model = defineModel<string>({ required: true })
-const emit = defineEmits<{ submit: []; skip: []; next: []; 'open-report': [] }>()
+const emit = defineEmits<{
+  submit: []
+  skip: []
+  next: []
+  'open-report': []
+  'voice-recorded': [audio: Blob, durationMs: number]
+  'voice-error': [message: string]
+}>()
 
 const trimmedLength = computed(() => model.value.trim().length)
+const recorder = ref<InstanceType<typeof VoiceRecorder> | null>(null)
+
+function onRecorded(audio: Blob, durationMs: number): void {
+  emit('voice-recorded', audio, durationMs)
+}
+
+function onVoiceError(message: string): void {
+  emit('voice-error', message)
+}
 </script>
 
 <template>
@@ -36,7 +54,7 @@ const trimmedLength = computed(() => model.value.trim().length)
       :hint="
         isAnswered
           ? '本题已提交，不可重复评分。'
-          : '至少 10 个字才能提交；建议按背景—动作—结果—复盘组织。'
+          : '至少 10 个字才能提交；也可点「语音作答」，录音后自动转写。'
       "
       placeholder="输入你的回答，先给结论，再补充关键动作与量化结果…"
     />
@@ -60,6 +78,14 @@ const trimmedLength = computed(() => model.value.trim().length)
       </p>
       <div class="flex flex-wrap items-center justify-end gap-2">
         <template v-if="isSessionActive">
+          <VoiceRecorder
+            v-if="!isAnswered && currentStatus !== 'SKIPPED'"
+            ref="recorder"
+            :disabled="submitting"
+            :transcribing="voiceTranscribing ?? false"
+            @recorded="onRecorded"
+            @error="onVoiceError"
+          />
           <Button
             v-if="!isAnswered && currentStatus === 'SKIPPED'"
             variant="outline"

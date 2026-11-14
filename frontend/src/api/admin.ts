@@ -392,6 +392,12 @@ export interface AdminAiConfig {
   /** 是否已配置 Key；明文永不返回。 */
   hasApiKey: boolean
   apiKeyMasked: string
+  asrEnabled: boolean
+  ttsEnabled: boolean
+  ocrEnabled: boolean
+  searchEnabled: boolean
+  fetchEnabled: boolean
+  ttsDefaultVoice: 'stella' | 'tide'
   updatedAt: string
   updatedBy: string
 }
@@ -405,6 +411,12 @@ export interface AdminAiConfigPayload {
   apiKey?: string | undefined
   /** 显式清空已保存的 Key。 */
   clearApiKey?: boolean | undefined
+  asrEnabled?: boolean | undefined
+  ttsEnabled?: boolean | undefined
+  ocrEnabled?: boolean | undefined
+  searchEnabled?: boolean | undefined
+  fetchEnabled?: boolean | undefined
+  ttsDefaultVoice?: 'stella' | 'tide' | undefined
 }
 
 export interface AdminAiTestResult {
@@ -423,6 +435,9 @@ function unwrapConfig(raw: unknown): unknown {
 function mapAiConfig(raw: unknown): AdminAiConfig {
   const dto = asRecord(unwrapConfig(raw))
   const apiKeyMasked = asString(dto.apiKeyMasked)
+  // 工具开关在响应中嵌套为 tools 对象；兼容旧版扁平字段。
+  const tools = asRecord(dto.tools ?? dto)
+  const voice = asString(tools.ttsDefaultVoice)
   return {
     enabled: asBoolean(dto.enabled),
     baseUrl: asString(dto.baseUrl, asString(dto.baseURL)),
@@ -430,6 +445,12 @@ function mapAiConfig(raw: unknown): AdminAiConfig {
     smallModel: asString(dto.smallModel, asString(dto.smallModelName)),
     hasApiKey: asBoolean(dto.hasApiKey ?? dto.apiKeyPresent, apiKeyMasked !== ''),
     apiKeyMasked,
+    asrEnabled: asBoolean(tools.asrEnabled, true),
+    ttsEnabled: asBoolean(tools.ttsEnabled, true),
+    ocrEnabled: asBoolean(tools.ocrEnabled, true),
+    searchEnabled: asBoolean(tools.searchEnabled, true),
+    fetchEnabled: asBoolean(tools.fetchEnabled, true),
+    ttsDefaultVoice: voice === 'tide' ? 'tide' : 'stella',
     updatedAt: asString(dto.updatedAt),
     updatedBy: idOf(dto.updatedBy ?? dto.updatedByName),
   }

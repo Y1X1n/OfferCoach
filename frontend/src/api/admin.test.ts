@@ -45,9 +45,45 @@ describe('AI 配置', () => {
       smallModel: 'gpt-4o-mini',
       hasApiKey: true,
       apiKeyMasked: 'sk-****abcd',
+      asrEnabled: true,
+      ttsEnabled: true,
+      ocrEnabled: true,
+      searchEnabled: true,
+      fetchEnabled: true,
+      ttsDefaultVoice: 'stella',
       updatedAt: '2026-11-01T00:00:00Z',
       updatedBy: '7',
     })
+  })
+
+  it('读取工具能力开关与音色，非法音色回退默认', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        enabled: true,
+        baseUrl: 'https://gw.example.com/v1',
+        model: 'gpt-4o',
+        smallModel: 'gpt-4o-mini',
+        hasApiKey: true,
+        apiKeyMasked: 'sk-****abcd',
+        tools: {
+          asrEnabled: false,
+          ttsEnabled: false,
+          ocrEnabled: false,
+          searchEnabled: false,
+          fetchEnabled: false,
+          ttsDefaultVoice: 'unknown',
+        },
+      }),
+    )
+
+    const config = await adminApi.getAiConfig()
+
+    expect(config.asrEnabled).toBe(false)
+    expect(config.ttsEnabled).toBe(false)
+    expect(config.ocrEnabled).toBe(false)
+    expect(config.searchEnabled).toBe(false)
+    expect(config.fetchEnabled).toBe(false)
+    expect(config.ttsDefaultVoice).toBe('stella')
   })
 
   it('保存时仅携带显式传入的 apiKey/clearApiKey', async () => {

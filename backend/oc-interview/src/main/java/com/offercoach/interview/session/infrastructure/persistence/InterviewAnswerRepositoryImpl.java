@@ -26,6 +26,9 @@ public class InterviewAnswerRepositoryImpl implements InterviewAnswerRepository 
         row.setAnswerText(answer.answerText());
         row.setDurationMs(answer.durationMs());
         row.setStatus(answer.status());
+        row.setAudioKey(answer.audioKey());
+        row.setAudioDurationMs(answer.audioKey() == null ? null : answer.durationMs());
+        row.setAsrStatus(answer.asrStatus());
         answerMapper.insert(row);
         return row.getId() == null ? 0 : row.getId();
     }
@@ -63,6 +66,11 @@ public class InterviewAnswerRepositoryImpl implements InterviewAnswerRepository 
     }
 
     @Override
+    public void updateAsrStatus(long answerId, String asrStatus) {
+        answerMapper.updateAsrStatus(answerId, asrStatus);
+    }
+
+    @Override
     public int failStaleScoring(java.time.OffsetDateTime cutoff) {
         return answerMapper.failStaleScoring(cutoff);
     }
@@ -80,6 +88,8 @@ public class InterviewAnswerRepositoryImpl implements InterviewAnswerRepository 
                 row.getAnswerText(),
                 row.getDurationMs(),
                 row.getStatus(),
-                row.getSubmittedAt());
+                row.getSubmittedAt(),
+                row.getAudioKey(),
+                row.getAsrStatus());
     }
 }

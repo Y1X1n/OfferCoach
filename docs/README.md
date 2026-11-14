@@ -1,7 +1,7 @@
 # OfferCoach 开发文档
 
 > AI 模拟面试与简历诊断平台。本文是 `docs/` 的**唯一索引**：先按“你要做的事”找（§1），找不到再看全量地图（§2）。
-> 状态：生效 ｜ 版本：v1.10 ｜ 更新：2026-11-09
+> 状态：生效 ｜ 版本：v1.11 ｜ 更新：2026-11-13
 
 **文档分工**：
 
@@ -21,6 +21,8 @@
 | 第一次了解项目（10 分钟） | [overview.md](overview.md)（定位 / 形态 / 架构 / 技术栈 / 非功能目标） |
 | 确认本期做什么、不做什么 | [requirements.md](requirements.md)（需求编号、优先级、版本、状态） |
 | 查业务规则、额度、状态机、验收口径 | [design/product-requirements.md](design/product-requirements.md) |
+| 做语音作答 / 题目朗读 / 简历 OCR | [design/ai-tools-prd.md](design/ai-tools-prd.md)（ASR / TTS / OCR 口径与验收） |
+| 做目标岗位联网获取（Search / Fetch） | [design/ai-jd-web-prd.md](design/ai-jd-web-prd.md)（面试出题用真实 JD） |
 | 看服务怎么拆、为什么这么拆、核心时序 | [design/architecture.md](design/architecture.md) |
 | 建表 / 改表 / 写实体 / 查索引与类型 | [design/data-model.md](design/data-model.md)（含命名、类型、软删、建表自查） |
 | 写 / 改 HTTP 或 SSE 接口 | [design/api.md](design/api.md) + [dev/workflow.md](dev/workflow.md)（契约冻结与变更） |
@@ -56,6 +58,8 @@
 | 文档 | 一句话 | 状态 |
 |---|---|---|
 | [product-requirements.md](design/product-requirements.md) | PRD：角色、旅程、业务规则、非功能指标、风险 | 评审中 |
+| [ai-tools-prd.md](design/ai-tools-prd.md) | AI 工具 PRD：语音作答 ASR / 题目朗读 TTS / 简历 OCR（DeepSeek Tools API） | 评审中 |
+| [ai-jd-web-prd.md](design/ai-jd-web-prd.md) | 目标岗位联网获取 PRD：Search / Fetch，面试出题用真实 JD | 评审中 |
 | [architecture.md](design/architecture.md) | ADR、服务边界、逻辑架构、核心时序、容量与降级 | 生效 |
 | [data-model.md](design/data-model.md) | PostgreSQL DDL、Redis Key、Milvus Collection、对象存储、建表规范 | 生效 |
 | [api.md](design/api.md) | REST/SSE 契约、错误码、幂等、限流、接口总览 | 生效 |

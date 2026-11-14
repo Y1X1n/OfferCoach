@@ -33,6 +33,7 @@ public class ResumeParseExecutor {
     private final DocumentTextExtractor documentTextExtractor;
     private final ResumeStructurer resumeStructurer;
     private final ResumeParseFinalizer finalizer;
+    private final ResumeOcrFallback ocrFallback;
     private final QuotaService quotaService;
     private final UserRepository userRepository;
 
@@ -42,6 +43,7 @@ public class ResumeParseExecutor {
             DocumentTextExtractor documentTextExtractor,
             ResumeStructurer resumeStructurer,
             ResumeParseFinalizer finalizer,
+            ResumeOcrFallback ocrFallback,
             QuotaService quotaService,
             UserRepository userRepository) {
         this.resumeRepository = resumeRepository;
@@ -49,6 +51,7 @@ public class ResumeParseExecutor {
         this.documentTextExtractor = documentTextExtractor;
         this.resumeStructurer = resumeStructurer;
         this.finalizer = finalizer;
+        this.ocrFallback = ocrFallback;
         this.quotaService = quotaService;
         this.userRepository = userRepository;
     }
@@ -70,15 +73,35 @@ public class ResumeParseExecutor {
         }
 
         try {
-            ExtractedDocument extracted = extract(resume);
-            String text = extracted.text() == null ? "" : extracted.text().strip();
+            String extension = extensionOf(resume);
+            String text = "";
+            int pageCount = 1;
+            boolean localExtractionFailed = false;
+            try {
+                ExtractedDocument extracted = extract(resume);
+                text = extracted.text() == null ? "" : extracted.text().strip();
+                pageCount = Math.max(1, extracted.pageCount());
+            } catch (DocumentExtractionException exception) {
+                if (!ocrFallback.requiresOcr(extension)) {
+                    throw exception;
+                }
+                // 图片 / PPT 无法本地抽取，直接走 OCR。
+                localExtractionFailed = true;
+            }
+            if (localExtractionFailed || text.length() < MIN_TEXT_CHARS || ocrFallback.requiresOcr(extension)) {
+                String ocrText = ocrExtract(resume, text);
+                if (ocrText != null && !ocrText.isEmpty()) {
+                    text = ocrText;
+                    pageCount = Math.max(pageCount, 1);
+                }
+            }
             if (text.length() < MIN_TEXT_CHARS) {
                 log.warn("简历文本过短，转手动录入：resumeId={} length={}", resumeId, text.length());
                 fail(resume, ERROR_NEED_MANUAL);
                 return;
             }
             ResumeStructurer.StructuredResume structured = resumeStructurer.structure(text, allowRawToLlm(resume));
-            finalizer.markReady(resumeId, text, structured, Math.max(1, extracted.pageCount()));
+            finalizer.markReady(resumeId, text, structured, pageCount);
         } catch (DocumentExtractionException exception) {
             log.warn("简历文本抽取失败：resumeId={} reason={}", resumeId, exception.getMessage());
             fail(resume, ERROR_PARSE_FAILED);
@@ -114,6 +137,27 @@ public class ResumeParseExecutor {
         byte[] content = fileStorage.load(resume.fileKey());
         ExtractedDocument extracted = documentTextExtractor.extract(content, extensionOf(resume));
         return new ExtractedDocument(DocumentTextExtractor.clean(extracted.text()), extracted.pageCount());
+    }
+
+    /**
+     * OCR 降级：图片 / PPT 或抽取文本过短时识别；失败返回 null 由调用方决定是否手动录入。
+     */
+    private String ocrExtract(Resume resume, String localText) {
+        if (resume.fileKey() == null || resume.fileKey().isBlank()) {
+            return null;
+        }
+        try {
+            byte[] content = fileStorage.load(resume.fileKey());
+            String text = ocrFallback.extract(resume.userId(), content, resume.fileName(), resume.mimeType());
+            return text == null || text.isBlank() ? null : text;
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "简历 OCR 降级异常，保留本地文本：resumeId={} localLength={} reason={}",
+                    resume.id(),
+                    localText == null ? 0 : localText.length(),
+                    exception.getClass().getSimpleName());
+            return null;
+        }
     }
 
     private void fail(Resume resume, String parseError) {

@@ -279,6 +279,29 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   return parseResponse<T>(response)
 }
 
+/**
+ * 发起 API 请求并返回二进制内容（音频 / 文件下载）；401 处理与 JSON 请求一致。
+ */
+export async function requestBlob(
+  path: string,
+  options: RequestOptions = {},
+): Promise<{ blob: Blob; headers: Headers }> {
+  const response = await send(path, { ...options, headers: { ...options.headers, Accept: '*/*' } })
+  if (
+    response.status === 401 &&
+    options.refreshOnUnauthorized !== false &&
+    (!path.startsWith('/auth/') || path === '/auth/logout')
+  ) {
+    const refreshed = await refreshSession()
+    if (!refreshed) throw await toApiError(response)
+    const retried = await send(path, { ...options, headers: { ...options.headers, Accept: '*/*' } })
+    if (!retried.ok) throw await toApiError(retried)
+    return { blob: await retried.blob(), headers: retried.headers }
+  }
+  if (!response.ok) throw await toApiError(response)
+  return { blob: await response.blob(), headers: response.headers }
+}
+
 async function send(path: string, options: RequestOptions): Promise<Response> {
   const body = options.body
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData

@@ -30,6 +30,7 @@ public class AnswerService {
     private static final int STREAM_TOKEN_BYTES = 32;
     private static final long STREAM_TOKEN_TTL_SECONDS = 300L;
     private static final String INPUT_MODE_TEXT = "TEXT";
+    private static final String INPUT_MODE_VOICE = "VOICE";
     private static final int MAX_IDEMPOTENCY_KEY = 128;
 
     private final InterviewSessionRepository sessionRepository;
@@ -67,6 +68,23 @@ public class AnswerService {
             Integer durationMs,
             String inputMode,
             String idempotencyKey) {
+        return submit(userId, sessionId, questionId, answerText, durationMs, inputMode, idempotencyKey, null, "NONE");
+    }
+
+    /**
+     * 提交回答；语音作答时携带音频 key 与转写状态，其余校验与文本作答一致。
+     */
+    @Transactional
+    public Submitted submit(
+            long userId,
+            long sessionId,
+            long questionId,
+            String answerText,
+            Integer durationMs,
+            String inputMode,
+            String idempotencyKey,
+            String audioKey,
+            String asrStatus) {
         InterviewSession session = sessionRepository
                 .findOwned(userId, sessionId)
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("sessionId", sessionId)));
@@ -99,15 +117,27 @@ public class AnswerService {
         String mode = inputMode == null || inputMode.isBlank()
                 ? INPUT_MODE_TEXT
                 : inputMode.strip().toUpperCase();
-        if (!INPUT_MODE_TEXT.equals(mode)) {
-            throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("inputMode", "暂仅支持文字作答")));
+        if (!INPUT_MODE_TEXT.equals(mode) && !INPUT_MODE_VOICE.equals(mode)) {
+            throw new BizException(
+                    ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("inputMode", "仅支持 TEXT 或 VOICE")));
         }
+        String normalizedAsrStatus = INPUT_MODE_VOICE.equals(mode) ? normalizeAsrStatus(asrStatus) : "NONE";
         if (idempotencyKey != null && idempotencyKey.length() > MAX_IDEMPOTENCY_KEY) {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("Idempotency-Key", "过长")));
         }
 
-        long answerId = answerRepository.insert(
-                new InterviewAnswer(0, sessionId, questionId, userId, mode, text, durationMs, "SCORING", null));
+        long answerId = answerRepository.insert(new InterviewAnswer(
+                0,
+                sessionId,
+                questionId,
+                userId,
+                mode,
+                text,
+                durationMs,
+                "SCORING",
+                null,
+                INPUT_MODE_VOICE.equals(mode) ? audioKey : null,
+                normalizedAsrStatus));
         if (answerId == 0) {
             Optional<InterviewAnswer> raced = answerRepository.findByQuestionId(questionId);
             if (raced.isPresent()) {
@@ -163,6 +193,17 @@ public class AnswerService {
         byte[] random = new byte[STREAM_TOKEN_BYTES];
         secureRandom.nextBytes(random);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+    }
+
+    private static String normalizeAsrStatus(String asrStatus) {
+        if (asrStatus == null || asrStatus.isBlank()) {
+            return "DONE";
+        }
+        String value = asrStatus.strip().toUpperCase();
+        return switch (value) {
+            case "PENDING", "DONE", "FAILED" -> value;
+            default -> "DONE";
+        };
     }
 
     public record Submitted(long answerId, String status, String token, long expiresIn) {}

@@ -114,6 +114,19 @@ oc:
     allow-private-hosts: ${AI_ALLOW_PRIVATE_HOSTS:false}
     # 前端已改为轮询反馈；SSE 端点默认关闭，仅保留给显式开启的兼容客户端。
     sse-enabled: ${AI_SSE_ENABLED:false}
+    tools:
+      # 服务间内部令牌：oc-app 与 oc-ai-asr/tts/ocr 必须一致；为空时工具服务拒绝所有调用。
+      internal-token: ${OC_AI_INTERNAL_TOKEN:}
+      asr-base-url: ${AI_ASR_BASE_URL:http://127.0.0.1:8094}
+      tts-base-url: ${AI_TTS_BASE_URL:http://127.0.0.1:8095}
+      ocr-base-url: ${AI_OCR_BASE_URL:http://127.0.0.1:8096}
+      search-base-url: ${AI_SEARCH_BASE_URL:http://127.0.0.1:8097}
+      fetch-base-url: ${AI_FETCH_BASE_URL:http://127.0.0.1:8098}
+      search-daily-limit: ${AI_SEARCH_DAILY_LIMIT:20}
+      fetch-daily-limit: ${AI_FETCH_DAILY_LIMIT:20}
+      search-max-count: ${AI_SEARCH_MAX_COUNT:10}
+      # 调用日志由工具服务写入，oc-app 侧关闭避免重复。
+      call-log-enabled: false
   storage:
     root: ${STORAGE_ROOT:.local/storage}
   # 数据保留策略：每天低峰（默认 03:30）分批清理过期日志，避免表无限增长。

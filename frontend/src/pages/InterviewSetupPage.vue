@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { ArrowRight, CircleAlert, Loader2 } from 'lucide-vue-next'
+import { ArrowRight, CircleAlert, Globe, Loader2, X } from 'lucide-vue-next'
 import type { InterviewConfig, InterviewSession, Jd, ResumeSummary } from '@/types'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
 import InterviewConfigPanel from '@/components/interview/setup/InterviewConfigPanel.vue'
 import JdPicker from '@/components/interview/setup/JdPicker.vue'
+import JdWebImportDialog from '@/components/interview/setup/JdWebImportDialog.vue'
 import ResumePicker from '@/components/interview/setup/ResumePicker.vue'
 import SetupSummary from '@/components/interview/setup/SetupSummary.vue'
 import Alert from '@/components/ui/Alert.vue'
@@ -54,6 +55,54 @@ const selectedResume = computed(
 )
 const selectedJd = computed(() => jds.value.find((jd) => jd.id === selectedJdId.value) ?? null)
 
+/** 联网获取的 JD 预览；确认后随创建请求提交，不进入 JD 列表。 */
+const pendingPreview = ref<{ previewToken: string; title: string; company: string; sourceUrl: string } | null>(
+  null,
+)
+const webDialogOpen = ref(false)
+
+const previewAsJd = computed<Jd | null>(() => {
+  const current = pendingPreview.value
+  if (!current) return null
+  return {
+    id: '',
+    title: current.title,
+    company: current.company || '招聘网站',
+    rawText: '',
+    createdAt: '',
+    structured: {
+      seniority: 'MID',
+      responsibilities: [],
+      mustHave: [],
+      niceToHave: [],
+      techStack: [],
+      keywords: [],
+    },
+  }
+})
+const effectiveJd = computed<Jd | null>(() => selectedJd.value ?? previewAsJd.value)
+
+function onWebImportUse(payload: {
+  previewToken: string
+  title: string
+  siteName: string
+  sourceUrl: string
+}): void {
+  pendingPreview.value = {
+    previewToken: payload.previewToken,
+    title: payload.title,
+    company: payload.siteName,
+    sourceUrl: payload.sourceUrl,
+  }
+  selectedJdId.value = ''
+  idempotencyKey = null
+}
+
+function clearPreview(): void {
+  pendingPreview.value = null
+  idempotencyKey = null
+}
+
 const credits = computed(() => store.quota.interviewCredits)
 const quotaBlocked = computed(() => credits.value <= 0)
 const dailyBlocked = computed(
@@ -65,8 +114,8 @@ const missing = computed<string[]>(() => {
   const list: string[] = []
   if (readyResumes.value.length === 0) list.push('还没有已就绪的简历')
   else if (!selectedResume.value) list.push('请选择一份简历')
-  if (jds.value.length === 0) list.push('还没有目标岗位')
-  else if (!selectedJd.value) list.push('请选择一个目标岗位')
+  if (jds.value.length === 0 && !previewAsJd.value) list.push('还没有目标岗位')
+  else if (!effectiveJd.value) list.push('请选择一个目标岗位')
   if (quotaBlocked.value) list.push('本月面试额度已用完')
   if (dailyBlocked.value) list.push('今日面试场次已达上限')
   return list
@@ -74,7 +123,7 @@ const missing = computed<string[]>(() => {
 const canStart = computed(
   () =>
     selectedResume.value !== null &&
-    selectedJd.value !== null &&
+    effectiveJd.value !== null &&
     !quotaBlocked.value &&
     !dailyBlocked.value &&
     !starting.value,
@@ -138,7 +187,7 @@ async function waitUntilReady(id: string): Promise<InterviewSession> {
 async function startInterview(): Promise<void> {
   if (starting.value) return
   const resume = selectedResume.value
-  const jd = selectedJd.value
+  const jd = effectiveJd.value
   if (!resume || !jd) {
     toast(missing.value[0] ?? '请先完善面试配置', 'warning')
     return
@@ -150,8 +199,13 @@ async function startInterview(): Promise<void> {
   phase.value = 'creating'
   if (!idempotencyKey) idempotencyKey = createRequestId()
   try {
+    const preview = pendingPreview.value
     const session = await interviewsApi.createInterview(
-      { resumeId: resume.id, jdId: jd.id, config: { ...config.value } },
+      {
+        resumeId: resume.id,
+        ...(preview ? { previewToken: preview.previewToken } : { jdId: selectedJd.value?.id ?? jd.id }),
+        config: { ...config.value },
+      },
       idempotencyKey,
     )
     phase.value = 'preparing'
@@ -211,6 +265,10 @@ watch(
   { deep: true },
 )
 
+watch(selectedJdId, (id) => {
+  if (id) pendingPreview.value = null
+})
+
 onMounted(() => {
   void loadAll()
 })
@@ -243,6 +301,34 @@ onBeforeUnmount(() => {
           />
 
           <JdPicker v-model="selectedJdId" :jds="jds" />
+
+          <div class="space-y-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" @click="webDialogOpen = true">
+                <Globe class="h-3.5 w-3.5" aria-hidden="true" />
+                从招聘网站获取目标岗位
+              </Button>
+              <span class="text-3xs text-text-muted">粘贴岗位链接，抓不到会自动改用搜索</span>
+            </div>
+
+            <div
+              v-if="pendingPreview"
+              class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface-2 px-3 py-2"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-xs font-medium text-text">
+                  {{ pendingPreview.title }}
+                </p>
+                <p class="mt-0.5 truncate text-3xs text-text-muted">
+                  {{ pendingPreview.company || '招聘网站' }} · 联网获取，创建面试时保存
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" aria-label="移除已获取的岗位" @click="clearPreview">
+                <X class="h-3.5 w-3.5" aria-hidden="true" />
+                移除
+              </Button>
+            </div>
+          </div>
 
           <InterviewConfigPanel v-model="config" />
 
@@ -295,7 +381,7 @@ onBeforeUnmount(() => {
 
         <SetupSummary
           :resume="selectedResume"
-          :jd="selectedJd"
+          :jd="effectiveJd"
           :config="config"
           :credits="credits"
           :quota-blocked="quotaBlocked"
@@ -308,5 +394,7 @@ onBeforeUnmount(() => {
         />
       </div>
     </AsyncState>
+
+    <JdWebImportDialog v-model:open="webDialogOpen" @use="onWebImportUse" />
   </div>
 </template>

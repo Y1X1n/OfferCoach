@@ -24,6 +24,11 @@ public interface InterviewAnswerRepository {
     void markScored(long answerId);
 
     /**
+     * 更新语音转写状态；用于 ASR 失败后回退文本作答的审计。
+     */
+    void updateAsrStatus(long answerId, String asrStatus);
+
+    /**
      * 看门狗：把超时仍为 SCORING 的回答标记失败。
      */
     int failStaleScoring(java.time.OffsetDateTime cutoff);

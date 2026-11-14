@@ -1,6 +1,6 @@
 # OfferCoach 需求索引
 
-> 状态：评审中 ｜ 版本：v1.1 ｜ 更新：2026-11-07
+> 状态：评审中 ｜ 版本：v1.2 ｜ 更新：2026-11-13
 > 定位：本文登记**平台功能需求**（一条需求一行），是“做什么 / 不做什么 / 哪个版本做”的唯一事实源。
 > 业务规则、状态机、验收细节在 [design/product-requirements.md](design/product-requirements.md)；设计与实现走链接，不在本文展开。
 > 待决事项见 [README.md](README.md) §4。
@@ -49,7 +49,7 @@ AICallLog（按调用记录，按月分区）
 | # | 需求 | 优先级 | 版本 | 来源 |
 |---|---|---|---|---|
 | R-10 | 上传 PDF/DOCX，大小/页数/病毒扫描校验 | P0 | MVP | PRD §6.2 |
-| R-11 | 文本抽取 + 扫描件 OCR 降级 | P0 | MVP | PRD §6.2 |
+| R-11 | 文本抽取 + 扫描件 OCR 降级 | P0 | MVP | [design/ai-tools-prd.md](design/ai-tools-prd.md) §3.3 |
 | R-12 | 简历结构化（基本信息/教育/工作/项目/技能/证书），字段置信度 | P0 | MVP | PRD §6.2 |
 | R-13 | 低置信字段人工修正，修正后重建摘要与匹配向量 | P0 | MVP | PRD §6.2 |
 | R-14 | 简历列表、默认简历、删除、预签名下载 | P1 | MVP | PRD §6.2 |
@@ -62,7 +62,8 @@ AICallLog（按调用记录，按月分区）
 |---|---|---|---|---|
 | R-20 | 粘贴 JD 文本（50–8000 字符），结构化出必备/加分/技术栈/关键词 | P0 | MVP | PRD §6.3 |
 | R-21 | 简历-JD 匹配：匹配度、已匹配、缺口技能、双向原文证据 | P0 | MVP | PRD §6.3 |
-| R-22 | JD URL 抓取（白名单 + SSRF 防护） | P2 | V1.2 | PRD §6.3 |
+| R-22 | JD URL 抓取（白名单 + SSRF 防护） | P2 | V1.2 | [design/ai-jd-web-prd.md](design/ai-jd-web-prd.md) §4 |
+| R-23 | 创建面试时联网搜索目标岗位 JD，用于量身定制题目 | P1 | V1.1 | [design/ai-jd-web-prd.md](design/ai-jd-web-prd.md) §1 §4 |
 
 ## 5. 面试会话与出题
 
@@ -76,7 +77,8 @@ AICallLog（按调用记录，按月分区）
 | R-35 | 并发限制：同一用户仅 1 个未结束会话 | P0 | MVP | PRD §6.4 |
 | R-36 | 出题失败自动返还额度，允许重新创建 | P0 | MVP | PRD §6.4 |
 | R-37 | 追问：每场最多 2 次，计入题量、不额外扣额度 | P1 | V1.1 | PRD §6.4 |
-| R-38 | 语音作答：录音、上传、ASR、可编辑转写 | P1 | V1.1 | PRD §6.5 |
+| R-38 | 语音作答：录音、上传、ASR、可编辑转写 | P1 | V1.1 | [design/ai-tools-prd.md](design/ai-tools-prd.md) §3.1 |
+| R-39 | 题目朗读（TTS）：模拟考官朗读题干，音色可选、可缓存 | P1 | V1.1 | [design/ai-tools-prd.md](design/ai-tools-prd.md) §3.2 |
 
 ## 6. 评分与反馈
 
@@ -141,6 +143,7 @@ AICallLog（按调用记录，按月分区）
 | R-86 | 隐私 | PII 最小化、可删除、不用于训练 | 合规检查 |
 | R-87 | 可访问性 | 关键路径 WCAG 2.1 AA | 手工 + axe |
 | R-88 | 响应式 | 375px 可完成面试全流程 | E2E 视口 |
+| R-89 | AI 工具服务边界 | ASR / TTS / OCR 归属 `oc-ai` 模块内的三个独立服务，仅内网可达；单个下线只降级对应能力 | [design/ai-tools-prd.md](design/ai-tools-prd.md) §4 / §9 A-9 A-10 |
 
 ## 11. 明确不做（当前范围外）
 

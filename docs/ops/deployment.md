@@ -26,6 +26,8 @@
 | frontend | 5174 | Vite dev server（5173 常被其他本地进程占用） |
 | gateway | 8080 | 统一入口 |
 | identity / interview / admin | 8081–8083 | 业务服务（单体模式只起 app） |
+| ai-asr / ai-tts / ai-ocr | 8094 / 8095 / 8096 | AI 工具服务，仅内网可达，由 oc-app 调用；见 [ai-tools-prd.md](../design/ai-tools-prd.md) §4 |
+| ai-search / ai-fetch | 8097 / 8098 | 联网检索 / 抓取服务，仅内网可达，用于目标岗位 JD 获取；见 [ai-jd-web-prd.md](../design/ai-jd-web-prd.md) §3 |
 | report-worker | — | 无 HTTP |
 | ai-orchestrator | 8000 | FastAPI |
 | postgres | 5432 | 主库 |

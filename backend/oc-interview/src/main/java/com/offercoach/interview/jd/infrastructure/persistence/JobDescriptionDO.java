@@ -33,6 +33,10 @@ public class JobDescriptionDO {
 
     private String contentHash;
 
+    private String sourceType;
+
+    private String sourceUrl;
+
     private OffsetDateTime deletedAt;
 
     private OffsetDateTime createdAt;

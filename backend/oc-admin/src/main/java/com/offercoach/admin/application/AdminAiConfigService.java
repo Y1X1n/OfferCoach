@@ -4,6 +4,7 @@ import com.offercoach.admin.audit.AuditLogger;
 import com.offercoach.ai.AiProvider;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.AiRuntimeConfigService.AiRuntimeSnapshot;
+import com.offercoach.ai.AiRuntimeConfigService.ToolSwitches;
 import com.offercoach.ai.AiUnavailableException;
 import com.offercoach.ai.OpenAiCompatibleProvider;
 import com.offercoach.common.error.BizException;
@@ -48,10 +49,11 @@ public class AdminAiConfigService {
             String model,
             String smallModel,
             String apiKey,
-            boolean clearApiKey) {
+            boolean clearApiKey,
+            ToolSwitches tools) {
         Map<String, Object> before = auditView(configService.snapshot());
         AiRuntimeSnapshot after =
-                configService.update(actorId, enabled, baseUrl, model, smallModel, apiKey, clearApiKey);
+                configService.update(actorId, enabled, baseUrl, model, smallModel, apiKey, clearApiKey, tools);
         auditLogger.log(actorId, ACTION_UPDATE, TARGET_TYPE, TARGET_ID, before, auditView(after));
         return after;
     }
@@ -75,6 +77,12 @@ public class AdminAiConfigService {
         value.put("model", snapshot.model());
         value.put("smallModel", snapshot.smallModel());
         value.put("hasApiKey", snapshot.hasApiKey());
+        value.put("asrEnabled", snapshot.tools().asrEnabled());
+        value.put("ttsEnabled", snapshot.tools().ttsEnabled());
+        value.put("ocrEnabled", snapshot.tools().ocrEnabled());
+        value.put("searchEnabled", snapshot.tools().searchEnabled());
+        value.put("fetchEnabled", snapshot.tools().fetchEnabled());
+        value.put("ttsDefaultVoice", snapshot.tools().ttsDefaultVoice());
         return value;
     }
 }

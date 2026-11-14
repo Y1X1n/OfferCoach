@@ -21,6 +21,10 @@ const sceneOptions = [
   { value: 'FEEDBACK', label: '评分反馈' },
   { value: 'REPORT', label: '报告生成' },
   { value: 'ASR', label: '语音转写' },
+  { value: 'TTS', label: '题目朗读' },
+  { value: 'OCR', label: '简历识别' },
+  { value: 'SEARCH', label: '岗位搜索' },
+  { value: 'FETCH', label: '链接抓取' },
 ]
 
 const calls = ref<AdminAiCall[]>([])

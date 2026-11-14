@@ -17,8 +17,10 @@ import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +56,14 @@ public class JdService {
     }
 
     public JdView create(long userId, String title, String company, String rawText) {
+        return create(userId, title, company, rawText, JobDescription.SOURCE_MANUAL, null);
+    }
+
+    /**
+     * 落库 JD 并结构化；联网获取时记录来源类型与原始链接。
+     */
+    public JdView create(
+            long userId, String title, String company, String rawText, String sourceType, String sourceUrl) {
         String text = rawText == null ? "" : rawText.strip();
         if (text.length() < MIN_RAW_TEXT || text.length() > MAX_RAW_TEXT) {
             throw new BizException(
@@ -62,8 +72,9 @@ public class JdService {
         JdStructurer.StructuredJd structured = jdStructurer.structure(title, company, text);
         String safeTitle = blankToNull(title);
         String safeCompany = blankToNull(company);
-        long id = jdRepository.insert(new JobDescription(
-                0, userId, safeTitle, safeCompany, text, structured.json(), null, null, sha256(text), null));
+        String safeSourceType = sourceType == null || sourceType.isBlank() ? JobDescription.SOURCE_MANUAL : sourceType;
+        long id = insertDeduped(
+                userId, text, safeTitle, safeCompany, structured.json(), safeSourceType, blankToNull(sourceUrl), true);
         return new JdView(
                 id,
                 safeTitle,
@@ -72,7 +83,105 @@ public class JdService {
                 structured.structured(),
                 null,
                 null,
-                OffsetDateTime.now(ZoneOffset.UTC));
+                OffsetDateTime.now(ZoneOffset.UTC),
+                safeSourceType,
+                blankToNull(sourceUrl));
+    }
+
+    /**
+     * 落库已结构化的 JD（预览确认时复用预览阶段的结构化结果，避免二次调用模型）。
+     */
+    public JdView createWithStructured(
+            long userId,
+            String title,
+            String company,
+            String rawText,
+            String structuredJson,
+            String sourceType,
+            String sourceUrl) {
+        String text = rawText == null ? "" : rawText.strip();
+        if (text.length() < MIN_RAW_TEXT || text.length() > MAX_RAW_TEXT) {
+            throw new BizException(
+                    ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("rawText", "JD 原文长度需为 50-8000")));
+        }
+        String safeSourceType = sourceType == null || sourceType.isBlank() ? JobDescription.SOURCE_MANUAL : sourceType;
+        String safeTitle = blankToNull(title);
+        String safeCompany = blankToNull(company);
+        long id = insertDeduped(
+                userId, text, safeTitle, safeCompany, structuredJson, safeSourceType, blankToNull(sourceUrl), false);
+        return new JdView(
+                id,
+                safeTitle,
+                safeCompany,
+                text,
+                parseJson(structuredJson),
+                null,
+                null,
+                OffsetDateTime.now(ZoneOffset.UTC),
+                safeSourceType,
+                blankToNull(sourceUrl));
+    }
+
+    /**
+     * 去重写入：同用户同内容（哈希归一化后）已存在时复用。
+     *
+     * @param conflict 为 true 时抛 409（手工粘贴场景，提示用户已存在）；为 false 时复用既有行（联网获取场景）
+     */
+    private long insertDeduped(
+            long userId,
+            String text,
+            String safeTitle,
+            String safeCompany,
+            String structuredJson,
+            String sourceType,
+            String sourceUrl,
+            boolean conflict) {
+        String hash = contentHashOf(text);
+        Optional<JobDescription> existing = jdRepository.findByContentHash(userId, hash);
+        if (existing.isPresent()) {
+            return resolveExisting(existing.get(), conflict);
+        }
+        try {
+            return jdRepository.insert(new JobDescription(
+                    0,
+                    userId,
+                    safeTitle,
+                    safeCompany,
+                    text,
+                    structuredJson,
+                    null,
+                    null,
+                    hash,
+                    null,
+                    sourceType,
+                    sourceUrl));
+        } catch (DuplicateKeyException exception) {
+            Optional<JobDescription> raced = jdRepository.findByContentHash(userId, hash);
+            if (raced.isPresent()) {
+                return resolveExisting(raced.get(), conflict);
+            }
+            throw exception;
+        }
+    }
+
+    private static long resolveExisting(JobDescription existing, boolean conflict) {
+        if (conflict) {
+            throw new BizException(
+                    ErrorCode.STATE_CONFLICT,
+                    Map.of("existingJdId", Long.toString(existing.id()), "message", "该 JD 已存在"));
+        }
+        return existing.id();
+    }
+
+    /**
+     * 不落库地查询同用户是否已有相同内容 JD。
+     */
+    @Transactional(readOnly = true)
+    public Optional<JdView> findDuplicate(long userId, String rawText) {
+        if (rawText == null || rawText.isBlank()) {
+            return Optional.empty();
+        }
+        return jdRepository.findByContentHash(userId, contentHashOf(rawText)).map(this::toView);
     }
 
     @Transactional(readOnly = true)
@@ -130,7 +239,9 @@ public class JdService {
                 parseJson(jd.structuredJson()),
                 jd.matchScore(),
                 parseJson(jd.matchReport()),
-                jd.createdAt());
+                jd.createdAt(),
+                jd.sourceType(),
+                jd.sourceUrl());
     }
 
     private Map<String, Object> parseJson(String json) {
@@ -153,6 +264,24 @@ public class JdService {
         return value == null || value.isBlank() ? null : value.strip();
     }
 
+    private static String contentHashOf(String text) {
+        return sha256(normalizeForHash(text));
+    }
+
+    /**
+     * 去重用的归一化：统一换行、压缩行尾空白与连续空行，避免排版差异造成漏判。
+     */
+    static String normalizeForHash(String text) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        normalized = normalized.replaceAll("[\t\u00A0\u3000]+", " ");
+        normalized = normalized.replaceAll("(?m)[ ]+$", "");
+        normalized = normalized.replaceAll("\n{3,}", "\n\n");
+        return normalized.strip();
+    }
+
     private static String sha256(String text) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -170,7 +299,9 @@ public class JdService {
             Map<String, Object> structured,
             BigDecimal matchScore,
             Map<String, Object> matchReport,
-            OffsetDateTime createdAt) {}
+            OffsetDateTime createdAt,
+            String sourceType,
+            String sourceUrl) {}
 
     public record JdSummaryView(
             long id,
