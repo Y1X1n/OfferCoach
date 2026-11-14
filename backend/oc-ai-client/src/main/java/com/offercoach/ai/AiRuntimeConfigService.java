@@ -28,7 +28,9 @@ public class AiRuntimeConfigService {
     private static final int MAX_MODEL_LENGTH = 128;
     private static final String SELECT_SQL =
             """
-            SELECT enabled, base_url, api_key_cipher, model, small_model, updated_by, updated_at
+            SELECT enabled, base_url, api_key_cipher, model, small_model,
+                   asr_enabled, tts_enabled, ocr_enabled, search_enabled, fetch_enabled, tts_default_voice,
+                   updated_by, updated_at
             FROM ai_runtime_config
             WHERE id = 1
             """;
@@ -36,20 +38,25 @@ public class AiRuntimeConfigService {
             """
             UPDATE ai_runtime_config
             SET enabled = ?, base_url = ?, api_key_cipher = ?, model = ?, small_model = ?,
-                updated_by = ?, updated_at = now()
+                asr_enabled = ?, tts_enabled = ?, ocr_enabled = ?, search_enabled = ?, fetch_enabled = ?,
+                tts_default_voice = ?, updated_by = ?, updated_at = now()
             WHERE id = 1
             """;
     private static final String UPDATE_KEEP_KEY_SQL =
             """
             UPDATE ai_runtime_config
-            SET enabled = ?, base_url = ?, model = ?, small_model = ?, updated_by = ?, updated_at = now()
+            SET enabled = ?, base_url = ?, model = ?, small_model = ?,
+                asr_enabled = ?, tts_enabled = ?, ocr_enabled = ?, search_enabled = ?, fetch_enabled = ?,
+                tts_default_voice = ?, updated_by = ?, updated_at = now()
             WHERE id = 1
             """;
     private static final String INSERT_SQL =
             """
             INSERT INTO ai_runtime_config
-                (id, enabled, base_url, api_key_cipher, model, small_model, updated_by, updated_at)
-            VALUES (1, ?, ?, ?, ?, ?, ?, now())
+                (id, enabled, base_url, api_key_cipher, model, small_model,
+                 asr_enabled, tts_enabled, ocr_enabled, search_enabled, fetch_enabled, tts_default_voice,
+                 updated_by, updated_at)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -84,6 +91,7 @@ public class AiRuntimeConfigService {
         RuntimeRow row = readRow();
         AiRuntimeSettings settings = settingsOf(row);
         boolean hasApiKey = settings.apiKey() != null && !settings.apiKey().isBlank();
+        ToolSettings tools = toolsOf(row);
         return new AiRuntimeSnapshot(
                 settings.enabled(),
                 settings.baseUrl(),
@@ -91,6 +99,7 @@ public class AiRuntimeConfigService {
                 settings.smallModel(),
                 hasApiKey,
                 hasApiKey ? SecretCipher.mask(settings.apiKey()) : null,
+                tools,
                 row == null ? null : row.updatedAt(),
                 row == null ? null : row.updatedBy());
     }
@@ -105,10 +114,12 @@ public class AiRuntimeConfigService {
             String model,
             String smallModel,
             String apiKey,
-            boolean clearApiKey) {
+            boolean clearApiKey,
+            ToolSwitches tools) {
         String normalizedBaseUrl = requireBaseUrl(baseUrl);
         String normalizedModel = requireModel(model);
         String normalizedSmallModel = optionalModel(smallModel);
+        String voice = normalizeVoice(tools.ttsDefaultVoice());
         if (clearApiKey && apiKey != null && !apiKey.isBlank()) {
             throw fieldError("apiKey", "与 clearApiKey 不能同时提交");
         }
@@ -120,7 +131,18 @@ public class AiRuntimeConfigService {
         }
         int updated = cipher == null
                 ? jdbcTemplate.update(
-                        UPDATE_KEEP_KEY_SQL, enabled, normalizedBaseUrl, normalizedModel, normalizedSmallModel, actorId)
+                        UPDATE_KEEP_KEY_SQL,
+                        enabled,
+                        normalizedBaseUrl,
+                        normalizedModel,
+                        normalizedSmallModel,
+                        tools.asrEnabled(),
+                        tools.ttsEnabled(),
+                        tools.ocrEnabled(),
+                        tools.searchEnabled(),
+                        tools.fetchEnabled(),
+                        voice,
+                        actorId)
                 : jdbcTemplate.update(
                         UPDATE_WITH_KEY_SQL,
                         enabled,
@@ -128,13 +150,46 @@ public class AiRuntimeConfigService {
                         cipher,
                         normalizedModel,
                         normalizedSmallModel,
+                        tools.asrEnabled(),
+                        tools.ttsEnabled(),
+                        tools.ocrEnabled(),
+                        tools.searchEnabled(),
+                        tools.fetchEnabled(),
+                        voice,
                         actorId);
         if (updated == 0) {
             jdbcTemplate.update(
-                    INSERT_SQL, enabled, normalizedBaseUrl, cipher, normalizedModel, normalizedSmallModel, actorId);
+                    INSERT_SQL,
+                    enabled,
+                    normalizedBaseUrl,
+                    cipher,
+                    normalizedModel,
+                    normalizedSmallModel,
+                    tools.asrEnabled(),
+                    tools.ttsEnabled(),
+                    tools.ocrEnabled(),
+                    tools.searchEnabled(),
+                    tools.fetchEnabled(),
+                    voice,
+                    actorId);
         }
         invalidate();
         return snapshot();
+    }
+
+    private static String normalizeVoice(String voice) {
+        return "tide".equalsIgnoreCase(voice) ? "tide" : "stella";
+    }
+
+    private static ToolSettings toolsOf(RuntimeRow row) {
+        RuntimeRow effective = row == null ? RuntimeRow.EMPTY : row;
+        return new ToolSettings(
+                effective.asrEnabled() == null || effective.asrEnabled(),
+                effective.ttsEnabled() == null || effective.ttsEnabled(),
+                effective.ocrEnabled() == null || effective.ocrEnabled(),
+                effective.searchEnabled() == null || effective.searchEnabled(),
+                effective.fetchEnabled() == null || effective.fetchEnabled(),
+                effective.ttsDefaultVoice() == null ? "stella" : effective.ttsDefaultVoice());
     }
 
     /**
@@ -174,6 +229,12 @@ public class AiRuntimeConfigService {
                             resultSet.getString("api_key_cipher"),
                             resultSet.getString("model"),
                             resultSet.getString("small_model"),
+                            resultSet.getObject("asr_enabled", Boolean.class),
+                            resultSet.getObject("tts_enabled", Boolean.class),
+                            resultSet.getObject("ocr_enabled", Boolean.class),
+                            resultSet.getObject("search_enabled", Boolean.class),
+                            resultSet.getObject("fetch_enabled", Boolean.class),
+                            resultSet.getString("tts_default_voice"),
                             resultSet.getObject("updated_by", Long.class),
                             resultSet.getObject("updated_at", OffsetDateTime.class)));
             return rows.isEmpty() ? null : rows.getFirst();
@@ -401,6 +462,32 @@ public class AiRuntimeConfigService {
             int maxTokens,
             double temperature) {}
 
+    public ToolSettings tools() {
+        return toolsOf(readRow());
+    }
+
+    /**
+     * 工具能力开关与朗读音色；与对话配置同源，供 AI 工具服务只读。
+     */
+    public record ToolSettings(
+            boolean asrEnabled,
+            boolean ttsEnabled,
+            boolean ocrEnabled,
+            boolean searchEnabled,
+            boolean fetchEnabled,
+            String ttsDefaultVoice) {}
+
+    /**
+     * 管理端提交的工具开关；与 ToolSettings 的区别是音色可为空（按默认处理）。
+     */
+    public record ToolSwitches(
+            boolean asrEnabled,
+            boolean ttsEnabled,
+            boolean ocrEnabled,
+            boolean searchEnabled,
+            boolean fetchEnabled,
+            String ttsDefaultVoice) {}
+
     public record AiRuntimeSnapshot(
             boolean enabled,
             String baseUrl,
@@ -408,6 +495,7 @@ public class AiRuntimeConfigService {
             String smallModel,
             boolean hasApiKey,
             String apiKeyMasked,
+            ToolSettings tools,
             OffsetDateTime updatedAt,
             Long updatedBy) {}
 
@@ -417,10 +505,17 @@ public class AiRuntimeConfigService {
             String apiKeyCipher,
             String model,
             String smallModel,
+            Boolean asrEnabled,
+            Boolean ttsEnabled,
+            Boolean ocrEnabled,
+            Boolean searchEnabled,
+            Boolean fetchEnabled,
+            String ttsDefaultVoice,
             Long updatedBy,
             OffsetDateTime updatedAt) {
 
-        private static final RuntimeRow EMPTY = new RuntimeRow(null, null, null, null, null, null, null);
+        private static final RuntimeRow EMPTY =
+                new RuntimeRow(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private record CacheEntry(AiRuntimeSettings settings, long expiresAtMillis) {}

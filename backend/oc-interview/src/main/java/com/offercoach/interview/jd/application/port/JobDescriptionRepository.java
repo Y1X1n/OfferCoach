@@ -12,6 +12,11 @@ public interface JobDescriptionRepository {
 
     Optional<JobDescription> findOwned(long userId, long id);
 
+    /**
+     * 按内容哈希查同用户未删除的 JD；无则为空。
+     */
+    Optional<JobDescription> findByContentHash(long userId, String contentHash);
+
     long insert(JobDescription description);
 
     List<JobDescription> list(long userId, int offset, int limit);

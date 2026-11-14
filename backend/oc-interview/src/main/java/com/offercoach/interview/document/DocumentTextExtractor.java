@@ -16,7 +16,9 @@ import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.springframework.stereotype.Component;
 
 /**
- * PDF / DOCX 纯文本抽取；扫描件在 PDFBox 下会得到空文本，由上层判定需手动录入。
+ * PDF / DOCX 纯文本抽取；扫描件在 PDFBox 下会得到空文本，由上层判定走 OCR 或手动录入。
+ *
+ * <p>图片与 PPT 无法本地抽取，抛 {@link DocumentExtractionException} 后由 OCR 降级处理。</p>
  */
 @Component
 public class DocumentTextExtractor {
@@ -24,6 +26,8 @@ public class DocumentTextExtractor {
     private static final double CHARS_PER_PAGE = 2500.0;
     private static final int MAX_PDF_PAGES = 50;
     private static final int MAX_TEXT_CHARS = 300_000;
+    private static final java.util.Set<String> OCR_ONLY_EXTENSIONS =
+            java.util.Set.of("png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff", "ppt", "pptx");
 
     static {
         // 防止 DOCX zip bomb 在解压阶段耗尽内存。
@@ -36,6 +40,9 @@ public class DocumentTextExtractor {
             throw new DocumentExtractionException("文件内容为空");
         }
         String ext = extension == null ? "" : extension.toLowerCase(Locale.ROOT);
+        if (OCR_ONLY_EXTENSIONS.contains(ext)) {
+            throw new DocumentExtractionException("该格式需 OCR 识别");
+        }
         try {
             return switch (ext) {
                 case "pdf" -> extractPdf(content);

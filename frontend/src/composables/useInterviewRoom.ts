@@ -1,6 +1,7 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, toValue, watch } from 'vue'
 import type { MaybeRefOrGetter } from 'vue'
 import type {
+  AnswerResult,
   Feedback,
   FinishResult,
   InterviewConfig,
@@ -11,7 +12,6 @@ import type {
 } from '@/types'
 import { ApiError, createRequestId, errorMessage } from '@/api/client'
 import * as interviewsApi from '@/api/interviews'
-import type { SubmitAnswerPayload } from '@/api/interviews'
 import { useToast } from '@/composables/useToast'
 
 export type StreamState = 'idle' | 'connecting' | 'streaming' | 'done' | 'error'
@@ -48,10 +48,16 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const answerIds = reactive<Record<string, string>>({})
   const submitKeys = new Map<string, string>()
   const durations = reactive<Record<string, number>>({})
+  const voiceTranscribing = ref(false)
+  const speaking = ref(false)
+  const speechError = ref('')
+  const speechVoice = ref<'stella' | 'tide'>('stella')
+  const speechUrls = new Map<string, string>()
 
   let timerId: number | null = null
   let draftTimer: number | null = null
   let feedbackWaitGeneration = 0
+  let audioEl: HTMLAudioElement | null = null
 
   const config = computed<InterviewConfig>(
     () =>
@@ -469,22 +475,71 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       toast('回答至少 10 个字才能提交', 'warning')
       return
     }
+    await persistAnswer(question, () =>
+      interviewsApi.submitAnswer(
+        sessionKey(),
+        {
+          questionId: question.id,
+          answerText: text,
+          durationMs: Math.max(0, Date.now() - questionStartedAt.value),
+          inputMode: 'TEXT',
+        },
+        submitKeyOf(question.id),
+      ),
+      Math.max(0, Date.now() - questionStartedAt.value),
+    )
+  }
 
+  /**
+   * 语音作答：上传录音，后端完成 ASR 并直接提交；转写失败提示并保留文本输入。
+   */
+  async function submitVoiceAnswer(audio: Blob, durationMs: number): Promise<boolean> {
+    const question = currentQuestion.value
+    if (!question || submitting.value) return false
+    if (!isSessionActive.value) {
+      toast('本场面试未在进行中，无法提交', 'warning')
+      return false
+    }
+    if (isAnswered.value) return false
+    voiceTranscribing.value = true
+    try {
+      const success = await persistAnswer(
+        question,
+        () =>
+          interviewsApi.submitVoiceAnswer(
+            sessionKey(),
+            { questionId: question.id, file: audio, durationMs },
+            submitKeyOf(question.id),
+          ),
+        durationMs,
+      )
+      return success
+    } finally {
+      voiceTranscribing.value = false
+    }
+  }
+
+  function submitKeyOf(questionId: string): string {
+    const key = submitKeys.get(questionId) ?? createRequestId()
+    submitKeys.set(questionId, key)
+    return key
+  }
+
+  /**
+   * 统一的作答落库与反馈等待；文本与语音共用，保证状态迁移一致。
+   */
+  async function persistAnswer(
+    question: Question,
+    submit: () => Promise<AnswerResult>,
+    durationMs: number,
+  ): Promise<boolean> {
     flushDraft()
     clearTimer()
     submitting.value = true
-    const payload: SubmitAnswerPayload = {
-      questionId: question.id,
-      answerText: text,
-      durationMs: Math.max(0, Date.now() - questionStartedAt.value),
-      inputMode: 'TEXT',
-    }
-    const key = submitKeys.get(question.id) ?? createRequestId()
-    submitKeys.set(question.id, key)
     try {
-      const result = await interviewsApi.submitAnswer(sessionKey(), payload, key)
+      const result = await submit()
       answerIds[question.id] = result.answerId
-      durations[question.id] = payload.durationMs
+      durations[question.id] = durationMs
       question.status = 'ANSWERED'
       submitKeys.delete(question.id)
       clearTimerState(question.id)
@@ -500,6 +555,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
           block: 'start',
         })
       }
+      return true
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === 'DUPLICATE_ANSWER') {
         const existing = typeof cause.details.answerId === 'string' ? cause.details.answerId : ''
@@ -512,13 +568,61 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
           streamState.value = 'idle'
           streamError.value = ''
         }
+      } else if (cause instanceof ApiError && cause.code === 'ASR_FAILED') {
+        toast('语音转写失败，请改用文字作答', 'error')
       } else {
         toast(errorMessage(cause, '提交失败，请稍后重试'), 'error')
         if (isSessionActive.value && !isAnswered.value && remaining.value > 0) startTimer()
       }
+      return false
     } finally {
       submitting.value = false
     }
+  }
+
+  /**
+   * 朗读当前题目：首次点击取音频，之后复用对象 URL；再次点击停止。
+   */
+  async function toggleSpeech(): Promise<void> {
+    const question = currentQuestion.value
+    if (!question) return
+    if (speaking.value) {
+      stopSpeech()
+      return
+    }
+    speaking.value = true
+    speechError.value = ''
+    try {
+      let url = speechUrls.get(question.id)
+      if (!url) {
+        const blob = await interviewsApi.fetchQuestionSpeech(sessionKey(), question.id, speechVoice.value)
+        url = URL.createObjectURL(blob)
+        speechUrls.set(question.id, url)
+      }
+      const audio = new Audio(url)
+      audioEl = audio
+      audio.onended = () => {
+        speaking.value = false
+      }
+      audio.onerror = () => {
+        speaking.value = false
+        speechError.value = '音频播放失败'
+      }
+      await audio.play()
+    } catch (cause) {
+      speaking.value = false
+      speechError.value = errorMessage(cause, '题目朗读失败')
+      toast(speechError.value, 'error')
+    }
+  }
+
+  function stopSpeech(): void {
+    if (audioEl) {
+      audioEl.pause()
+      audioEl.currentTime = 0
+      audioEl = null
+    }
+    speaking.value = false
   }
 
   async function skipCurrent(auto = false): Promise<void> {
@@ -702,6 +806,9 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     flushDraft()
     clearTimer()
     abortStream()
+    stopSpeech()
+    speechUrls.forEach((url) => URL.revokeObjectURL(url))
+    speechUrls.clear()
   })
 
   return {
@@ -747,6 +854,13 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     timerVisible,
     reload,
     submitAnswer,
+    submitVoiceAnswer,
+    voiceTranscribing,
+    speaking,
+    speechError,
+    speechVoice,
+    toggleSpeech,
+    stopSpeech,
     skipCurrent,
     nextQuestion,
     goToQuestion,

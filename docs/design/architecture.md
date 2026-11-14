@@ -69,6 +69,12 @@
 - **决策**：`docker-compose.yml` 一键起全栈；生产用 Helm Chart，Ingress 关闭缓冲以支持 SSE。
 - **理由**：开发者体验与生产弹性兼顾；K8s 的 HPA 可应对晚间练习高峰。
 
+### ADR-011 AI 能力聚合为一个模块，其内 ASR / TTS / OCR / Search / Fetch 为独立服务
+
+- **决策**：顶层只新增一个模块 `oc-ai`（聚合父模块），其下为共享库 `oc-ai-core` 与可独立启动的服务：`oc-ai-asr`(8094) / `oc-ai-tts`(8095) / `oc-ai-ocr`(8096) / `oc-ai-search`(8097) / `oc-ai-fetch`(8098)；**仅内网可达**，唯一公网入口仍是 `oc-app`。业务判断（鉴权、会话、额度、幂等、降级）留在 `oc-app`，工具服务只做「取回内容」。
+- **理由**：AI 能力归属一个域，模块列表不因新增能力而膨胀；各服务外部依赖与资源特征不同（ASR/TTS 并发配额、OCR 大文件长耗时、Search QPS 100 返回结构化 JSON、Fetch QPS 25 且有域名级限流），需独立部署以分别扩容与故障隔离——任一下线只降级对应能力。复用既有 RS256 JWT 与 `ai_runtime_config`，避免第二套鉴权与密钥。
+- **代价**：模块内多个部署单元与健康检查，内存占用需复核；引入内部服务鉴权（`X-OC-Internal-Token`）；`ai_call_log` 变为多写入方（append-only，无跨服务 JOIN）。详见 [ai-tools-prd.md](./ai-tools-prd.md) §4 与 [ai-jd-web-prd.md](./ai-jd-web-prd.md) §3。
+
 ## 3. 逻辑架构
 
 ```mermaid

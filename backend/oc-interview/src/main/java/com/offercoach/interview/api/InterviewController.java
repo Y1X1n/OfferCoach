@@ -19,6 +19,8 @@ import com.offercoach.interview.feedback.application.FeedbackService;
 import com.offercoach.interview.feedback.domain.AnswerFeedback;
 import com.offercoach.interview.session.application.AnswerService;
 import com.offercoach.interview.session.application.InterviewSessionService;
+import com.offercoach.interview.session.application.QuestionSpeechService;
+import com.offercoach.interview.session.application.VoiceAnswerService;
 import com.offercoach.interview.session.domain.SessionConfig;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -27,7 +29,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +41,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -51,6 +56,8 @@ public class InterviewController {
 
     private final InterviewSessionService sessionService;
     private final AnswerService answerService;
+    private final VoiceAnswerService voiceAnswerService;
+    private final QuestionSpeechService questionSpeechService;
     private final FeedbackService feedbackService;
     private final CurrentUser currentUser;
     private final Executor sseExecutor;
@@ -58,11 +65,15 @@ public class InterviewController {
     public InterviewController(
             InterviewSessionService sessionService,
             AnswerService answerService,
+            VoiceAnswerService voiceAnswerService,
+            QuestionSpeechService questionSpeechService,
             FeedbackService feedbackService,
             CurrentUser currentUser,
             @Qualifier("sseExecutor") Executor sseExecutor) {
         this.sessionService = sessionService;
         this.answerService = answerService;
+        this.voiceAnswerService = voiceAnswerService;
+        this.questionSpeechService = questionSpeechService;
         this.feedbackService = feedbackService;
         this.currentUser = currentUser;
         this.sseExecutor = sseExecutor;
@@ -75,7 +86,8 @@ public class InterviewController {
         InterviewSessionService.SessionCreated created = sessionService.create(
                 currentUser.userId(),
                 parseId(request.resumeId(), "resumeId"),
-                parseId(request.jdId(), "jdId"),
+                parseOptionalId(request.jdId(), "jdId"),
+                request.previewToken(),
                 toConfig(request.config()),
                 idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -167,15 +179,54 @@ public class InterviewController {
                 request.durationMs(),
                 request.inputMode(),
                 idempotencyKey);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new AnswerSubmitResponse(
+        return ResponseEntity.status(HttpStatus.CREATED).body(toSubmittedResponse(submitted));
+    }
+
+    private static AnswerSubmitResponse toSubmittedResponse(AnswerService.Submitted submitted) {
+        return new AnswerSubmitResponse(
+                Long.toString(submitted.answerId()),
+                submitted.status(),
+                new AnswerSubmitResponse.StreamInfo(
+                        "/api/v1/ai/feedback/stream",
                         Long.toString(submitted.answerId()),
-                        submitted.status(),
-                        new AnswerSubmitResponse.StreamInfo(
-                                "/api/v1/ai/feedback/stream",
-                                Long.toString(submitted.answerId()),
-                                submitted.token(),
-                                submitted.expiresIn())));
+                        submitted.token(),
+                        submitted.expiresIn()));
+    }
+
+    /**
+     * 语音作答：上传录音 → ASR 转写 → 提交回答；转写失败返回 ASR_FAILED 供前端回退文本。
+     */
+    @PostMapping(value = "/{id}/answers/audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<AnswerSubmitResponse> answerByVoice(
+            @PathVariable("id") String id,
+            @RequestParam("questionId") String questionId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "durationMs", required = false) Integer durationMs,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        AnswerService.Submitted submitted = voiceAnswerService.submit(
+                currentUser.userId(),
+                parseId(id, "id"),
+                parseId(questionId, "questionId"),
+                file,
+                durationMs,
+                idempotencyKey);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toSubmittedResponse(submitted));
+    }
+
+    /**
+     * 题目朗读：返回 audio/wav，由浏览器直接播放；同题同音色命中服务端缓存。
+     */
+    @GetMapping("/{id}/questions/{questionId}/speech")
+    public ResponseEntity<byte[]> speak(
+            @PathVariable("id") String id,
+            @PathVariable String questionId,
+            @RequestParam(value = "voiceId", required = false) String voiceId) {
+        QuestionSpeechService.Speech speech = questionSpeechService.speak(
+                currentUser.userId(), parseId(id, "id"), parseId(questionId, "questionId"), voiceId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(speech.contentType()))
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600")
+                .body(speech.audio());
     }
 
     @GetMapping("/{id}/answers/{answerId}")
@@ -371,5 +422,15 @@ public class InterviewController {
         } catch (NumberFormatException exception) {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of(field, "非数字 ID")));
         }
+    }
+
+    /**
+     * 可选 ID：为空或空串返回 0，表示未提供。
+     */
+    private static long parseOptionalId(String id, String field) {
+        if (id == null || id.isBlank()) {
+            return 0L;
+        }
+        return parseId(id.strip(), field);
     }
 }

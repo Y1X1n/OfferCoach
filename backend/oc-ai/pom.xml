@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.offercoach</groupId>
+    <artifactId>offercoach-backend</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>oc-ai</artifactId>
+  <packaging>pom</packaging>
+  <name>oc-ai</name>
+  <description>AI 能力域：共享库 oc-ai-core 与 ASR / TTS / OCR 三个独立服务</description>
+
+  <modules>
+    <module>oc-ai-core</module>
+    <module>oc-ai-asr</module>
+    <module>oc-ai-tts</module>
+    <module>oc-ai-ocr</module>
+    <module>oc-ai-search</module>
+    <module>oc-ai-fetch</module>
+  </modules>
+</project>

@@ -1,0 +1,59 @@
+server:
+  port: ${SERVER_PORT:8095}
+  shutdown: graceful
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
+spring:
+  application:
+    name: offercoach-ai-tts
+  servlet:
+    multipart:
+      max-file-size: 1MB
+      max-request-size: 1MB
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/offercoach}
+    username: ${DB_USER:oc}
+    password: ${DB_PASSWORD:oc_dev_password}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:4}
+      minimum-idle: 1
+      connection-timeout: 3000
+  flyway:
+    enabled: false
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    # 数据库仅用于读配置与写日志；其不可用时工具能力降级，不应把进程判为不健康。
+    db:
+      enabled: false
+    redis:
+      enabled: false
+
+oc:
+  ai:
+    enabled: ${AI_ENABLED:false}
+    base-url: ${AI_BASE_URL:https://api.deepseek.com/v1}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:deepseek-chat}
+    small-model: ${AI_SMALL_MODEL:deepseek-chat}
+    secret: ${OC_AI_SECRET:}
+    allow-private-hosts: ${AI_ALLOW_PRIVATE_HOSTS:false}
+    tools:
+      internal-token: ${OC_AI_INTERNAL_TOKEN:}
+      tts-timeout: ${AI_TTS_TIMEOUT:120s}
+      tts-max-concurrency: ${AI_TTS_MAX_CONCURRENCY:20}
+      tts-default-voice: ${AI_TTS_DEFAULT_VOICE:stella}
+      tts-cache-dir: ${AI_TTS_CACHE_DIR:.local/storage/tts}
+      tts-cache-days: ${AI_TTS_CACHE_DAYS:7}
+      call-log-enabled: true

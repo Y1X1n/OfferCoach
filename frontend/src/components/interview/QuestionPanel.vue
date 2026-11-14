@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ChevronDown, Lock, Sparkles } from 'lucide-vue-next'
+import { ChevronDown, Lock, PauseCircle, Sparkles, Volume2 } from 'lucide-vue-next'
 import type { Difficulty, Question, QuestionDimension } from '@/types'
 import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -11,7 +11,11 @@ const props = defineProps<{
   totalQuestions: number
   isAnswered: boolean
   answerDurationText: string
+  speaking?: boolean
+  speechError?: string
 }>()
+
+const emit = defineEmits<{ 'toggle-speech': [] }>()
 
 const dimensionLabels: Record<QuestionDimension, string> = {
   DEPTH: '专业深度',
@@ -59,6 +63,23 @@ const difficultyVariant = computed(() => difficultyVariants[props.question.diffi
       <h2 class="mt-4 text-xl font-semibold leading-9 text-text sm:text-2xl sm:leading-10">
         {{ question.text }}
       </h2>
+
+      <div class="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:border-accent/50 hover:text-text"
+          :aria-label="speaking ? '停止朗读题目' : '朗读题目'"
+          :aria-pressed="speaking ?? false"
+          @click="emit('toggle-speech')"
+        >
+          <PauseCircle v-if="speaking" class="h-3.5 w-3.5" aria-hidden="true" />
+          <Volume2 v-else class="h-3.5 w-3.5" aria-hidden="true" />
+          {{ speaking ? '停止朗读' : '朗读题目' }}
+        </button>
+        <span v-if="speechError" class="text-2xs text-danger" role="alert" aria-live="polite">
+          {{ speechError }}
+        </span>
+      </div>
 
       <details v-if="question.whyThisQuestion" class="group mt-3">
         <summary

@@ -15,7 +15,7 @@ import Card from '@/components/ui/Card.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Spinner from '@/components/ui/Spinner.vue'
-import { errorMessage } from '@/api/client'
+import { ApiError, errorMessage } from '@/api/client'
 import * as jdsApi from '@/api/jds'
 import * as resumesApi from '@/api/resumes'
 import { useToast } from '@/composables/useToast'
@@ -126,6 +126,16 @@ async function handleSubmit(payload: {
       await runMatch(jd)
     }
   } catch (cause) {
+    if (cause instanceof ApiError && cause.code === 'STATE_CONFLICT') {
+      const existing = typeof cause.details.existingJdId === 'string' ? cause.details.existingJdId : ''
+      if (existing) {
+        submitError.value = ''
+        await loadList()
+        selectedId.value = existing
+        toast('该 JD 已存在', 'info', '已为你打开已有岗位，不会重复保存')
+        return
+      }
+    }
     submitError.value = errorMessage(cause, '创建岗位失败，请稍后重试')
     toast('创建岗位失败', 'error', submitError.value)
   } finally {

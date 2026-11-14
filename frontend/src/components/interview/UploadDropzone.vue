@@ -23,7 +23,7 @@ function validate(file: File): boolean {
   const extensions = props.accept.split(',').map((item) => item.trim().toLowerCase())
   const ext = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`
   if (!extensions.includes(ext)) {
-    error.value = `不支持 ${ext || '未知'} 格式，请上传 PDF 或 DOCX`
+    error.value = `不支持 ${ext || '未知'} 格式，请上传 ${props.accept.replaceAll(',', ' / ')}`
     emit('error', error.value)
     return false
   }

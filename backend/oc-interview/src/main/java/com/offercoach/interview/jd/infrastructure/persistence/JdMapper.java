@@ -19,7 +19,7 @@ public interface JdMapper {
     String COLUMNS =
             """
             id, user_id, title, company, raw_text, structured_json::text AS structured_json, match_score,
-            match_report::text AS match_report, content_hash, created_at
+            match_report::text AS match_report, content_hash, created_at, source_type, source_url
             """;
 
     @Select("SELECT " + COLUMNS
@@ -29,10 +29,11 @@ public interface JdMapper {
     @Insert(
             """
             INSERT INTO job_description
-                (user_id, title, company, raw_text, structured_json, content_hash, created_at, updated_at)
+                (user_id, title, company, raw_text, structured_json, content_hash, source_type, source_url,
+                 created_at, updated_at)
             VALUES
                 (#{userId}, #{title}, #{company}, #{rawText}, CAST(#{structuredJson,jdbcType=VARCHAR} AS jsonb),
-                 #{contentHash}, now(), now())
+                 #{contentHash}, #{sourceType}, #{sourceUrl}, now(), now())
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(JobDescriptionDO row);
@@ -46,6 +47,14 @@ public interface JdMapper {
             LIMIT #{limit} OFFSET #{offset}
             """)
     List<JobDescriptionDO> list(@Param("userId") long userId, @Param("offset") int offset, @Param("limit") int limit);
+
+    /**
+     * 按内容哈希查同用户已有 JD（未删除）；用于去重与复用。
+     */
+    @Select("SELECT " + COLUMNS
+            + " FROM job_description WHERE user_id = #{userId} AND content_hash = #{contentHash}"
+            + " AND deleted_at IS NULL ORDER BY id LIMIT 1")
+    JobDescriptionDO findByContentHash(@Param("userId") long userId, @Param("contentHash") String contentHash);
 
     @Select("SELECT COUNT(*) FROM job_description WHERE user_id = #{userId} AND deleted_at IS NULL")
     long count(@Param("userId") long userId);

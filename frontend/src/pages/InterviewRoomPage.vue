@@ -69,6 +69,12 @@ const {
   timerVisible,
   reload,
   submitAnswer,
+  submitVoiceAnswer,
+  voiceTranscribing,
+  speaking,
+  speechError,
+  toggleSpeech,
+  stopSpeech,
   skipCurrent,
   nextQuestion,
   goToQuestion,
@@ -135,6 +141,14 @@ function goDashboard(): void {
 
 function retryLoad(): void {
   void reload(false)
+}
+
+/**
+ * 语音作答：录音完成后直接上传转写并提交，成功后进入既有反馈轮询。
+ */
+async function handleVoiceRecorded(audio: Blob, durationMs: number): Promise<void> {
+  stopSpeech()
+  await submitVoiceAnswer(audio, durationMs)
 }
 
 onMounted(async () => {
@@ -319,6 +333,9 @@ onBeforeRouteLeave(() => {
             :total-questions="totalQuestions"
             :is-answered="isAnswered"
             :answer-duration-text="answerDurationText"
+            :speaking="speaking"
+            :speech-error="speechError"
+            @toggle-speech="toggleSpeech"
           >
             <AnswerComposer
               v-model="answerText"
@@ -332,10 +349,13 @@ onBeforeRouteLeave(() => {
               :can-advance="canAdvance"
               :stream-state="streamState"
               :has-report="Boolean(completedReportId)"
+              :voice-transcribing="voiceTranscribing"
               @submit="submitAnswer"
               @skip="skipCurrent(false)"
               @next="goNext"
               @open-report="openReport"
+              @voice-recorded="handleVoiceRecorded"
+              @voice-error="(message) => toast(message, 'error')"
             />
           </QuestionPanel>
 

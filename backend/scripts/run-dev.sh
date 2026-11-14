@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 本地一键启动 oc-app（8081）与 oc-gateway（8080）。
+# 本地一键启动 oc-app（8081）、oc-gateway（8080）与三个 AI 工具服务（8094/8095/8096）。
 # 日志写入 backend/.local/；Ctrl+C 或退出时由 trap 停止本次启动的进程。
 # 极端情况下（Windows 下 Maven 派生的 java 子进程未被回收）需手动结束残留进程。
 set -euo pipefail
@@ -10,6 +10,11 @@ PG_PORT="${PG_PORT:-5432}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 APP_PID=""
 GW_PID=""
+ASR_PID=""
+TTS_PID=""
+OCR_PID=""
+SEARCH_PID=""
+FETCH_PID=""
 
 die() {
   echo "[错误] $*" >&2
@@ -68,7 +73,7 @@ port_open 127.0.0.1 "$PG_PORT" \
 port_open 127.0.0.1 "$REDIS_PORT" \
   || die "Redis 127.0.0.1:$REDIS_PORT 不可连接，先运行 bash scripts/check-infra.sh"
 
-for port in 8080 8081; do
+for port in 8080 8081 8094 8095 8096 8097 8098; do
   if port_open 127.0.0.1 "$port"; then
     die "端口 $port 已被占用，请先停止已有进程"
   fi
@@ -80,10 +85,11 @@ mkdir -p "$LOG_DIR"
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
-  if [ -n "$APP_PID" ] || [ -n "$GW_PID" ]; then
+  if [ -n "$APP_PID" ] || [ -n "$GW_PID" ] || [ -n "$ASR_PID" ] || [ -n "$TTS_PID" ] || [ -n "$OCR_PID" ] \
+     || [ -n "$SEARCH_PID" ] || [ -n "$FETCH_PID" ]; then
     echo
     echo "停止 dev 服务..."
-    for pid in ${APP_PID} ${GW_PID}; do
+    for pid in ${APP_PID} ${GW_PID} ${ASR_PID} ${TTS_PID} ${OCR_PID} ${SEARCH_PID} ${FETCH_PID}; do
       [ -n "$pid" ] || continue
       kill "$pid" 2>/dev/null || true
     done
@@ -123,12 +129,36 @@ if ! (cd "$ROOT" && "$MVN_BIN" -q -DskipTests install) >"$LOG_DIR/install.log" 2
   die "Maven install 失败，见日志 $LOG_DIR/install.log"
 fi
 
-echo "[2/3] 启动 oc-app（8081）..."
+# 服务间内部令牌：未显式配置时生成一次性随机值，供本次启动的进程共享。
+if [ -z "${OC_AI_INTERNAL_TOKEN:-}" ]; then
+  OC_AI_INTERNAL_TOKEN="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  export OC_AI_INTERNAL_TOKEN
+  echo "  已生成本次会话的 OC_AI_INTERNAL_TOKEN（仅进程内共享）"
+fi
+
+echo "[2/4] 启动 AI 工具服务（8094-8098）..."
+(cd "$ROOT" && exec "$MVN_BIN" -pl oc-ai/oc-ai-asr spring-boot:run) >"$LOG_DIR/ai-asr.log" 2>&1 &
+ASR_PID=$!
+(cd "$ROOT" && exec "$MVN_BIN" -pl oc-ai/oc-ai-tts spring-boot:run) >"$LOG_DIR/ai-tts.log" 2>&1 &
+TTS_PID=$!
+(cd "$ROOT" && exec "$MVN_BIN" -pl oc-ai/oc-ai-ocr spring-boot:run) >"$LOG_DIR/ai-ocr.log" 2>&1 &
+OCR_PID=$!
+(cd "$ROOT" && exec "$MVN_BIN" -pl oc-ai/oc-ai-search spring-boot:run) >"$LOG_DIR/ai-search.log" 2>&1 &
+SEARCH_PID=$!
+(cd "$ROOT" && exec "$MVN_BIN" -pl oc-ai/oc-ai-fetch spring-boot:run) >"$LOG_DIR/ai-fetch.log" 2>&1 &
+FETCH_PID=$!
+wait_ready "ai-asr" "http://127.0.0.1:8094/actuator/health" 8094 "$ASR_PID" || die "oc-ai-asr 未就绪"
+wait_ready "ai-tts" "http://127.0.0.1:8095/actuator/health" 8095 "$TTS_PID" || die "oc-ai-tts 未就绪"
+wait_ready "ai-ocr" "http://127.0.0.1:8096/actuator/health" 8096 "$OCR_PID" || die "oc-ai-ocr 未就绪"
+wait_ready "ai-search" "http://127.0.0.1:8097/actuator/health" 8097 "$SEARCH_PID" || die "oc-ai-search 未就绪"
+wait_ready "ai-fetch" "http://127.0.0.1:8098/actuator/health" 8098 "$FETCH_PID" || die "oc-ai-fetch 未就绪"
+
+echo "[3/4] 启动 oc-app（8081）..."
 (cd "$ROOT" && exec "$MVN_BIN" -pl oc-app spring-boot:run) >"$LOG_DIR/app.log" 2>&1 &
 APP_PID=$!
 wait_ready "app" "http://127.0.0.1:8081/actuator/health" 8081 "$APP_PID" || die "oc-app 未就绪"
 
-echo "[3/3] 启动 oc-gateway（8080）..."
+echo "[4/4] 启动 oc-gateway（8080）..."
 (cd "$ROOT" && exec "$MVN_BIN" -pl oc-gateway spring-boot:run) >"$LOG_DIR/gateway.log" 2>&1 &
 GW_PID=$!
 wait_ready "gateway" "http://127.0.0.1:8080/actuator/health" 8080 "$GW_PID" || die "oc-gateway 未就绪"
@@ -137,8 +167,13 @@ echo
 echo "dev 服务已就绪（Ctrl+C 停止）："
 echo "  app      pid=$APP_PID  http://127.0.0.1:8081/actuator/health"
 echo "  gateway  pid=$GW_PID  http://127.0.0.1:8080/actuator/health"
+echo "  ai-asr   pid=$ASR_PID  http://127.0.0.1:8094/actuator/health"
+echo "  ai-tts   pid=$TTS_PID  http://127.0.0.1:8095/actuator/health"
+echo "  ai-ocr   pid=$OCR_PID  http://127.0.0.1:8096/actuator/health"
+echo "  ai-search pid=$SEARCH_PID  http://127.0.0.1:8097/actuator/health"
+echo "  ai-fetch pid=$FETCH_PID  http://127.0.0.1:8098/actuator/health"
 echo "  API 基址              http://127.0.0.1:8080/api/v1"
-echo "  日志                  $LOG_DIR/app.log、$LOG_DIR/gateway.log"
+echo "  日志                  $LOG_DIR/{app,gateway,ai-*}.log"
 echo
 
 wait

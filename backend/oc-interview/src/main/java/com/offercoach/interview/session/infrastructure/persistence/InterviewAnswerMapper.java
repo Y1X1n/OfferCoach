@@ -17,17 +17,17 @@ public interface InterviewAnswerMapper {
     String COLUMNS =
             """
             id, session_id, question_id, user_id, input_mode, answer_text, duration_ms, status,
-            submitted_at, created_at
+            submitted_at, created_at, audio_key, audio_duration_ms, asr_status, asr_confidence
             """;
 
     @Insert(
             """
             INSERT INTO interview_answer
                 (session_id, question_id, user_id, input_mode, answer_text, duration_ms, status,
-                 submitted_at, created_at)
+                 submitted_at, created_at, audio_key, audio_duration_ms, asr_status, asr_confidence)
             VALUES
                 (#{sessionId}, #{questionId}, #{userId}, #{inputMode}, #{answerText}, #{durationMs},
-                 #{status}, now(), now())
+                 #{status}, now(), now(), #{audioKey}, #{audioDurationMs}, #{asrStatus}, #{asrConfidence})
             ON CONFLICT (question_id) DO NOTHING
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
@@ -48,18 +48,15 @@ public interface InterviewAnswerMapper {
     @Select("SELECT COUNT(*) FROM interview_answer WHERE session_id = #{sessionId}")
     long countBySession(@Param("sessionId") long sessionId);
 
-    @Select(
-            """
-            SELECT id, session_id, question_id, user_id, input_mode, answer_text, duration_ms, status,
-                   submitted_at, created_at
-            FROM interview_answer
-            WHERE session_id = #{sessionId}
-            ORDER BY submitted_at, id
-            """)
+    @Select("SELECT " + COLUMNS + " FROM interview_answer WHERE session_id = #{sessionId}"
+            + " ORDER BY submitted_at, id")
     List<InterviewAnswerDO> listBySession(@Param("sessionId") long sessionId);
 
     @Update("UPDATE interview_answer SET status = 'SCORED' WHERE id = #{answerId}")
     int markScored(@Param("answerId") long answerId);
+
+    @Update("UPDATE interview_answer SET asr_status = #{asrStatus} WHERE id = #{answerId}")
+    int updateAsrStatus(@Param("answerId") long answerId, @Param("asrStatus") String asrStatus);
 
     /**
      * 看门狗：长时间停留在 SCORING 的回答标记失败，前端可重试评分。

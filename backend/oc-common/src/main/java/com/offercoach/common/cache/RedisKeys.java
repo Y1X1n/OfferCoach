@@ -70,6 +70,51 @@ public final class RedisKeys {
         return "oc:quota:daily-resume:" + userId + ":" + date;
     }
 
+    /** 每日语音作答次数。 */
+    public static String dailyVoiceAnswer(long userId, String date) {
+        return "oc:quota:daily-voice:" + userId + ":" + date;
+    }
+
+    /** 每日题目朗读次数。 */
+    public static String dailyTts(long userId, String date) {
+        return "oc:quota:daily-tts:" + userId + ":" + date;
+    }
+
+    /** 每日 OCR 识别次数。 */
+    public static String dailyOcr(long userId, String date) {
+        return "oc:quota:daily-ocr:" + userId + ":" + date;
+    }
+
+    /** 每日联网搜索次数。 */
+    public static String dailySearch(long userId, String date) {
+        return "oc:quota:daily-search:" + userId + ":" + date;
+    }
+
+    /** 每日网页抓取次数。 */
+    public static String dailyFetch(long userId, String date) {
+        return "oc:quota:daily-fetch:" + userId + ":" + date;
+    }
+
+    /** 岗位搜索候选缓存，值为候选列表 JSON（含正文）。 */
+    public static String jdSearchCache(String token) {
+        return "oc:jd:search:" + token;
+    }
+
+    /** 相同查询词的检索结果缓存，按 query+count 摘要键。 */
+    public static String jdSearchQuery(String queryDigest) {
+        return "oc:jd:search-q:" + queryDigest;
+    }
+
+    /** 网页抓取正文缓存，按 URL 摘要键。 */
+    public static String jdFetchCache(String urlDigest) {
+        return "oc:jd:fetch:" + urlDigest;
+    }
+
+    /** JD 预览缓存，值为预览对象 JSON，供创建会话时落库。 */
+    public static String jdPreview(String token) {
+        return "oc:jd:preview:" + token;
+    }
+
     /** 图形/算术验证码挑战。 */
     public static String captcha(String id) {
         return "oc:auth:captcha:" + id;

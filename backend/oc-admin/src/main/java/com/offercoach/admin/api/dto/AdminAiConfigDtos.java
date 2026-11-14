@@ -2,6 +2,7 @@ package com.offercoach.admin.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -18,8 +19,20 @@ public final class AdminAiConfigDtos {
             String smallModel,
             boolean hasApiKey,
             String apiKeyMasked,
+            ToolSwitches tools,
             String updatedAt,
             String updatedBy) {}
+
+    /**
+     * 工具能力开关与朗读音色（响应与请求共用）。
+     */
+    public record ToolSwitches(
+            boolean asrEnabled,
+            boolean ttsEnabled,
+            boolean ocrEnabled,
+            boolean searchEnabled,
+            boolean fetchEnabled,
+            @Pattern(regexp = "stella|tide", message = "音色仅支持 stella 或 tide") String ttsDefaultVoice) {}
 
     public record UpdateAiConfigRequest(
             @NotNull Boolean enabled,
@@ -27,7 +40,13 @@ public final class AdminAiConfigDtos {
             @NotBlank @Size(max = 128) String model,
             @Size(max = 128) String smallModel,
             @Size(max = 512) String apiKey,
-            Boolean clearApiKey) {}
+            Boolean clearApiKey,
+            Boolean asrEnabled,
+            Boolean ttsEnabled,
+            Boolean ocrEnabled,
+            Boolean searchEnabled,
+            Boolean fetchEnabled,
+            @Pattern(regexp = "stella|tide", message = "音色仅支持 stella 或 tide") String ttsDefaultVoice) {}
 
     public record AiConfigTestResponse(boolean ok, String model, long latencyMs, String message) {}
 }

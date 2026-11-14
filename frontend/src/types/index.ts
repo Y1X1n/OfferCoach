@@ -342,7 +342,9 @@ export interface InterviewSession {
 
 export interface InterviewCreatePayload {
   resumeId: string
-  jdId: string
+  jdId?: string | undefined
+  /** 联网获取的 JD 预览令牌；与 jdId 二选一。 */
+  previewToken?: string | undefined
   config: InterviewConfig
 }
 

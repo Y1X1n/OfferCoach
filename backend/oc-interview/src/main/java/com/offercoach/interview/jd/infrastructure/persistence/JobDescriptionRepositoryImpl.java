@@ -25,6 +25,11 @@ public class JobDescriptionRepositoryImpl implements JobDescriptionRepository {
     }
 
     @Override
+    public Optional<JobDescription> findByContentHash(long userId, String contentHash) {
+        return Optional.ofNullable(toDomain(jdMapper.findByContentHash(userId, contentHash)));
+    }
+
+    @Override
     public long insert(JobDescription description) {
         JobDescriptionDO row = new JobDescriptionDO();
         row.setUserId(description.userId());
@@ -33,6 +38,8 @@ public class JobDescriptionRepositoryImpl implements JobDescriptionRepository {
         row.setRawText(description.rawText());
         row.setStructuredJson(description.structuredJson());
         row.setContentHash(description.contentHash());
+        row.setSourceType(description.sourceType() == null ? JobDescription.SOURCE_MANUAL : description.sourceType());
+        row.setSourceUrl(description.sourceUrl());
         jdMapper.insert(row);
         return row.getId() == null ? 0 : row.getId();
     }
@@ -73,6 +80,8 @@ public class JobDescriptionRepositoryImpl implements JobDescriptionRepository {
                 row.getMatchScore(),
                 row.getMatchReport(),
                 row.getContentHash(),
-                row.getCreatedAt());
+                row.getCreatedAt(),
+                row.getSourceType() == null ? JobDescription.SOURCE_MANUAL : row.getSourceType(),
+                row.getSourceUrl());
     }
 }

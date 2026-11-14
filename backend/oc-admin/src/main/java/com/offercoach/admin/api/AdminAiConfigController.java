@@ -2,6 +2,7 @@ package com.offercoach.admin.api;
 
 import com.offercoach.admin.api.dto.AdminAiConfigDtos.AiConfigResponse;
 import com.offercoach.admin.api.dto.AdminAiConfigDtos.AiConfigTestResponse;
+import com.offercoach.admin.api.dto.AdminAiConfigDtos.ToolSwitches;
 import com.offercoach.admin.api.dto.AdminAiConfigDtos.UpdateAiConfigRequest;
 import com.offercoach.admin.application.AdminAiConfigService;
 import com.offercoach.ai.AiProvider;
@@ -48,7 +49,14 @@ public class AdminAiConfigController {
                 request.model(),
                 request.smallModel(),
                 request.apiKey(),
-                Boolean.TRUE.equals(request.clearApiKey()));
+                Boolean.TRUE.equals(request.clearApiKey()),
+                new com.offercoach.ai.AiRuntimeConfigService.ToolSwitches(
+                        !Boolean.FALSE.equals(request.asrEnabled()),
+                        !Boolean.FALSE.equals(request.ttsEnabled()),
+                        !Boolean.FALSE.equals(request.ocrEnabled()),
+                        !Boolean.FALSE.equals(request.searchEnabled()),
+                        !Boolean.FALSE.equals(request.fetchEnabled()),
+                        request.ttsDefaultVoice()));
         return toResponse(snapshot);
     }
 
@@ -76,6 +84,13 @@ public class AdminAiConfigController {
                 snapshot.smallModel(),
                 snapshot.hasApiKey(),
                 snapshot.apiKeyMasked(),
+                new ToolSwitches(
+                        snapshot.tools().asrEnabled(),
+                        snapshot.tools().ttsEnabled(),
+                        snapshot.tools().ocrEnabled(),
+                        snapshot.tools().searchEnabled(),
+                        snapshot.tools().fetchEnabled(),
+                        snapshot.tools().ttsDefaultVoice()),
                 AdminWebSupport.timestamp(snapshot.updatedAt()),
                 AdminWebSupport.id(snapshot.updatedBy()));
     }

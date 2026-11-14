@@ -20,6 +20,7 @@
   <modules>
     <module>oc-common</module>
     <module>oc-ai-client</module>
+    <module>oc-ai</module>
     <module>oc-identity</module>
     <module>oc-interview</module>
     <module>oc-admin</module>

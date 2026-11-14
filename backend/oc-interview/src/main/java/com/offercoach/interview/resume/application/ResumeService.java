@@ -54,6 +54,15 @@ public class ResumeService {
     private static final String DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     private static final Set<String> PDF_MIMES = Set.of("application/pdf", "application/x-pdf");
 
+    /**
+     * 可上传的简历格式：PDF / DOCX 走本地抽取，图片与 PPT 走 OCR 识别。
+     */
+    private static final Set<String> SUPPORTED_EXTENSIONS =
+            Set.of("pdf", "docx", "png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff", "ppt", "pptx");
+
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of("png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff");
+    private static final Set<String> SLIDE_EXTENSIONS = Set.of("ppt", "pptx");
+
     private final ResumeRepository resumeRepository;
     private final FileStorage fileStorage;
     private final QuotaService quotaService;
@@ -98,7 +107,7 @@ public class ResumeService {
         }
         String originalName = fileNameOf(file.getOriginalFilename());
         String extension = extensionOf(originalName);
-        if (!"pdf".equals(extension) && !"docx".equals(extension)) {
+        if (!SUPPORTED_EXTENSIONS.contains(extension)) {
             throw new BizException(ErrorCode.UNSUPPORTED_FILE, Map.of("extension", extension));
         }
         validateMime(extension, file.getContentType());
@@ -407,11 +416,20 @@ public class ResumeService {
                             && content[2] == 'D'
                             && content[3] == 'F'
                             && content[4] == '-';
-                    case "docx" -> content.length >= 4
-                            && content[0] == 'P'
-                            && content[1] == 'K'
-                            && content[2] == 0x03
-                            && content[3] == 0x04;
+                    case "docx", "pptx" -> isZip(content);
+                    case "ppt" -> isOle2(content);
+                    case "png" -> startsWith(content, new byte[] {(byte) 0x89, 'P', 'N', 'G'});
+                    case "jpg", "jpeg" -> startsWith(content, new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
+                    case "gif" -> startsWith(content, new byte[] {'G', 'I', 'F', '8'});
+                    case "bmp" -> startsWith(content, new byte[] {'B', 'M'});
+                    case "webp" -> content.length >= 12
+                            && startsWith(content, new byte[] {'R', 'I', 'F', 'F'})
+                            && content[8] == 'W'
+                            && content[9] == 'E'
+                            && content[10] == 'B'
+                            && content[11] == 'P';
+                    case "tif", "tiff" -> startsWith(content, new byte[] {'I', 'I', 0x2A, 0x00})
+                            || startsWith(content, new byte[] {'M', 'M', 0x00, 0x2A});
                     default -> false;
                 };
         if (!valid) {
@@ -419,12 +437,48 @@ public class ResumeService {
         }
     }
 
+    private static boolean isZip(byte[] content) {
+        return content.length >= 4
+                && content[0] == 'P'
+                && content[1] == 'K'
+                && content[2] == 0x03
+                && content[3] == 0x04;
+    }
+
+    private static boolean isOle2(byte[] content) {
+        return startsWith(content, new byte[] {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0});
+    }
+
+    private static boolean startsWith(byte[] content, byte[] prefix) {
+        if (content.length < prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (content[i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static void validateMime(String extension, String mimeType) {
         if (mimeType == null || mimeType.isBlank() || "application/octet-stream".equalsIgnoreCase(mimeType)) {
             return;
         }
         String normalized = mimeType.toLowerCase(Locale.ROOT);
-        boolean compatible = "pdf".equals(extension) ? PDF_MIMES.contains(normalized) : DOCX_MIME.equals(normalized);
+        boolean compatible;
+        if ("pdf".equals(extension)) {
+            compatible = PDF_MIMES.contains(normalized);
+        } else if ("docx".equals(extension)) {
+            compatible = DOCX_MIME.equals(normalized);
+        } else if (IMAGE_EXTENSIONS.contains(extension)) {
+            compatible = normalized.startsWith("image/");
+        } else if (SLIDE_EXTENSIONS.contains(extension)) {
+            compatible = normalized.startsWith("application/vnd.ms-powerpoint")
+                    || normalized.startsWith("application/vnd.openxmlformats-officedocument.presentationml");
+        } else {
+            compatible = false;
+        }
         if (!compatible) {
             throw new BizException(ErrorCode.UNSUPPORTED_FILE, Map.of("mimeType", mimeType));
         }

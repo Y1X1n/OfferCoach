@@ -17,7 +17,7 @@ import type {
   QuestionDimension,
   QuestionStatus,
 } from '@/types'
-import { request } from './client'
+import { request, requestBlob } from './client'
 import { toPage } from './normalize'
 
 interface InterviewDto {
@@ -225,6 +225,49 @@ export async function submitAnswer(
     status: res.status ?? 'SCORING',
     ...(res.stream ? { stream: res.stream } : {}),
   }
+}
+
+/**
+ * 语音作答：上传 WAV，后端完成 ASR 后直接提交回答。
+ */
+export async function submitVoiceAnswer(
+  interviewId: string,
+  payload: { questionId: string; file: Blob; durationMs: number },
+  idempotencyKey: string,
+): Promise<AnswerResult> {
+  const form = new FormData()
+  form.append('questionId', payload.questionId)
+  form.append('file', payload.file, 'answer.wav')
+  form.append('durationMs', String(payload.durationMs))
+  const res = await request<{
+    answerId: string
+    status?: string | undefined
+    stream?: FeedbackStreamInfo | null | undefined
+  }>(`/interviews/${encodeURIComponent(interviewId)}/answers/audio`, {
+    method: 'POST',
+    body: form,
+    idempotencyKey,
+  })
+  return {
+    answerId: res.answerId,
+    status: res.status ?? 'SCORING',
+    ...(res.stream ? { stream: res.stream } : {}),
+  }
+}
+
+/**
+ * 题目朗读：返回可播放的音频 Blob；voiceId 为空时由服务端使用默认音色。
+ */
+export async function fetchQuestionSpeech(
+  interviewId: string,
+  questionId: string,
+  voiceId?: string,
+): Promise<Blob> {
+  const { blob } = await requestBlob(
+    `/interviews/${encodeURIComponent(interviewId)}/questions/${encodeURIComponent(questionId)}/speech`,
+    { query: voiceId ? { voiceId } : undefined },
+  )
+  return blob
 }
 
 type FeedbackDto = Partial<Feedback> & { rewrittenAnswer?: string | null | undefined }

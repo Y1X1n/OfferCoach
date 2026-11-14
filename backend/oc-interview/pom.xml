@@ -25,6 +25,11 @@
     </dependency>
     <dependency>
       <groupId>com.offercoach</groupId>
+      <artifactId>oc-ai-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.offercoach</groupId>
       <artifactId>oc-identity</artifactId>
       <version>${project.version}</version>
     </dependency>

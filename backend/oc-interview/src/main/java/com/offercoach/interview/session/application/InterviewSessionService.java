@@ -5,6 +5,7 @@ import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.application.quota.QuotaResult;
 import com.offercoach.identity.application.quota.QuotaService;
 import com.offercoach.identity.domain.quota.QuotaType;
+import com.offercoach.interview.jd.application.JdWebImportService;
 import com.offercoach.interview.jd.application.port.JobDescriptionRepository;
 import com.offercoach.interview.jd.domain.JobDescription;
 import com.offercoach.interview.report.application.ReportGenerationWorker;
@@ -70,6 +71,7 @@ public class InterviewSessionService {
     private final ReportGenerationWorker reportGenerationWorker;
     private final QuotaService quotaService;
     private final JsonCodec jsonCodec;
+    private final JdWebImportService jdWebImportService;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
 
@@ -83,6 +85,7 @@ public class InterviewSessionService {
             ReportGenerationWorker reportGenerationWorker,
             QuotaService quotaService,
             JsonCodec jsonCodec,
+            JdWebImportService jdWebImportService,
             ApplicationEventPublisher eventPublisher,
             PlatformTransactionManager transactionManager) {
         this.sessionRepository = sessionRepository;
@@ -94,6 +97,7 @@ public class InterviewSessionService {
         this.reportGenerationWorker = reportGenerationWorker;
         this.quotaService = quotaService;
         this.jsonCodec = jsonCodec;
+        this.jdWebImportService = jdWebImportService;
         this.eventPublisher = eventPublisher;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -102,21 +106,43 @@ public class InterviewSessionService {
      * 创建会话：幂等键必填；同用户同键返回首次结果，同键不同体返回 DUPLICATE_REQUEST。
      */
     public SessionCreated create(long userId, long resumeId, long jdId, SessionConfig config, String idempotencyKey) {
+        return create(userId, resumeId, jdId, null, config, idempotencyKey);
+    }
+
+    /**
+     * 创建会话：幂等键必填；同用户同键返回首次结果，同键不同体返回 DUPLICATE_REQUEST。
+     *
+     * <p>岗位来源二选一：已有 JD（{@code jdId > 0}）或联网获取的预览令牌（{@code previewToken}）。
+     * 预览令牌在事务内落库为 JD，再据此建会话。</p>
+     */
+    public SessionCreated create(
+            long userId, long resumeId, long jdId, String previewToken, SessionConfig config, String idempotencyKey) {
         String key = normalizeKey(idempotencyKey);
         validateConfig(config);
         Resume resume = loadReadyResume(userId, resumeId);
-        loadOwnedJd(userId, jdId);
+        boolean hasJd = jdId > 0;
+        boolean hasPreview = previewToken != null && !previewToken.isBlank();
+        if (!hasJd && !hasPreview) {
+            throw new BizException(
+                    ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("jdId", "请选择已有 JD 或先获取目标岗位 JD")));
+        }
+        if (hasJd) {
+            loadOwnedJd(userId, jdId);
+        }
 
         Optional<InterviewSession> existing = sessionRepository.findByUserAndKey(userId, key);
         if (existing.isPresent()) {
-            return replay(userId, existing.get(), resume.id(), jdId, config);
+            return replay(userId, existing.get(), resume.id(), hasJd ? jdId : null, config);
         }
         try {
-            return transactionTemplate.execute(status -> doCreate(userId, resume.id(), jdId, config, key));
+            return transactionTemplate.execute(status -> {
+                long effectiveJdId = hasJd ? jdId : jdWebImportService.materialize(userId, previewToken);
+                return doCreate(userId, resume.id(), effectiveJdId, config, key);
+            });
         } catch (DuplicateKeyException exception) {
             Optional<InterviewSession> raced = sessionRepository.findByUserAndKey(userId, key);
             if (raced.isPresent()) {
-                return replay(userId, raced.get(), resume.id(), jdId, config);
+                return replay(userId, raced.get(), resume.id(), hasJd ? jdId : null, config);
             }
             throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "ACTIVE_SESSION"));
         }
@@ -401,9 +427,9 @@ public class InterviewSessionService {
     }
 
     private SessionCreated replay(
-            long userId, InterviewSession existing, long resumeId, long jdId, SessionConfig config) {
+            long userId, InterviewSession existing, long resumeId, Long expectedJdId, SessionConfig config) {
         boolean same = existing.resumeId() == resumeId
-                && existing.jdId() == jdId
+                && (expectedJdId == null || existing.jdId() == expectedJdId)
                 && configOf(existing).equals(config);
         if (!same) {
             throw new BizException(ErrorCode.DUPLICATE_REQUEST);

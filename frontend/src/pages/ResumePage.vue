@@ -402,7 +402,7 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="text-base font-semibold text-text">上传并解析简历</h2>
             <p class="mt-1 text-xs text-text-muted">
-              支持 PDF / DOCX，单文件不超过 10MB；解析结果仅用于面试准备。
+              支持 PDF / DOCX / 图片（PNG、JPG 等）/ PPT，单文件不超过 10MB；图片与扫描件自动 OCR 识别。
             </p>
           </div>
           <Badge v-if="uploading" variant="brand" dot>处理中</Badge>
@@ -413,6 +413,7 @@ onBeforeUnmount(() => {
             :uploading="uploading"
             :progress="uploading ? 55 : 0"
             :file-name="uploadFileName"
+            accept=".pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff,.ppt,.pptx"
             @file="handleFile"
             @error="onValidationError"
           />

@@ -10,7 +10,9 @@ import com.offercoach.interview.api.dto.jd.JdDetailResponse;
 import com.offercoach.interview.api.dto.jd.JdMatchRequest;
 import com.offercoach.interview.api.dto.jd.JdMatchResponse;
 import com.offercoach.interview.api.dto.jd.JdSummaryResponse;
+import com.offercoach.interview.api.dto.jd.JdWebDtos;
 import com.offercoach.interview.jd.application.JdService;
+import com.offercoach.interview.jd.application.JdWebImportService;
 import com.offercoach.interview.jd.domain.MatchResult;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -33,10 +35,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class JdController {
 
     private final JdService jdService;
+    private final JdWebImportService jdWebImportService;
     private final CurrentUser currentUser;
 
-    public JdController(JdService jdService, CurrentUser currentUser) {
+    public JdController(JdService jdService, JdWebImportService jdWebImportService, CurrentUser currentUser) {
         this.jdService = jdService;
+        this.jdWebImportService = jdWebImportService;
         this.currentUser = currentUser;
     }
 
@@ -74,6 +78,60 @@ public class JdController {
     public JdMatchResponse match(@PathVariable("id") String id, @Valid @RequestBody JdMatchRequest request) {
         MatchResult result = jdService.match(currentUser.userId(), parseId(id), parseId(request.resumeId()));
         return JdMatchResponse.from(result);
+    }
+
+    /**
+     * 检索目标岗位候选；正文在服务端缓存，供预览与导入复用。
+     */
+    @PostMapping("/search")
+    public JdWebDtos.JdSearchResponse search(@Valid @RequestBody JdWebDtos.JdSearchRequest request) {
+        JdWebImportService.SearchOutcome outcome =
+                jdWebImportService.search(currentUser.userId(), request.query(), request.location(), request.count());
+        List<JdWebDtos.Candidate> candidates = outcome.results().stream()
+                .map(item -> new JdWebDtos.Candidate(
+                        JdWebImportService.resultIdOf(item),
+                        item.title(),
+                        item.url(),
+                        item.siteName(),
+                        item.snippet(),
+                        item.summary(),
+                        item.rerankScore(),
+                        item.authority()))
+                .toList();
+        return new JdWebDtos.JdSearchResponse(outcome.searchToken(), candidates);
+    }
+
+    /**
+     * 生成未落库的 JD 预览；URL 模式内建 Fetch → Search 兜底。
+     */
+    @PostMapping("/preview")
+    public JdWebDtos.JdPreviewResponse preview(@Valid @RequestBody JdWebDtos.JdPreviewRequest request) {
+        JdWebImportService.PreviewOutcome outcome = jdWebImportService.preview(
+                currentUser.userId(),
+                new JdWebImportService.PreviewCommand(
+                        request.url(), request.keywords(), request.searchToken(), request.resultId()));
+        return new JdWebDtos.JdPreviewResponse(
+                outcome.needsChoice(),
+                outcome.previewToken(),
+                outcome.searchToken(),
+                outcome.resolvedBy(),
+                outcome.fallbackReason(),
+                outcome.title(),
+                outcome.siteName(),
+                outcome.sourceUrl(),
+                outcome.rawText(),
+                outcome.structured(),
+                outcome.candidates().stream()
+                        .map(item -> new JdWebDtos.Candidate(
+                                item.resultId(),
+                                item.title(),
+                                item.url(),
+                                item.siteName(),
+                                item.snippet(),
+                                null,
+                                item.rerankScore(),
+                                0))
+                        .toList());
     }
 
     private static JdSummaryResponse toSummary(JdService.JdSummaryView view) {

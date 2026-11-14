@@ -3,6 +3,7 @@ package com.offercoach.interview.session.infrastructure.persistence;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import lombok.Data;
 
@@ -33,4 +34,12 @@ public class InterviewAnswerDO {
     private OffsetDateTime submittedAt;
 
     private OffsetDateTime createdAt;
+
+    private String audioKey;
+
+    private Integer audioDurationMs;
+
+    private String asrStatus;
+
+    private BigDecimal asrConfidence;
 }
