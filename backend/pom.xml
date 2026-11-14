@@ -41,7 +41,7 @@
     <palantir-java-format.version>2.50.0</palantir-java-format.version>
     <checkstyle-plugin.version>3.6.0</checkstyle-plugin.version>
     <checkstyle.version>10.21.0</checkstyle.version>
-    <pdfbox.version>3.0.3</pdfbox.version>
+    <pdfbox.version>3.0.8</pdfbox.version>
     <poi.version>5.3.0</poi.version>
   </properties>
 
