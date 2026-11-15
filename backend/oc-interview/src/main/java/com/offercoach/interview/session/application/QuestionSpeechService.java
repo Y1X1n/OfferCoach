@@ -5,6 +5,7 @@ import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
 import com.offercoach.interview.session.application.port.InterviewSessionRepository;
@@ -15,7 +16,6 @@ import java.time.Duration;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 /**
@@ -32,19 +32,19 @@ public class QuestionSpeechService {
     private final InterviewSessionRepository sessionRepository;
     private final InterviewQuestionRepository questionRepository;
     private final AiToolGateway toolGateway;
-    private final StringRedisTemplate redisTemplate;
+    private final RedisCounterGuard counterGuard;
     private final PlatformSettingsService platformSettings;
 
     public QuestionSpeechService(
             InterviewSessionRepository sessionRepository,
             InterviewQuestionRepository questionRepository,
             AiToolGateway toolGateway,
-            StringRedisTemplate redisTemplate,
+            RedisCounterGuard counterGuard,
             PlatformSettingsService platformSettings) {
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.toolGateway = toolGateway;
-        this.redisTemplate = redisTemplate;
+        this.counterGuard = counterGuard;
         this.platformSettings = platformSettings;
     }
 
@@ -92,20 +92,8 @@ public class QuestionSpeechService {
         if (limit <= 0) {
             return;
         }
-        String key = RedisKeys.ttsPerQuestion(userId, questionId);
-        try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, Duration.ofDays(1));
-            }
-            if (count != null && count > limit) {
-                throw new BizException(ErrorCode.RATE_LIMITED, Map.of("limit", limit, "scope", "PER_QUESTION"));
-            }
-        } catch (BizException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
-            log.warn("题目朗读限流 Redis 不可用，放行：reason={}", exception.getClass().getSimpleName());
-        }
+        counterGuard.tryAcquireOrThrow(
+                RedisKeys.ttsPerQuestion(userId, questionId), limit, Duration.ofDays(1), "PER_QUESTION");
     }
 
     /**

@@ -326,3 +326,7 @@ URL 模式下，Fetch 的失败**不直接报错给用户**，而是先走 Searc
 - **重复实现**：multipart 构造抽为 `oc-ai-core` 的 `MultipartBody`；前端 401 重试抽为 `sendWithRefreshRetry`。
 - **索引命名**：`uq_jd_user_content_hash` → `uq_job_description_user_id_content_hash`（迁移 `V202611150002`）。
 - **非活跃会话开销**：语音作答先校验会话 `IN_PROGRESS`、题目归属与是否已作答，再调 ASR（真机：CREATED 会话提交返回 409 且 ASR 调用数不变）；朗读仅允许 READY/IN_PROGRESS/PAUSED。
+- **未来题仍会先付 ASR**（第二轮审查）→ 追加 `question.seq() > session.currentSeq()` 校验。
+- **预览令牌可重复使用**（第二轮审查）→ 提交成功后（事务 afterCommit）删除 `previewToken`；失败回滚保留。
+- **搜索/抓取限额实现重复**（第二轮审查）→ 统一走 `RedisCounterGuard`。
+- **前端 `resolvedBy` 类型缺 `SEARCH`** → 类型补全，与后端契约一致。

@@ -8,6 +8,7 @@ import com.offercoach.ai.tools.validation.FetchUrlRules;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.document.WebContentCleaner;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -47,7 +49,7 @@ public class JdWebImportService {
     private final AiToolGateway toolGateway;
     private final JdSearchCacheService searchCacheService;
     private final JdPreviewStoreService previewStoreService;
-    private final JdDailyLimitGuard limitGuard;
+    private final RedisCounterGuard counterGuard;
     private final StringRedisTemplate redisTemplate;
     private final PlatformSettingsService platformSettings;
     private final AiCallLogger aiCallLogger;
@@ -56,14 +58,14 @@ public class JdWebImportService {
             AiToolGateway toolGateway,
             JdSearchCacheService searchCacheService,
             JdPreviewStoreService previewStoreService,
-            JdDailyLimitGuard limitGuard,
+            RedisCounterGuard counterGuard,
             StringRedisTemplate redisTemplate,
             PlatformSettingsService platformSettings,
             AiCallLogger aiCallLogger) {
         this.toolGateway = toolGateway;
         this.searchCacheService = searchCacheService;
         this.previewStoreService = previewStoreService;
-        this.limitGuard = limitGuard;
+        this.counterGuard = counterGuard;
         this.redisTemplate = redisTemplate;
         this.platformSettings = platformSettings;
         this.aiCallLogger = aiCallLogger;
@@ -237,10 +239,10 @@ public class JdWebImportService {
         } catch (RuntimeException exception) {
             log.warn("抓取缓存读取失败：reason={}", exception.getClass().getSimpleName());
         }
-        limitGuard.enforce(
-                userId,
-                JdDailyLimitGuard.fetchKey(userId),
+        counterGuard.tryAcquireOrThrow(
+                RedisKeys.dailyFetch(userId, LocalDate.now().toString()),
                 platformSettings.snapshot().fetchDailyLimit(),
+                Duration.ofDays(1),
                 "FETCH");
         String cleaned;
         String pageTitle;

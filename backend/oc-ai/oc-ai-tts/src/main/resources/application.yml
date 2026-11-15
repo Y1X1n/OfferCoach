@@ -56,4 +56,5 @@ oc:
       tts-default-voice: ${AI_TTS_DEFAULT_VOICE:stella}
       tts-cache-dir: ${AI_TTS_CACHE_DIR:.local/storage/tts}
       tts-cache-days: ${AI_TTS_CACHE_DAYS:7}
+      tts-cache-cron: ${AI_TTS_CACHE_CRON:0 45 3 * * *}
       call-log-enabled: true

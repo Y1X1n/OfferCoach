@@ -140,6 +140,7 @@ oc:
     report-max-attempts: 6
     # 语音作答音频保留天数（定时清理，0 表示不自动删除）。
     voice-retention-days: ${VOICE_RETENTION_DAYS:7}
+    voice-retention-cron: ${VOICE_RETENTION_CRON:0 0 4 * * *}
 
 logging:
   level:

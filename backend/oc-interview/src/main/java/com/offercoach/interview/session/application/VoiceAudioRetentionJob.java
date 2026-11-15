@@ -29,7 +29,7 @@ public class VoiceAudioRetentionJob {
         this.properties = properties;
     }
 
-    @Scheduled(cron = "${oc.retention.cron:0 30 3 * * *}", zone = "${oc.retention.zone:Asia/Shanghai}")
+    @Scheduled(cron = "${oc.interview.voice-retention-cron:0 0 4 * * *}", zone = "${oc.retention.zone:Asia/Shanghai}")
     public void purgeExpired() {
         int days = properties.getVoiceRetentionDays();
         if (days <= 0) {

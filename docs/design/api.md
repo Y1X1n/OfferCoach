@@ -23,6 +23,8 @@
 | JD | `POST/GET /jds` | USER | 创建、列表 |
 | JD | `GET/DELETE /jds/{id}` | USER | 详情、删除 |
 | JD | `POST /jds/{id}/match` | USER | 匹配分析 |
+| JD | `POST /jds/search` | USER | 联网搜索目标岗位候选 |
+| JD | `POST /jds/preview` | USER | 链接抓取 / 搜索兜底的 JD 预览（未落库） |
 | 面试 | `POST/GET /interviews` | USER | 创建、列表 |
 | 面试 | `GET /interviews/{id}` | USER | 会话详情 |
 | 面试 | `POST /interviews/{id}/start` | USER | 异步出题 |
@@ -31,7 +33,8 @@
 | 面试 | `POST /interviews/{id}/questions/{qid}/skip` | USER | 跳过 |
 | 面试 | `POST /interviews/{id}/pause`、`/resume`、`/abandon` | USER | 暂停/恢复/放弃 |
 | 回答 | `POST /interviews/{id}/answers` | USER | 提交文字回答 |
-| 回答 | `POST /interviews/{id}/answers/audio` | USER | 提交语音（V1.1） |
+| 回答 | `POST /interviews/{id}/answers/audio` | USER | 提交语音回答 |
+| 面试 | `GET /interviews/{id}/questions/{qid}/speech` | USER | 题目朗读音频 |
 | 反馈 | `GET /interviews/{id}/answers/{aid}/feedback` | USER | 权威评分 |
 | 反馈 | `GET /ai/feedback/stream` | USER + streamToken | 评分 SSE |
 | 面试 | `POST /interviews/{id}/finish` | USER | 结束并触发报告 |
@@ -42,6 +45,7 @@
 | 管理 | `/admin/questions/**` | ADMIN/SUPPORT | 题库 |
 | 管理 | `/admin/prompts/**` | ADMIN | Prompt 与实验 |
 | 管理 | `/admin/users/**`、`/admin/ai-calls/**`、`/admin/metrics/**`、`/admin/evals/**` | ADMIN/SUPPORT | 用户、日志、看板、评测 |
+| 管理 | `GET/PUT /admin/settings/quota` | ADMIN | 平台策略（含 AI 工具上限） |
 | 内部 | `/internal/v1/**` | Service Token | 服务间调用，不暴露公网 |
 
 ## 1. 通用约定
@@ -400,6 +404,9 @@
 }
 ```
 
+- 去重：同一用户相同内容（忽略换行/空白差异）的 JD 只保留一条。重复创建返回 `409 STATE_CONFLICT`，`details.existingJdId` 指向已有记录。
+- 来源：详情与列表返回 `sourceType`（`MANUAL` 手工粘贴 / `SEARCH` 搜索获取 / `URL` 链接抓取）与 `sourceUrl`（联网获取时的原始链接）。
+
 ### 5.2 匹配分析
 
 `POST /jds/{id}/match`（同步，P95 < 3s；超时 8s）
@@ -418,6 +425,69 @@
 ```
 
 - `GET /jds`、`GET /jds/{id}`、`DELETE /jds/{id}` 同简历语义。
+
+### 5.3 联网获取目标岗位（搜索 / 链接抓取）
+
+用于创建面试前获取真实岗位 JD：**链接优先抓取，抓不到自动改用搜索**。
+
+`POST /jds/search`（每日上限见平台策略 `searchDailyLimit`）
+
+```json
+{"query": "高级后端工程师", "location": "上海", "count": 8}
+```
+
+`200`
+
+```json
+{
+  "searchToken": "st_...",
+  "results": [
+    {"resultId": "a1b2...", "title": "高级后端工程师", "url": "https://...", "siteName": "BOSS直聘",
+     "snippet": "岗位职责…", "summary": "…", "rerankScore": 2.07, "authority": 3}
+  ]
+}
+```
+
+`POST /jds/preview`（未落库；`previewToken` 15 分钟有效且**一次性**）
+
+两种入参二选一：
+
+```json
+{"url": "https://jobs.example.com/job/123", "keywords": "高级后端工程师 上海"}
+```
+
+```json
+{"searchToken": "st_...", "resultId": "a1b2..."}
+```
+
+`200`（命中）：
+
+```json
+{
+  "needsChoice": false,
+  "previewToken": "pv_...",
+  "resolvedBy": "URL",
+  "fallbackReason": null,
+  "title": "高级后端工程师",
+  "siteName": "jobs.example.com",
+  "sourceUrl": "https://jobs.example.com/job/123",
+  "rawText": "岗位职责…",
+  "structured": {"seniority": "MID", "mustHave": [], "techStack": [], "keywords": []}
+}
+```
+
+`200`（兜底候选，需要用户选择）：
+
+```json
+{"needsChoice": true, "searchToken": "st_...", "resolvedBy": "SEARCH_FALLBACK",
+ "fallbackReason": "FETCH_TOO_SHORT", "candidates": [{"resultId": "...", "title": "...", "url": "..."}]}
+```
+
+- `resolvedBy`：`URL` 链接直抓 / `SEARCH` 搜索候选 / `SEARCH_FALLBACK` 链接抓取失败后的搜索兜底。
+- `fallbackReason`：`FETCH_BLOCKED` / `FETCH_NO_CONTENT` / `FETCH_TOO_SHORT` / `FETCH_FAILED`。
+- 链接与搜索都失败：`422 PARSE_NEED_MANUAL`，`details.reason` 同上。
+- URL 校验：仅 http/https、必须含 host、不得内嵌用户名密码、拒绝本机/私网字面量（`400 VALIDATION_FAILED`）。
+- 预览成功后把 `previewToken` 传给 `POST /interviews`，在该请求的事务内落 JD 并建会话。
 
 ## 6. 面试会话
 
@@ -451,6 +521,9 @@
   "createdAt": "2026-11-07T09:40:00Z"
 }
 ```
+
+- `jdId` 与 `previewToken` **至少提供一个**（同时提供时以 `jdId` 为准）；`previewToken` 来自 `POST /jds/preview`，在创建会话的同一事务内落库为 JD。
+- `previewToken` 提交成功后即失效；缓存过期返回 `409`（`details.reason=PREVIEW_EXPIRED`）。
 
 错误：`QUOTA_EXCEEDED`、`STATE_CONFLICT`（已有未完成会话）、`RESOURCE_NOT_FOUND`（简历/JD 不属于当前用户）。
 
@@ -496,6 +569,10 @@ data: {"ts":"2026-11-07T09:40:10Z"}
   "progress": {"answered": 3, "skipped": 0, "total": 8},
   "currentSeq": 4,
   "totalScore": null,
+  "jdTitle": "高级后端工程师",
+  "jdCompany": "某互联网公司",
+  "jdSourceType": "URL",
+  "jdSourceUrl": "https://jobs.example.com/job/123",
   "startedAt": "2026-11-07T09:41:00Z",
   "lastActiveAt": "2026-11-07T09:52:00Z"
 }
@@ -717,30 +794,40 @@ data: {"feedbackId":"50001","overallScore":8.1,"dimensions":{"content":8.5,"stru
 - 当前前端使用浏览器「打印 / 存为 PDF」，默认文件名由 `公司-岗位-YYMMDD` 构成（如 `云帆科技-高级后端工程师-261107`）；打印时会展开逐题拆解并临时切到浅色主题。
 - `POST /reports/{id}/export`（V1.1，未实现）：请求服务端生成 PDF，`202`；`GET /reports/{id}/export` 查询进度。
 
-## 9. 语音作答（V1.1）
+## 9. 语音与朗读
 
-### 9.1 上传音频
+### 9.1 上传音频（语音作答）
 
-`POST /interviews/{id}/answers/audio`（multipart）
+`POST /interviews/{id}/answers/audio`（multipart，`Idempotency-Key` 可选）
 
 | 字段 | 说明 |
 |---|---|
-| `questionId` | 题目 ID |
-| `file` | webm/wav/mp3，10–300s，≤25MB |
-| `durationMs` | 客户端录制时长 |
+| `questionId` | 题目 ID；必须是当前题且未作答 |
+| `file` | **16-bit PCM WAV 或 Ogg Opus**（前端录制后封装 16kHz 单声道 WAV）；**≤8 MiB**、**≤120s** |
+| `durationMs` | 客户端录制时长（可选，服务端以转写结果为准） |
 
 `201`
 
 ```json
 {
   "answerId": "40002",
-  "asrStatus": "PENDING",
-  "stream": {"url": "/ai/feedback/stream", "answerId": "40002", "token": "st_...", "expiresIn": 300}
+  "status": "SCORING",
+  "stream": {"url": "/api/v1/ai/feedback/stream", "answerId": "40002", "token": "FNZ...", "expiresIn": 300}
 }
 ```
 
-- ASR 完成前流式接口会先返回 `meta`，随后等待转写完成（最长 10s）再出评分 Token。
-- ASR 失败：`event: error`，`code=ASR_FAILED`，前端切换文本输入，不重复扣额度。
+- 服务端同步完成 ASR（≤10s），转写文本落库后进入既有的异步反馈链路；`input_mode='VOICE'`、`asr_status='DONE'`。
+- 前置校验：会话必须 `IN_PROGRESS`、题目属于该会话且已轮到时序、未重复作答；不满足时**不调用 ASR**（`409 STATE_CONFLICT`）。
+- ASR 失败：`502 ASR_FAILED`（`details.retryable`），前端回退文本输入，**不落库、不扣额度**。
+
+### 9.2 题目朗读
+
+`GET /interviews/{id}/questions/{questionId}/speech?voiceId=stella|tide`
+
+- `200`，`Content-Type: audio/wav`；同题同音色命中服务端缓存（不重复计费）。
+- 会话必须为 `READY` / `IN_PROGRESS` / `PAUSED`，否则 `409`。
+- 次数上限：**每题 ≤3 次**（平台策略 `ttsPerQuestionLimit`，0=不限），超限 `429`（`details.scope=PER_QUESTION`）。
+- 关闭能力（`ttsEnabled=false`）或上游不可用：`503 AI_UNAVAILABLE`。
 
 ## 10. 通知
 
@@ -821,7 +908,7 @@ data: {"feedbackId":"50001","overallScore":8.1,"dimensions":{"content":8.5,"stru
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/admin/settings/quota` | 注册开关、每日面试/解析上限、月度免费额度、邀请奖励与注册风控阈值 |
+| GET | `/admin/settings/quota` | 注册开关、每日面试/解析上限、月度免费额度、邀请奖励、注册风控阈值，以及 AI 工具上限（朗读/OCR/搜索/抓取） |
 | PUT | `/admin/settings/quota` | 全量更新同上字段；写 `SETTINGS_QUOTA_UPDATE` 审计 |
 
 ```json
@@ -836,7 +923,11 @@ data: {"feedbackId":"50001","overallScore":8.1,"dimensions":{"content":8.5,"stru
   "inviteDailyCap": 3,
   "inviteTotalCap": 20,
   "registrationIpDailyCap": 20,
-  "registrationDeviceDailyCap": 3
+  "registrationDeviceDailyCap": 3,
+  "ttsPerQuestionLimit": 3,
+  "ocrDailyLimit": 5,
+  "searchDailyLimit": 20,
+  "fetchDailyLimit": 20
 }
 ```
 

@@ -7,6 +7,7 @@ import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.support.JsonCodec;
@@ -14,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +40,7 @@ public class JdSearchCacheService {
     private final JsonCodec jsonCodec;
     private final PlatformSettingsService platformSettings;
     private final AiCallLogger aiCallLogger;
-    private final JdDailyLimitGuard limitGuard;
+    private final RedisCounterGuard counterGuard;
 
     public JdSearchCacheService(
             AiToolGateway toolGateway,
@@ -47,14 +49,14 @@ public class JdSearchCacheService {
             JsonCodec jsonCodec,
             PlatformSettingsService platformSettings,
             AiCallLogger aiCallLogger,
-            JdDailyLimitGuard limitGuard) {
+            RedisCounterGuard counterGuard) {
         this.toolGateway = toolGateway;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.jsonCodec = jsonCodec;
         this.platformSettings = platformSettings;
         this.aiCallLogger = aiCallLogger;
-        this.limitGuard = limitGuard;
+        this.counterGuard = counterGuard;
     }
 
     /**
@@ -82,10 +84,10 @@ public class JdSearchCacheService {
         } catch (RuntimeException exception) {
             log.warn("检索缓存读取失败：reason={}", exception.getClass().getSimpleName());
         }
-        limitGuard.enforce(
-                userId,
-                JdDailyLimitGuard.searchKey(userId),
+        counterGuard.tryAcquireOrThrow(
+                RedisKeys.dailySearch(userId, LocalDate.now().toString()),
                 platformSettings.snapshot().searchDailyLimit(),
+                Duration.ofDays(1),
                 "SEARCH");
         List<ToolDtos.SearchResult> results = toolGateway.search(userId, query, count, null, true);
         cacheQuietly(cacheKey, jsonCodec.write(results));

@@ -107,7 +107,32 @@ public class JdPreviewStoreService {
                 preview.structuredJson(),
                 preview.sourceType(),
                 preview.sourceUrl());
+        deleteAfterCommit(previewToken);
         return view.id();
+    }
+
+    /**
+     * 预览令牌一次性：提交成功后删除，避免同一令牌反复建会话；失败回滚时保留。
+     */
+    private void deleteAfterCommit(String previewToken) {
+        Runnable delete = () -> {
+            try {
+                redisTemplate.delete(RedisKeys.jdPreview(previewToken));
+            } catch (RuntimeException exception) {
+                log.warn("预览令牌删除失败：reason={}", exception.getClass().getSimpleName());
+            }
+        };
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            delete.run();
+                        }
+                    });
+        } else {
+            delete.run();
+        }
     }
 
     /**

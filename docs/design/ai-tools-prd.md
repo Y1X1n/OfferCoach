@@ -230,3 +230,7 @@ oc-app 依赖 oc-ai-core（作为客户端调用三个服务）
 | 音频文件无保留期 | 新增 `VoiceAudioRetentionJob`（默认 7 天，随每日低峰清理） |
 | TTS 缓存冷数据不清理 | `TtsService` 新增定时清理任务（默认 7 天） |
 | 死代码 `dailyOcr` | 已接入 OCR 每日限额；`dailyTts`/`dailyVoiceAnswer` 已移除 |
+| 计数逻辑重复三份（审查第二轮） | 抽 `RedisCounterGuard`（oc-identity），搜索/抓取、单题朗读、OCR 共用 |
+| OCR 配额在关闭/失败时也计数（审查第二轮） | 配额移入 `ResumeOcrFallback`：能力关闭不计数，失败/空结果 `release` 归还 |
+| 清理任务同刻（审查第二轮） | 语音清理错峰到 04:00（`oc.interview.voice-retention-cron`）；TTS 清理 03:45（`oc.ai.tools.tts-cache-cron`），均写入 yml |
+| 线性契约未回写（审查第二轮） | `docs/design/api.md` 已补 §5.3、§6.1 previewToken、§6.3 来源字段、§9 语音/朗读、§11.5 新上限 |
