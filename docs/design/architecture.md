@@ -75,6 +75,12 @@
 - **理由**：AI 能力归属一个域，模块列表不因新增能力而膨胀；各服务外部依赖与资源特征不同（ASR/TTS 并发配额、OCR 大文件长耗时、Search QPS 100 返回结构化 JSON、Fetch QPS 25 且有域名级限流），需独立部署以分别扩容与故障隔离——任一下线只降级对应能力。复用既有 RS256 JWT 与 `ai_runtime_config`，避免第二套鉴权与密钥。
 - **代价**：模块内多个部署单元与健康检查，内存占用需复核；引入内部服务鉴权（`X-OC-Internal-Token`）；`ai_call_log` 变为多写入方（append-only，无跨服务 JOIN）。详见 [ai-tools-prd.md](./ai-tools-prd.md) §4 与 [ai-jd-web-prd.md](./ai-jd-web-prd.md) §3。
 
+### ADR-012 AI 工具次数上限采用 Redis 原子限流，不计入计费额度
+
+- **决策**：ASR/TTS/OCR/Search/Fetch 的"每题朗读 ≤3 次"与"OCR / 搜索 / 抓取每日 ≤N 次"属**防滥用限流**，用 Redis 计数（`RedisCounterGuard`，`INCR` + `PEXPIRE` 在同一 Lua 脚本内原子完成）；**不新增 `QuotaType`、不写 `quota_ledger`**。真正计费的额度（面试场次、简历解析）仍以 `quota_ledger` DB 流水为事实源。
+- **理由**：这些上限用于控上游成本而非售卖计量，Redis 即可满足，且无需迁移 `quota_ledger.quota_type` 的 CHECK 约束（[ai-tools-prd.md](./ai-tools-prd.md) R4 已确认不新增 `QuotaType`）；与既有登录/注册限流（`AuthAttemptService`）同一口径。原子脚本消除"`INCR` 后 `EXPIRE` 失败或中断留下永久计数键"的缺陷；业务失败时 `release` 归还，与上游"仅 200 且有结果计费"对齐。
+- **代价**：Redis 丢键会使当日计数重置（上限放宽而非收紧），可接受；若未来把 AI 次数纳入售卖计量，须改为写 `quota_ledger` 流水。
+
 ## 3. 逻辑架构
 
 ```mermaid

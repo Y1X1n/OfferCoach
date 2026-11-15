@@ -1,6 +1,7 @@
 package com.offercoach.ai.tts.api;
 
 import com.offercoach.ai.AiRuntimeConfigService;
+import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.concurrent.ConcurrencyLimiter;
 import com.offercoach.ai.tools.config.ToolsProperties;
@@ -14,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class TtsController {
 
     private static final Logger log = LoggerFactory.getLogger(TtsController.class);
-    private static final String SCENE = "TTS";
+    private static final String SCENE = AiScene.TTS.name();
     private static final String MODEL = "tools-tts";
 
     private final TtsService ttsService;
@@ -75,14 +75,5 @@ public class TtsController {
             log.warn("TTS 合成失败：kind={} reason={}", exception.kind(), exception.getMessage());
             throw exception;
         }
-    }
-
-    /**
-     * 默认音色查询，供 oc-app 与管理端展示。
-     */
-    @GetMapping("/voice")
-    public ResponseEntity<String> defaultVoice(HttpServletRequest http) {
-        internalAuth.requireUser(http);
-        return ResponseEntity.ok(ttsService.defaultVoice());
     }
 }

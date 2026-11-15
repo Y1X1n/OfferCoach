@@ -33,6 +33,9 @@ public class VoiceAnswerService {
     private static final long MAX_AUDIO_BYTES = 8L * 1024 * 1024;
     private static final int MAX_DURATION_MS = 120_000;
     private static final String AUDIO_EXT_WAV = "wav";
+    private static final byte[] WAV_RIFF = {'R', 'I', 'F', 'F'};
+    private static final byte[] WAV_WAVE = {'W', 'A', 'V', 'E'};
+    private static final byte[] OGG_OPUS = {'O', 'g', 'g', 'S'};
 
     private final AnswerService answerService;
     private final InterviewSessionRepository sessionRepository;
@@ -98,6 +101,7 @@ public class VoiceAnswerService {
         } catch (IOException exception) {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("file", "音频读取失败")));
         }
+        requireSupportedAudio(audio);
         String contentType = normalizeContentType(file.getContentType());
         String fileName = "answer-" + questionId + "." + AUDIO_EXT_WAV;
 
@@ -131,19 +135,35 @@ public class VoiceAnswerService {
         }
     }
 
-    /**
-     * ASR 失败后标记回答转写状态，用于审计与重试判定。
-     */
-    public void markAsrFailed(long userId, long sessionId, long answerId) {
-        answerService.loadOwned(userId, sessionId, answerId);
-        answerRepository.updateAsrStatus(answerId, "FAILED");
-    }
-
     private static String normalizeContentType(String contentType) {
         if (contentType == null || contentType.isBlank()) {
             return "audio/wav";
         }
         String normalized = contentType.toLowerCase(Locale.ROOT);
         return normalized.startsWith("audio/") ? normalized : "audio/wav";
+    }
+
+    /**
+     * 魔数校验：仅接受 16-bit PCM WAV 或 Ogg Opus（对齐 DeepSeek ASR 的入参约束）。
+     */
+    static void requireSupportedAudio(byte[] content) {
+        boolean wav = matches(content, 0, WAV_RIFF) && matches(content, 8, WAV_WAVE);
+        boolean ogg = matches(content, 0, OGG_OPUS);
+        if (!wav && !ogg) {
+            throw new BizException(
+                    ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("file", "仅支持 WAV 或 Ogg Opus 音频")));
+        }
+    }
+
+    private static boolean matches(byte[] content, int offset, byte[] prefix) {
+        if (content.length < offset + prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (content[offset + i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -60,7 +60,7 @@
 
 ### 3.2 后端
 
-- Maven 多模块：`oc-common`、`oc-ai-client`、`oc-identity`、`oc-interview`、`oc-admin`、`oc-report-worker`、`oc-gateway`、`oc-app`。
+- Maven 多模块：`oc-common`、`oc-ai-client`、`oc-ai`（内含 `oc-ai-core` 与 asr/tts/ocr/search/fetch 五个独立服务）、`oc-identity`、`oc-interview`、`oc-admin`、`oc-report-worker`、`oc-gateway`、`oc-app`。
 - 分层：`api`（Controller/DTO）→ `application`（用例/事务）→ `domain`（状态机/规则）→ `infrastructure`（Mapper/Client/MQ）。
 - Controller 不写规则；Service 不返回 Entity；Repository 不调用外部服务；跨模块不共享表。
 - 模块依赖用 ArchUnit 强制，禁止循环。
@@ -120,7 +120,7 @@
 2. 提交密钥、Token、真实简历、未脱敏用户数据。
 3. 前端 `any`、`v-html` 未净化、在组件里直接 `fetch`、`src` 内留 `console`/`debugger`。
 4. 后端在事务内调用 LLM/长 HTTP；先提交事务再调用或发消息。
-5. 用 Redis 计数器作为额度唯一依据；DB 流水才是事实源。
+5. 用 Redis 计数器作为**计费额度**的唯一依据；计费额度以 DB 流水（`quota_ledger`）为事实源。防滥用限流（登录/注册、AI 工具次数）可用 Redis 计数，但必须 `INCR`+`PEXPIRE` 同一脚本原子完成，并在业务失败时归还（见 ADR-012）。
 6. 用 `FLOAT` 存金额；用字符串拼 SQL；用 `SELECT *`。
 7. 在网关开启 SSE 响应缓冲/压缩；在 URL 放长期 Access Token。
 8. 重试非幂等写请求；重复扣额度或重复生成报告。

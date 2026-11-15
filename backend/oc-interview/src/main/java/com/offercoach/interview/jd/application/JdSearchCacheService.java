@@ -1,22 +1,22 @@
 package com.offercoach.interview.jd.application;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.tools.api.ToolDtos;
+import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.common.cache.RedisKeys;
+import com.offercoach.common.digest.Sha256;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.support.JsonCodec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,6 +27,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * 岗位检索与候选缓存：查询级缓存、每日限额、候选正文短期缓存（供预览复用，避免重复计费）。
+ *
+ * <p>能力开关关闭时按不可用处理（不计数）；上游失败时归还当日计数。</p>
  */
 @Service
 public class JdSearchCacheService {
@@ -35,6 +37,7 @@ public class JdSearchCacheService {
     private static final Duration CACHE_TTL = Duration.ofMinutes(10);
 
     private final AiToolGateway toolGateway;
+    private final AiRuntimeConfigService runtimeConfig;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final JsonCodec jsonCodec;
@@ -44,6 +47,7 @@ public class JdSearchCacheService {
 
     public JdSearchCacheService(
             AiToolGateway toolGateway,
+            AiRuntimeConfigService runtimeConfig,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
             JsonCodec jsonCodec,
@@ -51,6 +55,7 @@ public class JdSearchCacheService {
             AiCallLogger aiCallLogger,
             RedisCounterGuard counterGuard) {
         this.toolGateway = toolGateway;
+        this.runtimeConfig = runtimeConfig;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.jsonCodec = jsonCodec;
@@ -63,7 +68,11 @@ public class JdSearchCacheService {
      * 执行检索：命中查询缓存不回源；未命中时校验每日限额后调用上游。
      */
     public List<ToolDtos.SearchResult> search(long userId, String query, int count) {
-        String cacheKey = RedisKeys.jdSearchQuery(digest(query + "|" + count));
+        if (!runtimeConfig.tools().searchEnabled()) {
+            throw new BizException(
+                    ErrorCode.AI_UNAVAILABLE, Map.of("reason", "NOT_CONFIGURED", "message", "联网搜索已被管理员关闭"));
+        }
+        String cacheKey = RedisKeys.jdSearchQuery(Sha256.hex(query + "|" + count));
         long startedAt = System.nanoTime();
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
@@ -84,12 +93,16 @@ public class JdSearchCacheService {
         } catch (RuntimeException exception) {
             log.warn("检索缓存读取失败：reason={}", exception.getClass().getSimpleName());
         }
+        String counterKey = RedisKeys.dailySearch(userId, LocalDate.now().toString());
         counterGuard.tryAcquireOrThrow(
-                RedisKeys.dailySearch(userId, LocalDate.now().toString()),
-                platformSettings.snapshot().searchDailyLimit(),
-                Duration.ofDays(1),
-                "SEARCH");
-        List<ToolDtos.SearchResult> results = toolGateway.search(userId, query, count, null, true);
+                counterKey, platformSettings.snapshot().searchDailyLimit(), Duration.ofDays(1), "SEARCH");
+        List<ToolDtos.SearchResult> results;
+        try {
+            results = toolGateway.search(userId, query, count, null, true);
+        } catch (ToolException exception) {
+            counterGuard.release(counterKey);
+            throw exception;
+        }
         cacheQuietly(cacheKey, jsonCodec.write(results));
         return results;
     }
@@ -134,22 +147,13 @@ public class JdSearchCacheService {
     private <T> T readValue(String json, TypeReference<T> type) {
         try {
             return objectMapper.readValue(json, type);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+        } catch (JsonProcessingException exception) {
             throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", "CACHE_CORRUPTED"));
         }
     }
 
     private static BizException expired() {
         return new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "SEARCH_EXPIRED", "message", "候选已过期，请重新搜索"));
-    }
-
-    private static String digest(String value) {
-        try {
-            return HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 不可用", exception);
-        }
     }
 
     /**

@@ -66,11 +66,6 @@ public class InterviewAnswerRepositoryImpl implements InterviewAnswerRepository 
     }
 
     @Override
-    public void updateAsrStatus(long answerId, String asrStatus) {
-        answerMapper.updateAsrStatus(answerId, asrStatus);
-    }
-
-    @Override
     public int failStaleScoring(java.time.OffsetDateTime cutoff) {
         return answerMapper.failStaleScoring(cutoff);
     }

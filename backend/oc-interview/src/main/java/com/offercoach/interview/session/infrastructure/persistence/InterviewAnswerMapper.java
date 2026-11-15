@@ -55,9 +55,6 @@ public interface InterviewAnswerMapper {
     @Update("UPDATE interview_answer SET status = 'SCORED' WHERE id = #{answerId}")
     int markScored(@Param("answerId") long answerId);
 
-    @Update("UPDATE interview_answer SET asr_status = #{asrStatus} WHERE id = #{answerId}")
-    int updateAsrStatus(@Param("answerId") long answerId, @Param("asrStatus") String asrStatus);
-
     /**
      * 看门狗：长时间停留在 SCORING 的回答标记失败，前端可重试评分。
      */

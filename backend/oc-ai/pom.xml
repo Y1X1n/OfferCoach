@@ -12,7 +12,7 @@
   <artifactId>oc-ai</artifactId>
   <packaging>pom</packaging>
   <name>oc-ai</name>
-  <description>AI 能力域：共享库 oc-ai-core 与 ASR / TTS / OCR 三个独立服务</description>
+  <description>AI 能力域：共享库 oc-ai-core 与 ASR / TTS / OCR / Search / Fetch 五个独立服务</description>
 
   <modules>
     <module>oc-ai-core</module>
@@ -22,4 +22,37 @@
     <module>oc-ai-search</module>
     <module>oc-ai-fetch</module>
   </modules>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>ban-sibling-ai-services</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <!-- 工具服务之间零依赖、各自独立构建与发布；共享能力只放 oc-ai-core。
+                     模块不依赖自身，故对所有子模块统一禁止这五个 artifact 是安全的。 -->
+                <bannedDependencies>
+                  <excludes>
+                    <exclude>com.offercoach:oc-ai-asr</exclude>
+                    <exclude>com.offercoach:oc-ai-tts</exclude>
+                    <exclude>com.offercoach:oc-ai-ocr</exclude>
+                    <exclude>com.offercoach:oc-ai-search</exclude>
+                    <exclude>com.offercoach:oc-ai-fetch</exclude>
+                  </excludes>
+                  <message>AI 工具服务之间必须零依赖：共享能力放在 oc-ai-core（ADR-011 / PRD §4.3）</message>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

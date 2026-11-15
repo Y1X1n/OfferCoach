@@ -4,14 +4,17 @@ import com.offercoach.ai.tools.client.DeepSeekToolsClient;
 import com.offercoach.ai.tools.config.ToolsProperties;
 import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
+import com.offercoach.common.digest.Sha256;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
+import java.nio.file.StandardCopyOption;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -58,7 +61,7 @@ public class TtsService {
         }
         String voice = normalizeVoice(voiceId);
         String audioFormat = "pcm".equalsIgnoreCase(format) ? "pcm" : "wav";
-        String hash = digest(normalizedText + '\u0000' + voice + '\u0000' + audioFormat);
+        String hash = Sha256.hex(normalizedText + '\u0000' + voice + '\u0000' + audioFormat);
         Path cached = cachedPath(hash, audioFormat);
         if (cached != null) {
             byte[] bytes = readCache(cached);
@@ -66,7 +69,7 @@ public class TtsService {
                 return new Synthesized(bytes, contentTypeOf(audioFormat), true);
             }
         }
-        if (normalizedText.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_BYTES) {
+        if (normalizedText.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES) {
             throw new ToolException(ToolErrorKind.INVALID_INPUT, "朗读文本请求体超过 64 KiB");
         }
         try (DeepSeekToolsClient.AudioStream stream = client.tts(normalizedText, voice, audioFormat)) {
@@ -81,10 +84,6 @@ public class TtsService {
         }
     }
 
-    public String defaultVoice() {
-        return defaultVoice;
-    }
-
     /**
      * 清理过期音频缓存；命中路径的惰性删除只覆盖"再次被读"的文件，本任务兜底冷数据。
      */
@@ -96,7 +95,7 @@ public class TtsService {
         if (!Files.isDirectory(cacheRoot)) {
             return;
         }
-        java.time.Instant cutoff = java.time.Instant.now().minus(cacheDays, java.time.temporal.ChronoUnit.DAYS);
+        Instant cutoff = Instant.now().minus(cacheDays, ChronoUnit.DAYS);
         int removed = 0;
         try (var stream = Files.walk(cacheRoot)) {
             for (Path path : stream.filter(Files::isRegularFile).toList()) {
@@ -139,7 +138,7 @@ public class TtsService {
             }
             if (Files.getLastModifiedTime(path)
                     .toInstant()
-                    .isBefore(java.time.Instant.now().minus(cacheDays, java.time.temporal.ChronoUnit.DAYS))) {
+                    .isBefore(Instant.now().minus(cacheDays, ChronoUnit.DAYS))) {
                 Files.deleteIfExists(path);
                 return null;
             }
@@ -150,32 +149,30 @@ public class TtsService {
         }
     }
 
+    /**
+     * 先写唯一临时文件再原子替换，避免同一内容并发合成时抢占同一临时路径。
+     */
     private void writeCache(Path path, byte[] bytes) {
         if (path == null) {
             return;
         }
+        Path temp = path.resolveSibling(path.getFileName() + "." + UUID.randomUUID() + ".tmp");
         try {
             Files.createDirectories(path.getParent());
-            Path temp = path.resolveSibling(path.getFileName() + ".tmp");
             Files.write(temp, bytes);
-            Files.move(temp, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException exception) {
             log.warn("TTS 缓存写入失败：reason={}", exception.getClass().getSimpleName());
+            try {
+                Files.deleteIfExists(temp);
+            } catch (IOException ignored) {
+                // 清理失败无需上抛
+            }
         }
     }
 
     private static String contentTypeOf(String format) {
         return "pcm".equals(format) ? "audio/pcm" : "audio/wav";
-    }
-
-    private static String digest(String value) {
-        try {
-            return HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256")
-                            .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 不可用", exception);
-        }
     }
 
     /**

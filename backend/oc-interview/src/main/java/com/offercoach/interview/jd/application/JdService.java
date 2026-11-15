@@ -1,5 +1,6 @@
 package com.offercoach.interview.jd.application;
 
+import com.offercoach.common.digest.Sha256;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.interview.jd.application.port.JobDescriptionRepository;
@@ -9,12 +10,8 @@ import com.offercoach.interview.resume.application.port.ResumeRepository;
 import com.offercoach.interview.resume.domain.Resume;
 import com.offercoach.interview.support.JsonCodec;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -265,7 +262,7 @@ public class JdService {
     }
 
     private static String contentHashOf(String text) {
-        return sha256(normalizeForHash(text));
+        return Sha256.hex(normalizeForHash(text));
     }
 
     /**
@@ -280,15 +277,6 @@ public class JdService {
         normalized = normalized.replaceAll("(?m)[ ]+$", "");
         normalized = normalized.replaceAll("\n{3,}", "\n\n");
         return normalized.strip();
-    }
-
-    private static String sha256(String text) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(text.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 不可用", exception);
-        }
     }
 
     public record JdView(

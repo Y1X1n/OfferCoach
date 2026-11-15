@@ -3,6 +3,7 @@ package com.offercoach.ai.asr.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
+import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.client.DeepSeekToolsClient;
 import com.offercoach.ai.tools.concurrent.ConcurrencyLimiter;
@@ -30,7 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AsrController {
 
     private static final Logger log = LoggerFactory.getLogger(AsrController.class);
-    private static final String SCENE = "ASR";
+    private static final String SCENE = AiScene.ASR.name();
     private static final String MODEL = "tools-asr";
     private static final long MAX_AUDIO_BYTES = 8L * 1024 * 1024;
 

@@ -8,6 +8,7 @@ import com.offercoach.ai.tools.config.ToolsProperties;
 import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.http.MultipartBody;
+import com.offercoach.common.trace.TraceContext;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -17,15 +18,16 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 调用三个 AI 工具微服务的客户端；oc-app 是它们唯一的调用方。
+ * 调用 AI 工具微服务的客户端；oc-app 是它们唯一的调用方。
  *
- * <p>工具服务只做「文件 ↔ 文本 / 音频」转换，鉴权、额度与降级决策留在本侧。</p>
+ * <p>工具服务只做「文件 ↔ 文本 / 音频」转换，鉴权、额度与降级决策留在本侧。
+ * 所有调用透传当前请求的 {@code X-OC-Request-Id} 以串联跨服务 Trace；
+ * 可重试错误（上游繁忙 / 超时 / 网络）退避重试一次。</p>
  */
 @Component
 public class AiToolGateway {
@@ -33,6 +35,8 @@ public class AiToolGateway {
     private static final Logger log = LoggerFactory.getLogger(AiToolGateway.class);
     private static final int MAX_ERROR_BODY = 512;
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final int MAX_ATTEMPTS = 2;
+    private static final long RETRY_BACKOFF_MS = 300;
 
     private final ToolsProperties properties;
     private final ObjectMapper objectMapper;
@@ -59,15 +63,7 @@ public class AiToolGateway {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.bytes()))
                 .build();
         String json = send(request);
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            return new ToolDtos.AsrResult(
-                    root.path("requestId").asText(""),
-                    root.path("text").asText(""),
-                    root.path("durationMs").isNumber() ? root.path("durationMs").asInt() : null);
-        } catch (IOException exception) {
-            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "ASR 结果解析失败", exception);
-        }
+        return parseAsr(objectMapper, json);
     }
 
     /**
@@ -85,23 +81,32 @@ public class AiToolGateway {
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                 .build();
-        try {
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw mapUpstream(response.statusCode(), new String(response.body(), StandardCharsets.UTF_8));
+        ToolException last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    String contentType =
+                            response.headers().firstValue("Content-Type").orElse("audio/wav");
+                    boolean cached = response.headers()
+                            .firstValue("X-OC-Tts-Cache")
+                            .map("HIT"::equalsIgnoreCase)
+                            .orElse(false);
+                    return new AudioResult(response.body(), contentType, cached);
+                }
+                last = mapUpstream(response.statusCode(), new String(response.body(), StandardCharsets.UTF_8));
+            } catch (IOException exception) {
+                last = new ToolException(ToolErrorKind.UPSTREAM_FAILED, "TTS 服务调用失败", exception);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "TTS 服务调用被中断", exception);
             }
-            String contentType = response.headers().firstValue("Content-Type").orElse("audio/wav");
-            boolean cached = response.headers()
-                    .firstValue("X-OC-Tts-Cache")
-                    .map("HIT"::equalsIgnoreCase)
-                    .orElse(false);
-            return new AudioResult(response.body(), contentType, cached);
-        } catch (IOException exception) {
-            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "TTS 服务调用失败", exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "TTS 服务调用被中断", exception);
+            if (!last.kind().retryable() || attempt == MAX_ATTEMPTS) {
+                throw last;
+            }
+            pauseBeforeRetry("TTS", last.kind(), attempt);
         }
+        throw last;
     }
 
     /**
@@ -117,20 +122,7 @@ public class AiToolGateway {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.bytes()))
                 .build();
         String json = send(request);
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            List<ToolDtos.OcrPage> pages = new ArrayList<>();
-            for (JsonNode page : root.path("pages")) {
-                pages.add(new ToolDtos.OcrPage(
-                        page.path("index").asInt(pages.size()),
-                        page.path("text").asText(""),
-                        page.path("finishReason").asText("stop")));
-            }
-            return new ToolDtos.OcrResult(
-                    root.path("id").asText(""), root.path("pageCount").asInt(pages.size()), pages);
-        } catch (IOException exception) {
-            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "OCR 结果解析失败", exception);
-        }
+        return parseOcr(objectMapper, json);
     }
 
     /**
@@ -151,8 +143,55 @@ public class AiToolGateway {
                 .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
                 .build();
         String json = send(request);
+        return parseSearch(objectMapper, json);
+    }
+
+    /**
+     * 调用 Fetch 服务；返回页面标题与 Markdown 正文。
+     */
+    public ToolDtos.FetchResponse fetch(long userId, String url) {
+        String payload = objectMapper.createObjectNode().put("url", url).toString();
+        HttpRequest request = baseRequest(properties.getFetchBaseUrl(), "/internal/v1/fetch", userId)
+                .timeout(properties.getFetchTimeout())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                .build();
+        String json = send(request);
+        return parseFetch(objectMapper, json);
+    }
+
+    static ToolDtos.AsrResult parseAsr(ObjectMapper mapper, String json) {
         try {
-            JsonNode root = objectMapper.readTree(json);
+            JsonNode root = mapper.readTree(json);
+            return new ToolDtos.AsrResult(
+                    root.path("requestId").asText(""),
+                    root.path("text").asText(""),
+                    root.path("durationMs").isNumber() ? root.path("durationMs").asInt() : null);
+        } catch (IOException exception) {
+            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "ASR 结果解析失败", exception);
+        }
+    }
+
+    static ToolDtos.OcrResult parseOcr(ObjectMapper mapper, String json) {
+        try {
+            JsonNode root = mapper.readTree(json);
+            List<ToolDtos.OcrPage> pages = new ArrayList<>();
+            for (JsonNode page : root.path("pages")) {
+                pages.add(new ToolDtos.OcrPage(
+                        page.path("index").asInt(pages.size()),
+                        page.path("text").asText(""),
+                        page.path("finishReason").asText("stop")));
+            }
+            return new ToolDtos.OcrResult(
+                    root.path("id").asText(""), root.path("pageCount").asInt(pages.size()), pages);
+        } catch (IOException exception) {
+            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "OCR 结果解析失败", exception);
+        }
+    }
+
+    static List<ToolDtos.SearchResult> parseSearch(ObjectMapper mapper, String json) {
+        try {
+            JsonNode root = mapper.readTree(json);
             List<ToolDtos.SearchResult> results = new ArrayList<>();
             for (JsonNode item : root.path("results")) {
                 results.add(new ToolDtos.SearchResult(
@@ -173,19 +212,9 @@ public class AiToolGateway {
         }
     }
 
-    /**
-     * 调用 Fetch 服务；返回页面标题与 Markdown 正文。
-     */
-    public ToolDtos.FetchResponse fetch(long userId, String url) {
-        String payload = objectMapper.createObjectNode().put("url", url).toString();
-        HttpRequest request = baseRequest(properties.getFetchBaseUrl(), "/internal/v1/fetch", userId)
-                .timeout(properties.getFetchTimeout())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                .build();
-        String json = send(request);
+    static ToolDtos.FetchResponse parseFetch(ObjectMapper mapper, String json) {
         try {
-            JsonNode root = objectMapper.readTree(json);
+            JsonNode root = mapper.readTree(json);
             return new ToolDtos.FetchResponse(
                     root.path("title").asText(""), root.path("content").asText(""));
         } catch (IOException exception) {
@@ -198,32 +227,69 @@ public class AiToolGateway {
     }
 
     private HttpRequest.Builder baseRequest(String baseUrl, String path, long userId) {
-        String base = baseUrl == null || baseUrl.endsWith("/") ? trimTrailingSlash(baseUrl) : baseUrl;
+        String base = trimTrailingSlash(baseUrl);
+        if (base.isBlank()) {
+            throw new ToolException(ToolErrorKind.NOT_CONFIGURED, "AI 工具服务地址未配置：" + path);
+        }
+        URI uri;
+        try {
+            uri = URI.create(base + path);
+        } catch (IllegalArgumentException exception) {
+            throw new ToolException(ToolErrorKind.NOT_CONFIGURED, "AI 工具服务地址不合法：" + path, exception);
+        }
         return HttpRequest.newBuilder()
-                .uri(URI.create(base + path))
+                .uri(uri)
                 .header(properties.getInternalHeader(), properties.getInternalToken())
                 .header(properties.getUserIdHeader(), Long.toString(userId))
-                .header(properties.getRequestIdHeader(), UUID.randomUUID().toString());
+                .header(properties.getRequestIdHeader(), currentRequestId());
+    }
+
+    /**
+     * 透传 oc-app 侧的请求 ID，使工具服务日志可与上游调用串联；缺失时回退为随机值。
+     */
+    private static String currentRequestId() {
+        String requestId = TraceContext.requestId();
+        return requestId == null || requestId.isBlank()
+                ? java.util.UUID.randomUUID().toString()
+                : requestId;
     }
 
     private String send(HttpRequest request) {
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw mapUpstream(response.statusCode(), response.body());
+        ToolException last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    return response.body();
+                }
+                last = mapUpstream(response.statusCode(), response.body());
+            } catch (IOException exception) {
+                last = new ToolException(ToolErrorKind.UPSTREAM_FAILED, "工具服务调用失败", exception);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "工具服务调用被中断", exception);
             }
-            return response.body();
-        } catch (IOException exception) {
-            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "工具服务调用失败", exception);
+            if (!last.kind().retryable() || attempt == MAX_ATTEMPTS) {
+                throw last;
+            }
+            pauseBeforeRetry("工具", last.kind(), attempt);
+        }
+        throw last;
+    }
+
+    private static void pauseBeforeRetry(String label, ToolErrorKind kind, int attempt) {
+        log.info("{}调用可重试失败，退避重试：kind={} attempt={}", label, kind, attempt);
+        try {
+            Thread.sleep(RETRY_BACKOFF_MS);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "工具服务调用被中断", exception);
+            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "重试等待被中断", exception);
         }
     }
 
     private ToolException mapUpstream(int status, String body) {
         log.warn("工具服务返回非 2xx：status={} body={}", status, truncate(body));
-        ToolErrorKind declared = kindFromBody(body);
+        ToolErrorKind declared = kindFromBody(objectMapper, body);
         ToolErrorKind kind = declared != null
                 ? declared
                 : switch (status) {
@@ -243,12 +309,12 @@ public class AiToolGateway {
     /**
      * 工具服务的错误体带稳定 {@code code}（与 ToolErrorKind 同名）；优先用它，避免状态码丢语义。
      */
-    private ToolErrorKind kindFromBody(String body) {
+    static ToolErrorKind kindFromBody(ObjectMapper mapper, String body) {
         if (body == null || body.isBlank()) {
             return null;
         }
         try {
-            JsonNode root = objectMapper.readTree(body);
+            JsonNode root = mapper.readTree(body);
             String code = root.path("code").asText("");
             return code.isBlank() ? null : ToolErrorKind.valueOf(code);
         } catch (IOException | IllegalArgumentException exception) {

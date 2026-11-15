@@ -3,38 +3,36 @@ package com.offercoach.identity.application.quota;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.offercoach.common.error.BizException;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 /**
- * 统一计数守卫：上限语义、超限错误、Redis 故障放行与归还。
+ * 统一计数守卫：上限语义、超限错误、Redis 故障放行、脚本参数与归还。
  */
 class RedisCounterGuardTest {
 
     private static final Duration TTL = Duration.ofDays(1);
+    private static final String TTL_MILLIS = Long.toString(TTL.toMillis());
     private static final String KEY = "oc:test:counter";
 
     private StringRedisTemplate redis;
-    private ValueOperations<String, String> ops;
     private RedisCounterGuard guard;
 
     @BeforeEach
-    @SuppressWarnings("unchecked")
     void setUp() {
         redis = mock(StringRedisTemplate.class);
-        ops = mock(ValueOperations.class);
-        when(redis.opsForValue()).thenReturn(ops);
         guard = new RedisCounterGuard(redis);
     }
 
@@ -42,28 +40,35 @@ class RedisCounterGuardTest {
     void unlimitedWhenLimitIsZero() {
         assertThat(guard.tryAcquire(KEY, 0, TTL)).isTrue();
 
-        verifyNoInteractions(ops);
+        verifyNoInteractions(redis);
     }
 
     @Test
     void acquiresWhenUnderLimit() {
-        when(ops.increment(KEY)).thenReturn(1L);
+        stubCounter(1L);
 
         assertThat(guard.tryAcquire(KEY, 3, TTL)).isTrue();
+    }
 
-        verify(ops).increment(KEY);
+    @Test
+    void passesTtlMillisToScript() {
+        stubCounter(1L);
+
+        guard.tryAcquire(KEY, 3, TTL);
+
+        verify(redis).execute(any(RedisScript.class), eq(List.of(KEY)), eq(TTL_MILLIS));
     }
 
     @Test
     void rejectsWhenOverLimit() {
-        when(ops.increment(KEY)).thenReturn(4L);
+        stubCounter(4L);
 
         assertThat(guard.tryAcquire(KEY, 3, TTL)).isFalse();
     }
 
     @Test
     void throwsWithScopeWhenOverLimit() {
-        when(ops.increment(KEY)).thenReturn(4L);
+        stubCounter(4L);
 
         assertThatThrownBy(() -> guard.tryAcquireOrThrow(KEY, 3, TTL, "SEARCH"))
                 .isInstanceOf(BizException.class)
@@ -74,27 +79,30 @@ class RedisCounterGuardTest {
 
     @Test
     void failsOpenWhenRedisUnavailable() {
-        when(ops.increment(KEY)).thenThrow(new IllegalStateException("redis down"));
+        when(redis.execute(any(RedisScript.class), anyList(), any()))
+                .thenThrow(new IllegalStateException("redis down"));
 
         assertThat(guard.tryAcquire(KEY, 3, TTL)).isTrue();
     }
 
     @Test
-    void releaseDeletesKeyWhenItWouldGoNegative() {
-        when(ops.decrement(KEY)).thenReturn(-1L);
+    void releaseRunsDecrementScript() {
+        stubCounter(0L);
 
         guard.release(KEY);
 
-        verify(redis).delete(KEY);
-        verify(ops, never()).set(eq(KEY), any(String.class));
+        verify(redis).execute(any(RedisScript.class), eq(List.of(KEY)));
     }
 
     @Test
     void releaseIgnoresRedisFailure() {
-        when(ops.decrement(KEY)).thenThrow(new IllegalStateException("redis down"));
+        when(redis.execute(any(RedisScript.class), anyList())).thenThrow(new IllegalStateException("redis down"));
 
         guard.release(KEY);
+    }
 
-        verify(ops, never()).set(eq(KEY), any(String.class));
+    @SuppressWarnings("unchecked")
+    private void stubCounter(Long value) {
+        when(redis.execute(any(RedisScript.class), anyList(), any())).thenReturn(value);
     }
 }

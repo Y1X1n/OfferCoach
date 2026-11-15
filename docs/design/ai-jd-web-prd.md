@@ -322,7 +322,7 @@ URL 模式下，Fetch 的失败**不直接报错给用户**，而是先走 Searc
 ## 14. 代码审查整改（2026-11-15）
 
 - **兜底来源在多候选选择后丢失** → `searchToken` 缓存改为 `{fallbackReason, results}`，候选预览透传 `resolvedBy=SEARCH_FALLBACK`；真机验证：登录墙链接 → 10 候选 → 选中后仍标注"已改用搜索"。
-- **服务拆分**：`JdWebImportService`（617 行）拆为 `JdSearchCacheService`（检索 + 查询/候选缓存）、`JdPreviewStoreService`（预览存取 + 落库）、`JdDailyLimitGuard`（每日上限），编排保留在 `JdWebImportService`（约 470 行）。
+- **服务拆分**：`JdWebImportService`（617 行）拆为 `JdSearchCacheService`（检索 + 查询/候选缓存）、`JdPreviewStoreService`（预览存取 + 落库）、`JdWebFetchService`（抓取 + 缓存 + 上限 + 失败归因），编排保留在 `JdWebImportService`（372 行）。
 - **重复实现**：multipart 构造抽为 `oc-ai-core` 的 `MultipartBody`；前端 401 重试抽为 `sendWithRefreshRetry`。
 - **索引命名**：`uq_jd_user_content_hash` → `uq_job_description_user_id_content_hash`（迁移 `V202611150002`）。
 - **非活跃会话开销**：语音作答先校验会话 `IN_PROGRESS`、题目归属与是否已作答，再调 ASR（真机：CREATED 会话提交返回 409 且 ASR 调用数不变）；朗读仅允许 READY/IN_PROGRESS/PAUSED。
@@ -332,3 +332,5 @@ URL 模式下，Fetch 的失败**不直接报错给用户**，而是先走 Searc
 - **前端 `resolvedBy` 类型缺 `SEARCH`** → 类型补全，与后端契约一致。
 - **`JdWebImportService` 仍偏大**（第三轮审查）→ 再拆 `JdWebFetchService`（抓取 + 缓存 + 上限 + 失败归因），编排层约 300 行。
 - **无限额时归还产生永久 `0` 键**（第三轮审查）→ `RedisCounterGuard.release` 负数改为删除键；OCR 仅在真正计数（`limit>0`）时归还；新增 `ResumeOcrFallbackTest` 7 项覆盖开关/超限/失败归还。
+- **抓取缓存命中丢标题、失败原因塌缩**（第四轮审查）→ 缓存改存 `{cleaned,title,reason}`，命中保留标题与具体失败原因（`FETCH_BLOCKED`/`FETCH_NO_CONTENT` 不再合一）。
+- **能力关闭 / 上游失败仍扣抓取与搜索配额**（第四轮审查）→ 计数前校验开关（关闭返回 503 且不计数）、失败 `release` 归还；`fetchEnabled=false` 时返回 `FETCH_DISABLED` 直接走搜索兜底；`provider` 取值以代码为准（`deepseek-tools` / `offercoach-cache`）。

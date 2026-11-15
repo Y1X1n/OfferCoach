@@ -13,8 +13,7 @@ import type {
 import { ApiError, createRequestId, errorMessage } from '@/api/client'
 import * as interviewsApi from '@/api/interviews'
 import { useToast } from '@/composables/useToast'
-import { getAutoReadSpeech, getSpeechVoice } from '@/utils/speechPrefs'
-import type { SpeechVoice } from '@/utils/speechPrefs'
+import { useInterviewSpeech } from '@/composables/useInterviewSpeech'
 
 export type StreamState = 'idle' | 'connecting' | 'streaming' | 'done' | 'error'
 
@@ -51,15 +50,10 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const submitKeys = new Map<string, string>()
   const durations = reactive<Record<string, number>>({})
   const voiceTranscribing = ref(false)
-  const speaking = ref(false)
-  const speechError = ref('')
-  const speechVoice = ref<SpeechVoice>(getSpeechVoice())
-  const speechUrls = new Map<string, string>()
 
   let timerId: number | null = null
   let draftTimer: number | null = null
   let feedbackWaitGeneration = 0
-  let audioEl: HTMLAudioElement | null = null
 
   const config = computed<InterviewConfig>(
     () =>
@@ -161,6 +155,13 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   function sessionKey(): string {
     return toValue(sessionId)
   }
+
+  const { speaking, speechError, speechVoice, toggleSpeech, stopSpeech, maybeAutoRead, disposeSpeech } =
+    useInterviewSpeech({
+      currentQuestion: () => currentQuestion.value,
+      sessionKey,
+      canAutoRead: () => isSessionActive.value && !isAnswered.value,
+    })
 
   function draftKey(questionId: string): string {
     return `${DRAFT_PREFIX}${sessionKey()}_${questionId}`
@@ -585,66 +586,6 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     }
   }
 
-  /**
-   * 朗读当前题目：首次点击取音频，之后复用对象 URL；再次点击停止。
-   */
-  async function toggleSpeech(auto = false): Promise<void> {
-    const question = currentQuestion.value
-    if (!question) return
-    if (speaking.value) {
-      stopSpeech()
-      return
-    }
-    speaking.value = true
-    speechError.value = ''
-    try {
-      let url = speechUrls.get(question.id)
-      if (!url) {
-        const blob = await interviewsApi.fetchQuestionSpeech(sessionKey(), question.id, speechVoice.value)
-        url = URL.createObjectURL(blob)
-        speechUrls.set(question.id, url)
-      }
-      const audio = new Audio(url)
-      audioEl = audio
-      audio.onended = () => {
-        speaking.value = false
-      }
-      audio.onerror = () => {
-        speaking.value = false
-        speechError.value = '音频播放失败'
-      }
-      await audio.play()
-    } catch (cause) {
-      speaking.value = false
-      if (auto) {
-        // 自动朗读被浏览器策略拦截或上游失败时静默跳过，不打扰用户。
-        return
-      }
-      speechError.value = errorMessage(cause, '题目朗读失败')
-      toast(speechError.value, 'error')
-    }
-  }
-
-  /**
-   * 偏好开启时，进入新题自动朗读；首题可能被浏览器自动播放策略拦截。
-   */
-  function maybeAutoRead(): void {
-    if (!getAutoReadSpeech()) return
-    const question = currentQuestion.value
-    if (!question || !isSessionActive.value || isAnswered.value) return
-    if (question.status === 'SKIPPED') return
-    void toggleSpeech(true)
-  }
-
-  function stopSpeech(): void {
-    if (audioEl) {
-      audioEl.pause()
-      audioEl.currentTime = 0
-      audioEl = null
-    }
-    speaking.value = false
-  }
-
   async function skipCurrent(auto = false): Promise<void> {
     const question = currentQuestion.value
     if (!question || !isSessionActive.value) return
@@ -829,9 +770,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     flushDraft()
     clearTimer()
     abortStream()
-    stopSpeech()
-    speechUrls.forEach((url) => URL.revokeObjectURL(url))
-    speechUrls.clear()
+    disposeSpeech()
   })
 
   return {

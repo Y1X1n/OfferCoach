@@ -1,5 +1,7 @@
 package com.offercoach.ai.tools.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.AiRuntimeConfigService.AiRuntimeSettings;
 import com.offercoach.ai.tools.config.ToolsProperties;
@@ -20,7 +22,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * DeepSeek 工具接口客户端：{@code /v1/tools/{asr,tts,ocr}}。
+ * DeepSeek 工具接口客户端：{@code /v1/tools/{asr,tts,ocr,search,fetch}}。
  *
  * <p>与对话接口同源同 Key，Base URL 与密钥统一来自 {@code ai_runtime_config}；
  * 本类只负责 HTTP 细节与错误映射，不做业务判断。密钥不写日志。</p>
@@ -29,16 +31,18 @@ import org.springframework.stereotype.Component;
 public class DeepSeekToolsClient {
 
     private static final Logger log = LoggerFactory.getLogger(DeepSeekToolsClient.class);
-    private static final String PROVIDER = "deepseek-tools";
     private static final int MAX_ERROR_BODY = 512;
 
     private final AiRuntimeConfigService runtimeConfig;
     private final ToolsProperties properties;
+    private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    public DeepSeekToolsClient(AiRuntimeConfigService runtimeConfig, ToolsProperties properties) {
+    public DeepSeekToolsClient(
+            AiRuntimeConfigService runtimeConfig, ToolsProperties properties, ObjectMapper objectMapper) {
         this.runtimeConfig = runtimeConfig;
         this.properties = properties;
+        this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -66,7 +70,7 @@ public class DeepSeekToolsClient {
                 .header("Content-Type", body.contentType())
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.bytes()))
                 .build();
-        return sendForText(request, properties.getAsrTimeout());
+        return sendForText(request);
     }
 
     /**
@@ -84,52 +88,37 @@ public class DeepSeekToolsClient {
                 .header("Content-Type", body.contentType())
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.bytes()))
                 .build();
-        return sendForText(request, properties.getOcrTimeout());
+        return sendForText(request);
     }
 
     /**
      * Search：JSON 请求，返回结构化检索结果原文。
      */
     public String search(String query, Integer count, String oriQuestion, Boolean needContent, String localization) {
-        AiRuntimeSettings settings = requireSettings();
-        StringBuilder json = new StringBuilder("{\"query\":").append(quote(query));
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("query", query);
         if (count != null) {
-            json.append(",\"count\":").append(count);
+            payload.put("count", count);
         }
         if (oriQuestion != null && !oriQuestion.isBlank()) {
-            json.append(",\"ori_question\":").append(quote(oriQuestion));
+            payload.put("ori_question", oriQuestion);
         }
         if (needContent != null) {
-            json.append(",\"need_content\":").append(needContent);
+            payload.put("need_content", needContent);
         }
         if (localization != null && !localization.isBlank()) {
-            json.append(",\"localization\":").append(quote(localization));
+            payload.put("localization", localization);
         }
-        json.append('}');
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(uriOf(settings, "/tools/search"))
-                .timeout(properties.getSearchTimeout())
-                .header("Authorization", "Bearer " + settings.apiKey())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json.toString(), StandardCharsets.UTF_8))
-                .build();
-        return sendForText(request, properties.getSearchTimeout());
+        return postJson(requireSettings(), "/tools/search", payload, properties.getSearchTimeout());
     }
 
     /**
      * Fetch：JSON 请求，返回页面正文（Markdown）原文。
      */
     public String fetch(String url) {
-        AiRuntimeSettings settings = requireSettings();
-        String json = "{\"url\":" + quote(url) + "}";
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(uriOf(settings, "/tools/fetch"))
-                .timeout(properties.getFetchTimeout())
-                .header("Authorization", "Bearer " + settings.apiKey())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
-                .build();
-        return sendForText(request, properties.getFetchTimeout());
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("url", url);
+        return postJson(requireSettings(), "/tools/fetch", payload, properties.getFetchTimeout());
     }
 
     /**
@@ -137,15 +126,17 @@ public class DeepSeekToolsClient {
      */
     public AudioStream tts(String text, String voiceId, String format) {
         AiRuntimeSettings settings = requireSettings();
-        String json =
-                "{\"text\":" + quote(text) + ",\"voice_id\":" + quote(voiceId) + ",\"format\":" + quote(format) + "}";
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("text", text);
+        payload.put("voice_id", voiceId);
+        payload.put("format", format);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uriOf(settings, "/tools/tts"))
                 .timeout(properties.getTtsTimeout())
                 .header("Authorization", "Bearer " + settings.apiKey())
                 .header("Content-Type", "application/json")
                 .header("Accept", "audio/wav, audio/pcm, application/octet-stream")
-                .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
                 .build();
         try {
             HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -163,14 +154,18 @@ public class DeepSeekToolsClient {
         }
     }
 
-    /**
-     * 供日志记录使用的模型标识。
-     */
-    public String providerName() {
-        return PROVIDER;
+    private String postJson(AiRuntimeSettings settings, String path, ObjectNode payload, Duration timeout) {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uriOf(settings, path))
+                .timeout(timeout)
+                .header("Authorization", "Bearer " + settings.apiKey())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
+                .build();
+        return sendForText(request);
     }
 
-    private String sendForText(HttpRequest request, Duration timeout) {
+    private String sendForText(HttpRequest request) {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -206,10 +201,14 @@ public class DeepSeekToolsClient {
     }
 
     private URI uriOf(AiRuntimeSettings settings, String path) {
-        String base = settings.baseUrl().endsWith("/")
-                ? settings.baseUrl().substring(0, settings.baseUrl().length() - 1)
-                : settings.baseUrl();
-        // 运行时配置默认已带 /v1（https://api.deepseek.com/v1），避免重复拼接成 /v1/v1/tools。
+        return uriOf(settings.baseUrl(), path);
+    }
+
+    /**
+     * 拼接工具接口地址；baseUrl 已以 {@code /v1} 结尾时不再重复拼接 {@code /v1}。
+     */
+    static URI uriOf(String baseUrl, String path) {
+        String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String prefix = base.endsWith("/v1") ? "" : "/v1";
         try {
             return URI.create(base + prefix + path);
@@ -220,22 +219,27 @@ public class DeepSeekToolsClient {
 
     private ToolException mapUpstream(int status, String body) {
         log.warn("工具上游返回非 2xx：status={} body={}", status, truncate(body));
-        ToolErrorKind kind =
-                switch (status) {
-                    case 400 -> body != null && body.contains("Content Exists Risk")
-                            ? ToolErrorKind.CONTENT_REJECTED
-                            : ToolErrorKind.INVALID_INPUT;
-                    case 402 -> ToolErrorKind.INSUFFICIENT_BALANCE;
-                    case 403 -> ToolErrorKind.BLOCKED;
-                    case 404 -> ToolErrorKind.NO_CONTENT;
-                    case 408 -> ToolErrorKind.UPSTREAM_TIMEOUT;
-                    case 413 -> ToolErrorKind.TOO_LARGE;
-                    case 429 -> ToolErrorKind.UPSTREAM_BUSY;
-                    case 503 -> ToolErrorKind.UPSTREAM_BUSY;
-                    case 504 -> ToolErrorKind.UPSTREAM_TIMEOUT;
-                    default -> ToolErrorKind.UPSTREAM_FAILED;
-                };
-        return new ToolException(kind, "上游返回 " + status, null, status);
+        return new ToolException(classifyUpstream(status, body), "上游返回 " + status, null, status);
+    }
+
+    /**
+     * 上游状态码 → 内部错误分类；400 且内容审核拦截时归为内容被拒。
+     */
+    static ToolErrorKind classifyUpstream(int status, String body) {
+        return switch (status) {
+            case 400 -> body != null && body.contains("Content Exists Risk")
+                    ? ToolErrorKind.CONTENT_REJECTED
+                    : ToolErrorKind.INVALID_INPUT;
+            case 402 -> ToolErrorKind.INSUFFICIENT_BALANCE;
+            case 403 -> ToolErrorKind.BLOCKED;
+            case 404 -> ToolErrorKind.NO_CONTENT;
+            case 408 -> ToolErrorKind.UPSTREAM_TIMEOUT;
+            case 413 -> ToolErrorKind.TOO_LARGE;
+            case 429 -> ToolErrorKind.UPSTREAM_BUSY;
+            case 503 -> ToolErrorKind.UPSTREAM_BUSY;
+            case 504 -> ToolErrorKind.UPSTREAM_TIMEOUT;
+            default -> ToolErrorKind.UPSTREAM_FAILED;
+        };
     }
 
     private static String readQuietly(InputStream input) {
@@ -251,27 +255,6 @@ public class DeepSeekToolsClient {
             return "";
         }
         return value.length() <= MAX_ERROR_BODY ? value : value.substring(0, MAX_ERROR_BODY);
-    }
-
-    private static String quote(String value) {
-        StringBuilder builder = new StringBuilder("\"");
-        for (char ch : (value == null ? "" : value).toCharArray()) {
-            switch (ch) {
-                case '"' -> builder.append("\\\"");
-                case '\\' -> builder.append("\\\\");
-                case '\n' -> builder.append("\\n");
-                case '\r' -> builder.append("\\r");
-                case '\t' -> builder.append("\\t");
-                default -> {
-                    if (ch < 0x20) {
-                        builder.append(String.format("\\u%04x", (int) ch));
-                    } else {
-                        builder.append(ch);
-                    }
-                }
-            }
-        }
-        return builder.append('"').toString();
     }
 
     /**
