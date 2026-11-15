@@ -330,3 +330,5 @@ URL 模式下，Fetch 的失败**不直接报错给用户**，而是先走 Searc
 - **预览令牌可重复使用**（第二轮审查）→ 提交成功后（事务 afterCommit）删除 `previewToken`；失败回滚保留。
 - **搜索/抓取限额实现重复**（第二轮审查）→ 统一走 `RedisCounterGuard`。
 - **前端 `resolvedBy` 类型缺 `SEARCH`** → 类型补全，与后端契约一致。
+- **`JdWebImportService` 仍偏大**（第三轮审查）→ 再拆 `JdWebFetchService`（抓取 + 缓存 + 上限 + 失败归因），编排层约 300 行。
+- **无限额时归还产生永久 `0` 键**（第三轮审查）→ `RedisCounterGuard.release` 负数改为删除键；OCR 仅在真正计数（`limit>0`）时归还；新增 `ResumeOcrFallbackTest` 7 项覆盖开关/超限/失败归还。

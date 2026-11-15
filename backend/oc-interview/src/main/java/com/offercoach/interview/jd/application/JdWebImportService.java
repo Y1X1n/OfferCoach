@@ -3,72 +3,48 @@ package com.offercoach.interview.jd.application;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
-import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.ai.tools.validation.FetchUrlRules;
-import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
-import com.offercoach.identity.application.quota.RedisCounterGuard;
-import com.offercoach.identity.application.settings.PlatformSettingsService;
-import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.document.WebContentCleaner;
 import com.offercoach.interview.jd.domain.JobDescription;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
-import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 /**
  * 目标岗位 JD 的联网获取编排：URL 优先（Fetch）→ Search 兜底。
  *
- * <p>检索与候选缓存见 {@link JdSearchCacheService}，预览存取见 {@link JdPreviewStoreService}，
- * 正文清理见 {@link WebContentCleaner}，"抓不到"判定见 {@link JdBodyExtractor}。</p>
+ * <p>抓取见 {@link JdWebFetchService}，检索与候选缓存见 {@link JdSearchCacheService}，
+ * 预览存取见 {@link JdPreviewStoreService}，正文清理见 {@link WebContentCleaner}，
+ * "抓不到"判定见 {@link JdBodyExtractor}。</p>
  */
 @Service
 public class JdWebImportService {
 
     private static final Logger log = LoggerFactory.getLogger(JdWebImportService.class);
 
-    private static final Duration FETCH_CACHE_TTL = Duration.ofHours(1);
     private static final int MAX_RESULTS = 10;
     private static final double AUTO_PICK_SCORE = 1.5;
     private static final int AUTO_PICK_AUTHORITY = 3;
     private static final double AUTO_PICK_LEAD = 0.3;
 
-    private final AiToolGateway toolGateway;
+    private final JdWebFetchService fetchService;
     private final JdSearchCacheService searchCacheService;
     private final JdPreviewStoreService previewStoreService;
-    private final RedisCounterGuard counterGuard;
-    private final StringRedisTemplate redisTemplate;
-    private final PlatformSettingsService platformSettings;
-    private final AiCallLogger aiCallLogger;
 
     public JdWebImportService(
-            AiToolGateway toolGateway,
+            JdWebFetchService fetchService,
             JdSearchCacheService searchCacheService,
-            JdPreviewStoreService previewStoreService,
-            RedisCounterGuard counterGuard,
-            StringRedisTemplate redisTemplate,
-            PlatformSettingsService platformSettings,
-            AiCallLogger aiCallLogger) {
-        this.toolGateway = toolGateway;
+            JdPreviewStoreService previewStoreService) {
+        this.fetchService = fetchService;
         this.searchCacheService = searchCacheService;
         this.previewStoreService = previewStoreService;
-        this.counterGuard = counterGuard;
-        this.redisTemplate = redisTemplate;
-        this.platformSettings = platformSettings;
-        this.aiCallLogger = aiCallLogger;
     }
 
     /**
@@ -111,7 +87,7 @@ public class JdWebImportService {
             throw new BizException(
                     ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("url", exception.getMessage())));
         }
-        FetchOutcome fetched = fetchCleaned(userId, url);
+        JdWebFetchService.Outcome fetched = fetchService.fetch(userId, url);
         if (fetched.cleaned() == null || !JdBodyExtractor.looksLikeJd(fetched.cleaned())) {
             String reason = fetched.cleaned() == null ? fetched.reason() : "FETCH_TOO_SHORT";
             Optional<PreviewOutcome> fallback = searchFallback(userId, url, command.keywords(), reason);
@@ -225,54 +201,6 @@ public class JdWebImportService {
         return PreviewOutcome.preview(stored.token(), stored.preview(), stored.structured(), resolvedBy);
     }
 
-    private FetchOutcome fetchCleaned(long userId, String url) {
-        String key = RedisKeys.jdFetchCache(digest(url));
-        try {
-            String cached = redisTemplate.opsForValue().get(key);
-            if (cached != null) {
-                aiCallLogger.log(
-                        userId, "FETCH", "offercoach-cache", "cache", "DEGRADED", null, null, null, 0, "CACHE_HIT");
-                return cached.isEmpty()
-                        ? new FetchOutcome(null, null, "FETCH_BLOCKED")
-                        : new FetchOutcome(cached, null, null);
-            }
-        } catch (RuntimeException exception) {
-            log.warn("抓取缓存读取失败：reason={}", exception.getClass().getSimpleName());
-        }
-        counterGuard.tryAcquireOrThrow(
-                RedisKeys.dailyFetch(userId, LocalDate.now().toString()),
-                platformSettings.snapshot().fetchDailyLimit(),
-                Duration.ofDays(1),
-                "FETCH");
-        String cleaned;
-        String pageTitle;
-        try {
-            ToolDtos.FetchResponse response = toolGateway.fetch(userId, url);
-            cleaned = WebContentCleaner.clean(response.content() == null ? "" : response.content());
-            pageTitle = response.title();
-        } catch (ToolException exception) {
-            log.info("抓取未成功，转入搜索兜底：kind={}", exception.kind());
-            String reason =
-                    switch (exception.kind()) {
-                        case BLOCKED -> "FETCH_BLOCKED";
-                        case NO_CONTENT -> "FETCH_NO_CONTENT";
-                        default -> "FETCH_FAILED";
-                    };
-            cacheQuietly(key, "", FETCH_CACHE_TTL);
-            return new FetchOutcome(null, null, reason);
-        }
-        cacheQuietly(key, cleaned, FETCH_CACHE_TTL);
-        return new FetchOutcome(cleaned, pageTitle, null);
-    }
-
-    private void cacheQuietly(String key, String value, Duration ttl) {
-        try {
-            redisTemplate.opsForValue().set(key, value, ttl);
-        } catch (RuntimeException exception) {
-            log.warn("缓存写入失败：reason={}", exception.getClass().getSimpleName());
-        }
-    }
-
     private static BizException toBizFailure(ToolException exception, String fallbackMessage) {
         return switch (exception.kind()) {
             case NOT_CONFIGURED, UPSTREAM_BUSY, UPSTREAM_TIMEOUT, UPSTREAM_FAILED, BUSY -> new BizException(
@@ -354,16 +282,7 @@ public class JdWebImportService {
     }
 
     public static String resultIdOf(ToolDtos.SearchResult item) {
-        return digest(item.url() == null ? "" : item.url());
-    }
-
-    private static String digest(String value) {
-        try {
-            return HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 不可用", exception);
-        }
+        return JdWebFetchService.digest(item.url() == null ? "" : item.url());
     }
 
     /**
@@ -450,9 +369,4 @@ public class JdWebImportService {
      * 搜索输出。
      */
     public record SearchOutcome(String searchToken, List<ToolDtos.SearchResult> results) {}
-
-    /**
-     * 抓取结果：cleaned 非空表示抓到正文，否则 reason 说明失败原因。
-     */
-    private record FetchOutcome(String cleaned, String title, String reason) {}
 }

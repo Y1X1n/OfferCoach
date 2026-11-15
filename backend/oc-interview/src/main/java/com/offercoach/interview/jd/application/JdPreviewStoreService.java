@@ -1,5 +1,6 @@
 package com.offercoach.interview.jd.application;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.common.cache.RedisKeys;
@@ -13,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * JD 预览存取：未落库预览的短期缓存与"确认后落库"。
@@ -95,7 +98,7 @@ public class JdPreviewStoreService {
         StructuredPreview preview;
         try {
             preview = objectMapper.readValue(json, new TypeReference<StructuredPreview>() {});
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+        } catch (JsonProcessingException exception) {
             throw new BizException(
                     ErrorCode.STATE_CONFLICT, Map.of("reason", "PREVIEW_EXPIRED", "message", "预览已过期，请重新获取"));
         }
@@ -122,14 +125,13 @@ public class JdPreviewStoreService {
                 log.warn("预览令牌删除失败：reason={}", exception.getClass().getSimpleName());
             }
         };
-        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
-            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                    new org.springframework.transaction.support.TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            delete.run();
-                        }
-                    });
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    delete.run();
+                }
+            });
         } else {
             delete.run();
         }
