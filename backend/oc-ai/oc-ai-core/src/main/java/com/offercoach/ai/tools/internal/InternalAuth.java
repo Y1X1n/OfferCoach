@@ -27,7 +27,8 @@ public class InternalAuth {
     }
 
     /**
-     * 校验内部请求；失败抛出 TOOL_INVALID_INPUT 以外的鉴权错误，由全局异常处理映射为 401。
+     * 校验内部请求；令牌未配置时按未配置处理（fail-closed），令牌缺失/错误抛鉴权错误，
+     * 由全局异常处理映射为 401。
      */
     public long requireUser(HttpServletRequest request) {
         if (expectedToken == null) {

@@ -3,6 +3,7 @@ package com.offercoach.ai.search.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
+import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.client.DeepSeekToolsClient;
 import com.offercoach.ai.tools.concurrent.ConcurrencyLimiter;
@@ -31,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SearchController {
 
     private static final Logger log = LoggerFactory.getLogger(SearchController.class);
-    private static final String SCENE = "SEARCH";
+    private static final String SCENE = AiScene.SEARCH.name();
     private static final String MODEL = "tools-search";
     private static final int MAX_QUERY_CHARS = 128;
     private static final int OFFICIAL_MAX_COUNT = 50;

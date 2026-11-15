@@ -3,6 +3,7 @@ package com.offercoach.ai.ocr.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
+import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.client.DeepSeekToolsClient;
 import com.offercoach.ai.tools.concurrent.ConcurrencyLimiter;
@@ -34,7 +35,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class OcrController {
 
     private static final Logger log = LoggerFactory.getLogger(OcrController.class);
-    private static final String SCENE = "OCR";
+    private static final String SCENE = AiScene.OCR.name();
     private static final String MODEL = "tools-ocr";
     // 与简历上传入口的 10 MiB 上限保持一致，避免出现"服务允许但入口不可达"的空配置。
     private static final long MAX_FILE_BYTES = 10L * 1024 * 1024;

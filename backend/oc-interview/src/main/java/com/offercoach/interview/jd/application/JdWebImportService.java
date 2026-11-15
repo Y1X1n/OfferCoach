@@ -4,6 +4,7 @@ import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.validation.FetchUrlRules;
+import com.offercoach.common.digest.Sha256;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.interview.document.WebContentCleaner;
@@ -131,6 +132,9 @@ public class JdWebImportService {
         try {
             results = searchCacheService.search(userId, query, MAX_RESULTS);
         } catch (BizException exception) {
+            if ("NOT_CONFIGURED".equals(exception.details().get("reason"))) {
+                throw exception;
+            }
             log.warn("搜索兜底失败：reason={}", exception.getMessage());
             return Optional.empty();
         } catch (ToolException exception) {
@@ -282,7 +286,7 @@ public class JdWebImportService {
     }
 
     public static String resultIdOf(ToolDtos.SearchResult item) {
-        return JdWebFetchService.digest(item.url() == null ? "" : item.url());
+        return Sha256.hex(item.url() == null ? "" : item.url());
     }
 
     /**

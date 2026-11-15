@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +62,7 @@ public class LocalFileStorage implements FileStorage {
     }
 
     @Override
-    public java.util.List<String> listKeys(String prefix) {
+    public List<String> listKeys(String prefix) {
         if (prefix == null || prefix.isBlank()) {
             return List.of();
         }
@@ -80,7 +81,7 @@ public class LocalFileStorage implements FileStorage {
     }
 
     @Override
-    public java.time.Instant lastModified(String key) {
+    public Instant lastModified(String key) {
         try {
             return Files.getLastModifiedTime(resolve(key)).toInstant();
         } catch (IOException exception) {

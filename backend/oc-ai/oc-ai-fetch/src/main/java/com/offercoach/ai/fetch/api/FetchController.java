@@ -3,6 +3,7 @@ package com.offercoach.ai.fetch.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
+import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.client.DeepSeekToolsClient;
 import com.offercoach.ai.tools.concurrent.ConcurrencyLimiter;
@@ -32,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class FetchController {
 
     private static final Logger log = LoggerFactory.getLogger(FetchController.class);
-    private static final String SCENE = "FETCH";
+    private static final String SCENE = AiScene.FETCH.name();
     private static final String MODEL = "tools-fetch";
     private static final int MAX_URL_LENGTH = 8192;
 
