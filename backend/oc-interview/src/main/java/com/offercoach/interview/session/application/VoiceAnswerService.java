@@ -146,7 +146,7 @@ public class VoiceAnswerService {
     /**
      * 魔数校验：仅接受 16-bit PCM WAV 或 Ogg Opus（对齐 DeepSeek ASR 的入参约束）。
      */
-    private static void requireSupportedAudio(byte[] content) {
+    static void requireSupportedAudio(byte[] content) {
         boolean wav = matches(content, 0, WAV_RIFF) && matches(content, 8, WAV_WAVE);
         boolean ogg = matches(content, 0, OGG_OPUS);
         if (!wav && !ogg) {

@@ -70,8 +70,7 @@ public class JdSearchCacheService {
     public List<ToolDtos.SearchResult> search(long userId, String query, int count) {
         if (!runtimeConfig.tools().searchEnabled()) {
             throw new BizException(
-                    ErrorCode.AI_UNAVAILABLE,
-                    Map.of("reason", "NOT_CONFIGURED", "message", "联网搜索已被管理员关闭"));
+                    ErrorCode.AI_UNAVAILABLE, Map.of("reason", "NOT_CONFIGURED", "message", "联网搜索已被管理员关闭"));
         }
         String cacheKey = RedisKeys.jdSearchQuery(Sha256.hex(query + "|" + count));
         long startedAt = System.nanoTime();

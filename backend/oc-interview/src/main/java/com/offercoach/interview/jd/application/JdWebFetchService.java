@@ -70,7 +70,16 @@ public class JdWebFetchService {
         CachedFetch cached = readCache(key);
         if (cached != null) {
             aiCallLogger.log(
-                    userId, AiScene.FETCH.name(), "offercoach-cache", "cache", "DEGRADED", null, null, null, 0, "CACHE_HIT");
+                    userId,
+                    AiScene.FETCH.name(),
+                    "offercoach-cache",
+                    "cache",
+                    "DEGRADED",
+                    null,
+                    null,
+                    null,
+                    0,
+                    "CACHE_HIT");
             return new Outcome(cached.cleaned(), cached.title(), cached.reason());
         }
         String counterKey = RedisKeys.dailyFetch(userId, LocalDate.now().toString());

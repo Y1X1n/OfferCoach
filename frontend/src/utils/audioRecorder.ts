@@ -28,10 +28,15 @@ export function isRecordingSupported(): boolean {
 
 /**
  * 开始录音；返回句柄，停止后得到 WAV。
+ *
+ * @param onTick 录制中的计时回调（毫秒）
+ * @param maxSeconds 最长录制秒数，超限由内部定时器停止采集
+ * @param onLevel 采样电平回调（0–1 的 RMS），用于波形展示
  */
 export async function startRecording(
   onTick?: (elapsedMs: number) => void,
   maxSeconds = DEFAULT_MAX_SECONDS,
+  onLevel?: (level: number) => void,
 ): Promise<RecorderHandle> {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
@@ -48,6 +53,13 @@ export async function startRecording(
 
   const collect = (input: Float32Array) => {
     chunks.push(new Float32Array(input))
+    if (onLevel) {
+      let sum = 0
+      for (let i = 0; i < input.length; i += 1) {
+        sum += input[i]! * input[i]!
+      }
+      onLevel(Math.sqrt(sum / input.length))
+    }
   }
 
   const sink = context.createGain()

@@ -1,6 +1,5 @@
 package com.offercoach.ai.tools.client;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.offercoach.ai.AiRuntimeConfigService;
@@ -202,10 +201,14 @@ public class DeepSeekToolsClient {
     }
 
     private URI uriOf(AiRuntimeSettings settings, String path) {
-        String base = settings.baseUrl().endsWith("/")
-                ? settings.baseUrl().substring(0, settings.baseUrl().length() - 1)
-                : settings.baseUrl();
-        // 运行时配置默认已带 /v1（https://api.deepseek.com/v1），避免重复拼接成 /v1/v1/tools。
+        return uriOf(settings.baseUrl(), path);
+    }
+
+    /**
+     * 拼接工具接口地址；baseUrl 已以 {@code /v1} 结尾时不再重复拼接 {@code /v1}。
+     */
+    static URI uriOf(String baseUrl, String path) {
+        String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String prefix = base.endsWith("/v1") ? "" : "/v1";
         try {
             return URI.create(base + prefix + path);
@@ -216,22 +219,27 @@ public class DeepSeekToolsClient {
 
     private ToolException mapUpstream(int status, String body) {
         log.warn("工具上游返回非 2xx：status={} body={}", status, truncate(body));
-        ToolErrorKind kind =
-                switch (status) {
-                    case 400 -> body != null && body.contains("Content Exists Risk")
-                            ? ToolErrorKind.CONTENT_REJECTED
-                            : ToolErrorKind.INVALID_INPUT;
-                    case 402 -> ToolErrorKind.INSUFFICIENT_BALANCE;
-                    case 403 -> ToolErrorKind.BLOCKED;
-                    case 404 -> ToolErrorKind.NO_CONTENT;
-                    case 408 -> ToolErrorKind.UPSTREAM_TIMEOUT;
-                    case 413 -> ToolErrorKind.TOO_LARGE;
-                    case 429 -> ToolErrorKind.UPSTREAM_BUSY;
-                    case 503 -> ToolErrorKind.UPSTREAM_BUSY;
-                    case 504 -> ToolErrorKind.UPSTREAM_TIMEOUT;
-                    default -> ToolErrorKind.UPSTREAM_FAILED;
-                };
-        return new ToolException(kind, "上游返回 " + status, null, status);
+        return new ToolException(classifyUpstream(status, body), "上游返回 " + status, null, status);
+    }
+
+    /**
+     * 上游状态码 → 内部错误分类；400 且内容审核拦截时归为内容被拒。
+     */
+    static ToolErrorKind classifyUpstream(int status, String body) {
+        return switch (status) {
+            case 400 -> body != null && body.contains("Content Exists Risk")
+                    ? ToolErrorKind.CONTENT_REJECTED
+                    : ToolErrorKind.INVALID_INPUT;
+            case 402 -> ToolErrorKind.INSUFFICIENT_BALANCE;
+            case 403 -> ToolErrorKind.BLOCKED;
+            case 404 -> ToolErrorKind.NO_CONTENT;
+            case 408 -> ToolErrorKind.UPSTREAM_TIMEOUT;
+            case 413 -> ToolErrorKind.TOO_LARGE;
+            case 429 -> ToolErrorKind.UPSTREAM_BUSY;
+            case 503 -> ToolErrorKind.UPSTREAM_BUSY;
+            case 504 -> ToolErrorKind.UPSTREAM_TIMEOUT;
+            default -> ToolErrorKind.UPSTREAM_FAILED;
+        };
     }
 
     private static String readQuietly(InputStream input) {

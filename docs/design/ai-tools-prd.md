@@ -1,6 +1,6 @@
 # AI 工具能力 PRD：语音作答（ASR）/ 题目朗读（TTS）/ 简历识别（OCR）
 
-> 状态：评审中 ｜ 版本：v3.0 ｜ 更新：2026-11-14
+> 状态：已实施 ｜ 版本：v3.1 ｜ 更新：2026-11-15
 > 关联：[requirements.md](../requirements.md)（R-11 / R-38 / R-39 / R-89）｜ [api.md](./api.md) §9 ｜ [architecture.md](./architecture.md) ADR-011 ｜ [backend.md](../dev/backend.md)
 > 定位：本文是三项语音 / 图像能力的**产品口径、服务边界与验收标准**。对外接口字段在评审通过后**统一回写 [api.md](./api.md)**（单一来源，不在两处重复）。
 > 变更记录：v2.0 改为三个独立可部署服务；**v3.0 收敛为一个 AI 聚合模块 `oc-ai`，其内 ASR / TTS / OCR 为三个独立服务**（避免顶层模块膨胀）。
@@ -217,7 +217,7 @@ oc-app 依赖 oc-ai-core（作为客户端调用三个服务）
 - **R8 TTS 缓存多副本**：`oc-ai-tts` 多副本时本地缓存不共享，命中率下降但不影响正确性；如需共享改用对象存储或共享卷，本期不实现。
 - **R9 内部 Token 管理**：单一共享密钥轮换需三服务与 `oc-app` 同步滚动；本期不引入 mTLS / 服务网格。
 
-## 13. 代码审查整改（2026-11-15）
+## 12. 代码审查整改（2026-11-15）
 
 | 审查发现 | 整改 |
 |---|---|
@@ -235,3 +235,20 @@ oc-app 依赖 oc-ai-core（作为客户端调用三个服务）
 | 清理任务同刻（审查第二轮） | 语音清理错峰到 04:00（`oc.interview.voice-retention-cron`）；TTS 清理 03:45（`oc.ai.tools.tts-cache-cron`），均写入 yml |
 | 线性契约未回写（审查第二轮） | `docs/design/api.md` 已补 §5.3、§6.1 previewToken、§6.3 来源字段、§9 语音/朗读、§11.5 新上限 |
 | 无限额时归还产生永久 `0` 键（审查第三轮） | `release` 负数改删除；OCR 仅计数时归还；新增 `ResumeOcrFallbackTest` |
+
+## 13. 第四轮审查整改（2026-11-15）
+
+| 审查发现 | 整改 |
+|---|---|
+| `RedisCounterGuard` 的 `INCR`+`EXPIRE` 非原子，中断或 `EXPIRE` 失败会留永久计数键 | 改 Lua：`INCR` 与首次 `PEXPIRE`（及 `DECR` 与负数清理）在同一脚本内完成；新增 ADR-012 |
+| Redis 作限额唯一依据与 `conventions` §7.5 冲突 | 澄清口径：AI 工具次数上限属**防滥用限流**（Redis 可），计费额度仍以 `quota_ledger` 流水为准；见 ADR-012 与 §7.5 |
+| 能力关闭仍扣配额 | TTS / 搜索 / 抓取在计数**前**校验开关，关闭时返回 503 `AI_UNAVAILABLE` 且不计数（对齐 `ResumeOcrFallback`） |
+| 上游失败不归还配额 | 三处上游失败 `release` 归还，与"上游仅 200 且有结果计费"一致 |
+| 朗读上限被 TTL 变成"每日" | 计数键 TTL 语义修正为"每题"（30 天仅作清理），对齐 [api.md](./api.md) §9.2 |
+| `X-OC-Request-Id` 未串联、无退避重试 | `AiToolGateway` 透传 `TraceContext.requestId()`；可重试错误（429/503/超时/网络）退避重试 1 次；baseUrl 缺失改抛 `ToolException` |
+| `AiScene` 未扩展（§5 要求） | 补 `ASR/TTS/OCR/SEARCH/FETCH`，五个控制器场景常量绑定枚举 |
+| oc-ai 测试覆盖缺失 | 新增 `DeepSeekToolsClientTest`/`AiToolGatewayTest`/`TtsServiceTest`/`SearchControllerTest`，并为配额语义补 `QuestionSpeechServiceTest`/`JdWebFetchServiceTest`/`JdSearchCacheServiceTest` |
+| 代码异味 | 抽 `Sha256` 共享摘要；`DeepSeekToolsClient` 改 Jackson 序列化；`TtsService` 缓存临时文件唯一化；清理内联 FQCN |
+| 死代码 | 删除 `markAsrFailed` 与 `updateAsrStatus` 链、`TtsController` 的 `GET /voice`；`InternalAuth#requestId` 改为被 gateway 使用 |
+| 上传魔数校验缺失（§8 要求） | `VoiceAnswerService` 增加 WAV / Ogg Opus 魔数校验 |
+| ArchUnit 未覆盖 oc-ai（§4.3 要求） | 新增五服务两两零依赖与 AI 域单向依赖规则 |

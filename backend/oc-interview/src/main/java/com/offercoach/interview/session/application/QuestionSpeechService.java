@@ -70,8 +70,7 @@ public class QuestionSpeechService {
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("questionId", questionId)));
         if (!runtimeConfig.tools().ttsEnabled()) {
             throw new BizException(
-                    ErrorCode.AI_UNAVAILABLE,
-                    Map.of("reason", "NOT_CONFIGURED", "message", "题目朗读已被管理员关闭"));
+                    ErrorCode.AI_UNAVAILABLE, Map.of("reason", "NOT_CONFIGURED", "message", "题目朗读已被管理员关闭"));
         }
         String text = question.text();
         if (text == null || text.isBlank()) {

@@ -41,7 +41,9 @@ public class TtsService {
     public TtsService(DeepSeekToolsClient client, ToolsProperties properties) {
         this.client = client;
         String dir = properties.getTtsCacheDir();
-        this.cacheRoot = dir == null || dir.isBlank() ? null : Paths.get(dir).toAbsolutePath().normalize();
+        this.cacheRoot = dir == null || dir.isBlank()
+                ? null
+                : Paths.get(dir).toAbsolutePath().normalize();
         this.cacheDays = Math.max(0, properties.getTtsCacheDays());
         this.defaultVoice = properties.getTtsDefaultVoice();
     }
@@ -134,7 +136,9 @@ public class TtsService {
             if (!Files.isRegularFile(path)) {
                 return null;
             }
-            if (Files.getLastModifiedTime(path).toInstant().isBefore(Instant.now().minus(cacheDays, ChronoUnit.DAYS))) {
+            if (Files.getLastModifiedTime(path)
+                    .toInstant()
+                    .isBefore(Instant.now().minus(cacheDays, ChronoUnit.DAYS))) {
                 Files.deleteIfExists(path);
                 return null;
             }

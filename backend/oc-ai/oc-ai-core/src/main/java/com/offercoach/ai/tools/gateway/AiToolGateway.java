@@ -63,15 +63,7 @@ public class AiToolGateway {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.bytes()))
                 .build();
         String json = send(request);
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            return new ToolDtos.AsrResult(
-                    root.path("requestId").asText(""),
-                    root.path("text").asText(""),
-                    root.path("durationMs").isNumber() ? root.path("durationMs").asInt() : null);
-        } catch (IOException exception) {
-            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "ASR 结果解析失败", exception);
-        }
+        return parseAsr(objectMapper, json);
     }
 
     /**
@@ -94,7 +86,8 @@ public class AiToolGateway {
             try {
                 HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
                 if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                    String contentType = response.headers().firstValue("Content-Type").orElse("audio/wav");
+                    String contentType =
+                            response.headers().firstValue("Content-Type").orElse("audio/wav");
                     boolean cached = response.headers()
                             .firstValue("X-OC-Tts-Cache")
                             .map("HIT"::equalsIgnoreCase)
@@ -129,20 +122,7 @@ public class AiToolGateway {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.bytes()))
                 .build();
         String json = send(request);
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            List<ToolDtos.OcrPage> pages = new ArrayList<>();
-            for (JsonNode page : root.path("pages")) {
-                pages.add(new ToolDtos.OcrPage(
-                        page.path("index").asInt(pages.size()),
-                        page.path("text").asText(""),
-                        page.path("finishReason").asText("stop")));
-            }
-            return new ToolDtos.OcrResult(
-                    root.path("id").asText(""), root.path("pageCount").asInt(pages.size()), pages);
-        } catch (IOException exception) {
-            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "OCR 结果解析失败", exception);
-        }
+        return parseOcr(objectMapper, json);
     }
 
     /**
@@ -163,8 +143,55 @@ public class AiToolGateway {
                 .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
                 .build();
         String json = send(request);
+        return parseSearch(objectMapper, json);
+    }
+
+    /**
+     * 调用 Fetch 服务；返回页面标题与 Markdown 正文。
+     */
+    public ToolDtos.FetchResponse fetch(long userId, String url) {
+        String payload = objectMapper.createObjectNode().put("url", url).toString();
+        HttpRequest request = baseRequest(properties.getFetchBaseUrl(), "/internal/v1/fetch", userId)
+                .timeout(properties.getFetchTimeout())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                .build();
+        String json = send(request);
+        return parseFetch(objectMapper, json);
+    }
+
+    static ToolDtos.AsrResult parseAsr(ObjectMapper mapper, String json) {
         try {
-            JsonNode root = objectMapper.readTree(json);
+            JsonNode root = mapper.readTree(json);
+            return new ToolDtos.AsrResult(
+                    root.path("requestId").asText(""),
+                    root.path("text").asText(""),
+                    root.path("durationMs").isNumber() ? root.path("durationMs").asInt() : null);
+        } catch (IOException exception) {
+            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "ASR 结果解析失败", exception);
+        }
+    }
+
+    static ToolDtos.OcrResult parseOcr(ObjectMapper mapper, String json) {
+        try {
+            JsonNode root = mapper.readTree(json);
+            List<ToolDtos.OcrPage> pages = new ArrayList<>();
+            for (JsonNode page : root.path("pages")) {
+                pages.add(new ToolDtos.OcrPage(
+                        page.path("index").asInt(pages.size()),
+                        page.path("text").asText(""),
+                        page.path("finishReason").asText("stop")));
+            }
+            return new ToolDtos.OcrResult(
+                    root.path("id").asText(""), root.path("pageCount").asInt(pages.size()), pages);
+        } catch (IOException exception) {
+            throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "OCR 结果解析失败", exception);
+        }
+    }
+
+    static List<ToolDtos.SearchResult> parseSearch(ObjectMapper mapper, String json) {
+        try {
+            JsonNode root = mapper.readTree(json);
             List<ToolDtos.SearchResult> results = new ArrayList<>();
             for (JsonNode item : root.path("results")) {
                 results.add(new ToolDtos.SearchResult(
@@ -185,19 +212,9 @@ public class AiToolGateway {
         }
     }
 
-    /**
-     * 调用 Fetch 服务；返回页面标题与 Markdown 正文。
-     */
-    public ToolDtos.FetchResponse fetch(long userId, String url) {
-        String payload = objectMapper.createObjectNode().put("url", url).toString();
-        HttpRequest request = baseRequest(properties.getFetchBaseUrl(), "/internal/v1/fetch", userId)
-                .timeout(properties.getFetchTimeout())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                .build();
-        String json = send(request);
+    static ToolDtos.FetchResponse parseFetch(ObjectMapper mapper, String json) {
         try {
-            JsonNode root = objectMapper.readTree(json);
+            JsonNode root = mapper.readTree(json);
             return new ToolDtos.FetchResponse(
                     root.path("title").asText(""), root.path("content").asText(""));
         } catch (IOException exception) {
@@ -272,7 +289,7 @@ public class AiToolGateway {
 
     private ToolException mapUpstream(int status, String body) {
         log.warn("工具服务返回非 2xx：status={} body={}", status, truncate(body));
-        ToolErrorKind declared = kindFromBody(body);
+        ToolErrorKind declared = kindFromBody(objectMapper, body);
         ToolErrorKind kind = declared != null
                 ? declared
                 : switch (status) {
@@ -292,12 +309,12 @@ public class AiToolGateway {
     /**
      * 工具服务的错误体带稳定 {@code code}（与 ToolErrorKind 同名）；优先用它，避免状态码丢语义。
      */
-    private ToolErrorKind kindFromBody(String body) {
+    static ToolErrorKind kindFromBody(ObjectMapper mapper, String body) {
         if (body == null || body.isBlank()) {
             return null;
         }
         try {
-            JsonNode root = objectMapper.readTree(body);
+            JsonNode root = mapper.readTree(body);
             String code = root.path("code").asText("");
             return code.isBlank() ? null : ToolErrorKind.valueOf(code);
         } catch (IOException | IllegalArgumentException exception) {

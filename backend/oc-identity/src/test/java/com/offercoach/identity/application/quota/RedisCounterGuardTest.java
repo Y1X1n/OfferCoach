@@ -6,18 +6,20 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.offercoach.common.error.BizException;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
 /**
- * 统一计数守卫：上限语义、超限错误、Redis 故障放行与归还。
+ * 统一计数守卫：上限语义、超限错误、Redis 故障放行、脚本参数与归还。
  */
 class RedisCounterGuardTest {
 
@@ -32,11 +34,6 @@ class RedisCounterGuardTest {
     void setUp() {
         redis = mock(StringRedisTemplate.class);
         guard = new RedisCounterGuard(redis);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void stubCounter(Long value) {
-        when(redis.execute(any(RedisScript.class), anyList(), any())).thenReturn(value);
     }
 
     @Test
@@ -59,7 +56,7 @@ class RedisCounterGuardTest {
 
         guard.tryAcquire(KEY, 3, TTL);
 
-        verifyScriptArgs(TTL_MILLIS);
+        verify(redis).execute(any(RedisScript.class), eq(List.of(KEY)), eq(TTL_MILLIS));
     }
 
     @Test
@@ -89,24 +86,23 @@ class RedisCounterGuardTest {
     }
 
     @Test
-    void releaseRunsAtomically() {
+    void releaseRunsDecrementScript() {
         stubCounter(0L);
 
         guard.release(KEY);
 
-        verifyScriptArgs();
+        verify(redis).execute(any(RedisScript.class), eq(List.of(KEY)));
     }
 
     @Test
     void releaseIgnoresRedisFailure() {
-        when(redis.execute(any(RedisScript.class), anyList(), any()))
-                .thenThrow(new IllegalStateException("redis down"));
+        when(redis.execute(any(RedisScript.class), anyList())).thenThrow(new IllegalStateException("redis down"));
 
         guard.release(KEY);
     }
 
     @SuppressWarnings("unchecked")
-    private void verifyScriptArgs(String... args) {
-        org.mockito.Mockito.verify(redis).execute(any(RedisScript.class), eq(java.util.List.of(KEY)), args);
+    private void stubCounter(Long value) {
+        when(redis.execute(any(RedisScript.class), anyList(), any())).thenReturn(value);
     }
 }

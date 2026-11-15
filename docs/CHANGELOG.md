@@ -16,6 +16,7 @@
 - **部署**：`https://<PUBLIC_DOMAIN>`（ECS cn-beijing，Docker Compose；app `0.8.11`、web `0.7.7`、PG 16、Redis 7.2）；每日 03:15 数据库 dump + 每周证书巡检；newapi/9router 容器、卷、镜像与旧备份已清理。
 - **AI**：OpenAI 兼容客户端已接入；未配置密钥时简历/JD/出题/评分/报告自动走启发式降级（`degraded=true`）；管理端发布的 Prompt 版本会被运行时读取（60s 缓存）。
 - **AI 工具服务（2026-11-14）**：新增 `oc-ai` 聚合模块，内含 5 个独立服务（仅内网）：ASR 8094 / TTS 8095 / OCR 8096 / Search 8097 / Fetch 8098。已接入真实 DeepSeek Key 并实测：语音作答闭环、题目朗读（含缓存）、扫描件/图片简历 OCR、目标岗位 JD 的「链接抓取 → 搜索兜底 → 预览 → 定制出题」全部通过；管理端可开关各项能力。详见 [ai-tools-prd.md](design/ai-tools-prd.md)、[ai-jd-web-prd.md](design/ai-jd-web-prd.md)。
+- **AI 工具第四轮整改（2026-11-15）**：配额守卫改 Lua 原子计数并区分"限流 vs 计费额度"（ADR-012）；能力关闭/上游失败不再扣次数；朗读上限恢复"每题"语义；跨服务 Trace 透传 + 可重试错误退避重试；`AiScene` 补齐工具场景；补 oc-ai 单测与 ArchUnit 隔离规则。
 - **下一步**：配置真实模型密钥、Git/CI 发布基线、异地备份与监控告警、管理端 MFA 与 Prompt 注入防护、题库检索召回优化。
 - **未决**：见 [README.md](README.md) §4。
 
