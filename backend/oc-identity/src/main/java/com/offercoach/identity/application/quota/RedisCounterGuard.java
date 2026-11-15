@@ -56,13 +56,16 @@ public class RedisCounterGuard {
     }
 
     /**
-     * 归还一次配额（业务失败 / 上游未实际消耗时调用）；计数不低于 0。
+     * 归还一次配额（业务失败 / 上游未实际消耗时调用）。
+     *
+     * <p>归零后保留原 TTL；若出现负数（说明未经过 {@link #tryAcquire} 就归还），
+     * 直接删除键，避免留下永不过期的 {@code 0}。</p>
      */
     public void release(String key) {
         try {
             Long value = redisTemplate.opsForValue().decrement(key);
             if (value != null && value < 0) {
-                redisTemplate.opsForValue().set(key, "0");
+                redisTemplate.delete(key);
             }
         } catch (RuntimeException exception) {
             log.warn("配额归还失败：reason={}", exception.getClass().getSimpleName());

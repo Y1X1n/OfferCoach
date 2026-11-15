@@ -64,8 +64,10 @@ public class ResumeOcrFallback {
             log.info("OCR 能力已被管理员关闭，跳过识别：userId={}", userId);
             return null;
         }
+        int limit = platformSettings.snapshot().ocrDailyLimit();
         String counterKey = RedisKeys.dailyOcr(userId, LocalDate.now().toString());
-        if (!counterGuard.tryAcquire(counterKey, platformSettings.snapshot().ocrDailyLimit(), DAILY_TTL)) {
+        boolean counted = limit > 0;
+        if (counted && !counterGuard.tryAcquire(counterKey, limit, DAILY_TTL)) {
             log.warn("简历 OCR 达到每日上限，跳过识别：userId={}", userId);
             return null;
         }
@@ -73,12 +75,16 @@ public class ResumeOcrFallback {
             ToolDtos.OcrResult result = toolGateway.recognize(userId, content, fileName, contentType, PURPOSE);
             String text = joinPages(result);
             if (text.isEmpty()) {
-                counterGuard.release(counterKey);
+                if (counted) {
+                    counterGuard.release(counterKey);
+                }
                 return null;
             }
             return text;
         } catch (ToolException exception) {
-            counterGuard.release(counterKey);
+            if (counted) {
+                counterGuard.release(counterKey);
+            }
             log.warn("简历 OCR 降级失败：kind={} reason={}", exception.kind(), exception.getMessage());
             return null;
         }

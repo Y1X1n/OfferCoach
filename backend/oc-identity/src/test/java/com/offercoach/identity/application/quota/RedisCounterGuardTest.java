@@ -25,13 +25,14 @@ class RedisCounterGuardTest {
     private static final Duration TTL = Duration.ofDays(1);
     private static final String KEY = "oc:test:counter";
 
+    private StringRedisTemplate redis;
     private ValueOperations<String, String> ops;
     private RedisCounterGuard guard;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
-        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        redis = mock(StringRedisTemplate.class);
         ops = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(ops);
         guard = new RedisCounterGuard(redis);
@@ -79,12 +80,13 @@ class RedisCounterGuardTest {
     }
 
     @Test
-    void releaseFloorsAtZero() {
+    void releaseDeletesKeyWhenItWouldGoNegative() {
         when(ops.decrement(KEY)).thenReturn(-1L);
 
         guard.release(KEY);
 
-        verify(ops).set(KEY, "0");
+        verify(redis).delete(KEY);
+        verify(ops, never()).set(eq(KEY), any(String.class));
     }
 
     @Test
