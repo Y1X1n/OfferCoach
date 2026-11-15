@@ -14,6 +14,8 @@ public record SessionDetailResponse(
         BigDecimal totalScore,
         String jdTitle,
         String jdCompany,
+        String jdSourceType,
+        String jdSourceUrl,
         String reportId,
         String startedAt,
         String lastActiveAt,

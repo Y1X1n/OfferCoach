@@ -36,7 +36,8 @@ public class OcrController {
     private static final Logger log = LoggerFactory.getLogger(OcrController.class);
     private static final String SCENE = "OCR";
     private static final String MODEL = "tools-ocr";
-    private static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
+    // 与简历上传入口的 10 MiB 上限保持一致，避免出现"服务允许但入口不可达"的空配置。
+    private static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
     private static final String PURPOSE_TEXT = "text_recognition";
     private static final String PURPOSE_LAYOUT = "rich_layout_recognition";
     private static final Set<String> ALLOWED_EXTENSIONS =
@@ -77,7 +78,7 @@ public class OcrController {
             throw new ToolException(ToolErrorKind.INVALID_INPUT, "文件为空");
         }
         if (file.getSize() > MAX_FILE_BYTES) {
-            throw new ToolException(ToolErrorKind.TOO_LARGE, "文件超过 20 MiB");
+            throw new ToolException(ToolErrorKind.TOO_LARGE, "文件超过 10 MiB");
         }
         String fileName = file.getOriginalFilename() == null ? "document.pdf" : file.getOriginalFilename();
         String extension = extensionOf(fileName);

@@ -61,7 +61,11 @@ public class AdminSettingsController {
                         request.inviteDailyCap(),
                         request.inviteTotalCap(),
                         request.registrationIpDailyCap(),
-                        request.registrationDeviceDailyCap()));
+                        request.registrationDeviceDailyCap(),
+                        request.ttsPerQuestionLimit(),
+                        request.ocrDailyLimit(),
+                        request.searchDailyLimit(),
+                        request.fetchDailyLimit()));
         auditLogger.log(currentUser.userId(), ACTION_UPDATE, TARGET_TYPE, TARGET_ID, before, auditView(updated));
         return toResponse(updated);
     }
@@ -79,6 +83,10 @@ public class AdminSettingsController {
         view.put("inviteTotalCap", snapshot.inviteTotalCap());
         view.put("registrationIpDailyCap", snapshot.registrationIpDailyCap());
         view.put("registrationDeviceDailyCap", snapshot.registrationDeviceDailyCap());
+        view.put("ttsPerQuestionLimit", snapshot.ttsPerQuestionLimit());
+        view.put("ocrDailyLimit", snapshot.ocrDailyLimit());
+        view.put("searchDailyLimit", snapshot.searchDailyLimit());
+        view.put("fetchDailyLimit", snapshot.fetchDailyLimit());
         return view;
     }
 
@@ -95,6 +103,10 @@ public class AdminSettingsController {
                 snapshot.inviteTotalCap(),
                 snapshot.registrationIpDailyCap(),
                 snapshot.registrationDeviceDailyCap(),
+                snapshot.ttsPerQuestionLimit(),
+                snapshot.ocrDailyLimit(),
+                snapshot.searchDailyLimit(),
+                snapshot.fetchDailyLimit(),
                 AdminWebSupport.timestamp(snapshot.updatedAt()),
                 AdminWebSupport.id(snapshot.updatedBy()));
     }

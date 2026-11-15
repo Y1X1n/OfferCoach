@@ -122,8 +122,6 @@ oc:
       ocr-base-url: ${AI_OCR_BASE_URL:http://127.0.0.1:8096}
       search-base-url: ${AI_SEARCH_BASE_URL:http://127.0.0.1:8097}
       fetch-base-url: ${AI_FETCH_BASE_URL:http://127.0.0.1:8098}
-      search-daily-limit: ${AI_SEARCH_DAILY_LIMIT:20}
-      fetch-daily-limit: ${AI_FETCH_DAILY_LIMIT:20}
       search-max-count: ${AI_SEARCH_MAX_COUNT:10}
       # 调用日志由工具服务写入，oc-app 侧关闭避免重复。
       call-log-enabled: false
@@ -140,6 +138,9 @@ oc:
     max-answer-length: 4000
     session-idle-abandon: 24h
     report-max-attempts: 6
+    # 语音作答音频保留天数（定时清理，0 表示不自动删除）。
+    voice-retention-days: ${VOICE_RETENTION_DAYS:7}
+    voice-retention-cron: ${VOICE_RETENTION_CRON:0 0 4 * * *}
 
 logging:
   level:

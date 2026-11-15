@@ -37,6 +37,7 @@ const {
   totalQuestions,
   jdTitle,
   jdCompany,
+  jdSourceUrl,
   interviewerStyle,
   timeLimit,
   isSessionActive,
@@ -256,6 +257,7 @@ onBeforeRouteLeave(() => {
     <template v-else>
       <RoomHeader
         :jd-title="jdTitle"
+        :jd-source-url="jdSourceUrl"
         :jd-company="jdCompany"
         :interviewer-style="interviewerStyle"
         :time-limit="timeLimit"

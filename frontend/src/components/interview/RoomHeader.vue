@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Flag } from 'lucide-vue-next'
+import { ExternalLink, Flag } from 'lucide-vue-next'
 import { Pause, Play } from 'lucide-vue-next'
 import type { InterviewerStyle } from '@/types'
 import Button from '@/components/ui/Button.vue'
@@ -10,6 +10,7 @@ import TimerRing from '@/components/interview/TimerRing.vue'
 const props = defineProps<{
   jdTitle: string
   jdCompany: string
+  jdSourceUrl?: string | null
   interviewerStyle: InterviewerStyle
   timeLimit: number
   remaining: number
@@ -49,6 +50,16 @@ const timeLimitText = computed(() => {
         </h1>
         <p class="mt-0.5 truncate text-xs text-text-muted">
           {{ jdCompany }} · {{ styleLabel }}面试官 · 单题 {{ timeLimitText }}
+          <a
+            v-if="jdSourceUrl"
+            :href="jdSourceUrl"
+            target="_blank"
+            rel="noreferrer noopener"
+            class="ml-1 inline-flex items-center gap-0.5 underline-offset-2 hover:text-text hover:underline"
+          >
+            岗位来源
+            <ExternalLink class="h-3 w-3" aria-hidden="true" />
+          </a>
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2 sm:gap-3">

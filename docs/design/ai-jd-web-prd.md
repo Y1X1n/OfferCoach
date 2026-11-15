@@ -232,6 +232,7 @@ URL 模式下，Fetch 的失败**不直接报错给用户**，而是先走 Searc
 | W-11 | 关闭开关 | 管理端关闭 search/fetch → 对应接口 `503`，前端入口提示不可用 |
 | W-12 | 来源可追溯 | 新建 JD 的 `source_type`（`URL` / `SEARCH`）与 `source_url` 正确；详情页展示来源链接 |
 | W-13 | 规范 | 后端 Checkstyle/Spotless/ArchUnit/JaCoCo 通过；前端 `pnpm check` 通过 |
+| W-15 | 兜底来源标注 | 从兜底候选列表选中后，预览仍返回 `resolvedBy=SEARCH_FALLBACK` 与 `fallbackReason`，前端展示"已改用搜索获取" |
 | W-14 | JD 去重 | 手工重复粘贴同一 JD → `409` 并返回 `existingJdId`；联网重复获取同一岗位 → **复用同一 `jd_id`**，不新增记录；并发插入由数据库唯一索引兜底 |
 | W-10 | 来源可追溯 | 新建 JD 的 `source_type`/`source_url` 正确；详情页展示来源链接 |
 | W-11 | 规范 | 后端 Checkstyle/Spotless/ArchUnit/JaCoCo 通过；前端 `pnpm check` 通过 |
@@ -287,7 +288,7 @@ URL 模式下，Fetch 的失败**不直接报错给用户**，而是先走 Searc
 
 ### 12.3 与 v3.0 的差异（需知悉）
 
-1. **每日上限走环境变量而非平台策略页**：`AI_SEARCH_DAILY_LIMIT` / `AI_FETCH_DAILY_LIMIT`（默认 20）。管理端 `/admin/settings/quota` 未新增这两项（避免扩展现有平台策略契约），如需运营在线调整再补。
+1. ~~每日上限走环境变量而非平台策略页~~ **（2026-11-15 已修正）**：search/fetch 每日上限已收口到 `/admin/settings/quota`（`searchDailyLimit` / `fetchDailyLimit`，默认 20），环境变量不再生效。
 2. **`siteName` 取值**：URL 模式用 host（如 `m.zhipin.com`）；候选模式用搜索结果的 `site_name`。
 3. **Fetch 成功率好于 §2.2 预期**：部分 BOSS 直聘列表页是服务端渲染，Fetch 可直接拿到正文；登录墙 / SPA 页仍会兜底。
 4. **JD 去重（v3.2 已实现）**：同用户相同内容只保留一条未删除记录，见 §13。
@@ -317,3 +318,17 @@ URL 模式下，Fetch 的失败**不直接报错给用户**，而是先走 Searc
 | 联网重复获取同一链接 | 两次会话均指向 `jd_id=34`，该用户 JD 总数未增加 |
 | 数据库兜底 | 直接插入相同 `(user_id, content_hash)` → `duplicate key violates unique constraint uq_jd_user_content_hash` |
 | 单测 | `JdDedupeHashTest` 4 项（换行/空白归一化、差异内容区分、null） |
+
+## 14. 代码审查整改（2026-11-15）
+
+- **兜底来源在多候选选择后丢失** → `searchToken` 缓存改为 `{fallbackReason, results}`，候选预览透传 `resolvedBy=SEARCH_FALLBACK`；真机验证：登录墙链接 → 10 候选 → 选中后仍标注"已改用搜索"。
+- **服务拆分**：`JdWebImportService`（617 行）拆为 `JdSearchCacheService`（检索 + 查询/候选缓存）、`JdPreviewStoreService`（预览存取 + 落库）、`JdDailyLimitGuard`（每日上限），编排保留在 `JdWebImportService`（约 470 行）。
+- **重复实现**：multipart 构造抽为 `oc-ai-core` 的 `MultipartBody`；前端 401 重试抽为 `sendWithRefreshRetry`。
+- **索引命名**：`uq_jd_user_content_hash` → `uq_job_description_user_id_content_hash`（迁移 `V202611150002`）。
+- **非活跃会话开销**：语音作答先校验会话 `IN_PROGRESS`、题目归属与是否已作答，再调 ASR（真机：CREATED 会话提交返回 409 且 ASR 调用数不变）；朗读仅允许 READY/IN_PROGRESS/PAUSED。
+- **未来题仍会先付 ASR**（第二轮审查）→ 追加 `question.seq() > session.currentSeq()` 校验。
+- **预览令牌可重复使用**（第二轮审查）→ 提交成功后（事务 afterCommit）删除 `previewToken`；失败回滚保留。
+- **搜索/抓取限额实现重复**（第二轮审查）→ 统一走 `RedisCounterGuard`。
+- **前端 `resolvedBy` 类型缺 `SEARCH`** → 类型补全，与后端契约一致。
+- **`JdWebImportService` 仍偏大**（第三轮审查）→ 再拆 `JdWebFetchService`（抓取 + 缓存 + 上限 + 失败归因），编排层约 300 行。
+- **无限额时归还产生永久 `0` 键**（第三轮审查）→ `RedisCounterGuard.release` 负数改为删除键；OCR 仅在真正计数（`limit>0`）时归还；新增 `ResumeOcrFallbackTest` 7 项覆盖开关/超限/失败归还。

@@ -38,6 +38,8 @@ export function mapJd(dto: JdSummaryDto | JdDetailDto): Jd {
     rawText: dto.rawText ?? '',
     createdAt: dto.createdAt ?? '',
     structured: mapStructured(dto.structured),
+    sourceType: dto.sourceType ?? null,
+    sourceUrl: dto.sourceUrl ?? null,
   }
 }
 
@@ -98,7 +100,8 @@ export interface JdPreview {
   needsChoice: boolean
   previewToken: string
   searchToken: string
-  resolvedBy: 'URL' | 'SEARCH_FALLBACK'
+  /** URL 直抓 / SEARCH 搜索候选 / SEARCH_FALLBACK 链接抓取失败后的搜索兜底。 */
+  resolvedBy: 'URL' | 'SEARCH' | 'SEARCH_FALLBACK'
   fallbackReason?: string | null | undefined
   title: string
   siteName?: string | null | undefined

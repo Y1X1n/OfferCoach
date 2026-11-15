@@ -25,6 +25,9 @@ public class ResumeParseExecutor {
     private static final Logger log = LoggerFactory.getLogger(ResumeParseExecutor.class);
 
     private static final int MIN_TEXT_CHARS = 20;
+    /** 低于此长度视为疑似扫描件，先走 OCR 再结构化（见 ai-tools-prd.md §3.3）。 */
+    private static final int OCR_TEXT_THRESHOLD = 200;
+
     private static final String ERROR_NEED_MANUAL = "PARSE_NEED_MANUAL";
     private static final String ERROR_PARSE_FAILED = "PARSE_FAILED";
 
@@ -88,7 +91,7 @@ public class ResumeParseExecutor {
                 // 图片 / PPT 无法本地抽取，直接走 OCR。
                 localExtractionFailed = true;
             }
-            if (localExtractionFailed || text.length() < MIN_TEXT_CHARS || ocrFallback.requiresOcr(extension)) {
+            if (localExtractionFailed || text.length() < OCR_TEXT_THRESHOLD || ocrFallback.requiresOcr(extension)) {
                 String ocrText = ocrExtract(resume, text);
                 if (ocrText != null && !ocrText.isEmpty()) {
                     text = ocrText;

@@ -1,88 +1,54 @@
 package com.offercoach.interview.jd.application;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.tools.api.ToolDtos;
-import com.offercoach.ai.tools.config.ToolsProperties;
 import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
-import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.ai.tools.validation.FetchUrlRules;
-import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
-import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.document.WebContentCleaner;
 import com.offercoach.interview.jd.domain.JobDescription;
-import com.offercoach.interview.support.JsonCodec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
-import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 /**
  * 目标岗位 JD 的联网获取编排：URL 优先（Fetch）→ Search 兜底。
  *
- * <p>业务流程与判定规则见 docs/design/ai-jd-web-prd.md §4.3。本类只做编排与缓存，
- * 正文清理见 {@link WebContentCleaner}，JD 抽取与"抓不到"判定见 {@link JdBodyExtractor}。</p>
+ * <p>抓取见 {@link JdWebFetchService}，检索与候选缓存见 {@link JdSearchCacheService}，
+ * 预览存取见 {@link JdPreviewStoreService}，正文清理见 {@link WebContentCleaner}，
+ * "抓不到"判定见 {@link JdBodyExtractor}。</p>
  */
 @Service
 public class JdWebImportService {
 
     private static final Logger log = LoggerFactory.getLogger(JdWebImportService.class);
 
-    private static final Duration SEARCH_CACHE_TTL = Duration.ofMinutes(10);
-    private static final Duration FETCH_CACHE_TTL = Duration.ofHours(1);
-    private static final Duration PREVIEW_TTL = Duration.ofMinutes(15);
     private static final int MAX_RESULTS = 10;
-    private static final int MAX_TITLE_LENGTH = 160;
-    private static final double EXACT_MATCH_BONUS = 10.0;
     private static final double AUTO_PICK_SCORE = 1.5;
     private static final int AUTO_PICK_AUTHORITY = 3;
     private static final double AUTO_PICK_LEAD = 0.3;
 
-    private final AiToolGateway toolGateway;
-    private final JdService jdService;
-    private final JdStructurer jdStructurer;
-    private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
-    private final JsonCodec jsonCodec;
-    private final ToolsProperties properties;
-    private final AiCallLogger aiCallLogger;
+    private final JdWebFetchService fetchService;
+    private final JdSearchCacheService searchCacheService;
+    private final JdPreviewStoreService previewStoreService;
 
     public JdWebImportService(
-            AiToolGateway toolGateway,
-            JdService jdService,
-            JdStructurer jdStructurer,
-            StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper,
-            JsonCodec jsonCodec,
-            ToolsProperties properties,
-            AiCallLogger aiCallLogger) {
-        this.toolGateway = toolGateway;
-        this.jdService = jdService;
-        this.jdStructurer = jdStructurer;
-        this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
-        this.jsonCodec = jsonCodec;
-        this.properties = properties;
-        this.aiCallLogger = aiCallLogger;
+            JdWebFetchService fetchService,
+            JdSearchCacheService searchCacheService,
+            JdPreviewStoreService previewStoreService) {
+        this.fetchService = fetchService;
+        this.searchCacheService = searchCacheService;
+        this.previewStoreService = previewStoreService;
     }
 
     /**
-     * 关键词检索岗位候选；正文缓存到 Redis，供预览与导入复用，避免重复计费。
+     * 关键词检索岗位候选；正文缓存到短期 token 下，供预览与导入复用，避免重复计费。
      */
     public SearchOutcome search(long userId, String query, String location, Integer count) {
         String keywords = query == null ? "" : query.strip();
@@ -93,18 +59,11 @@ public class JdWebImportService {
         int size = Math.min(count == null ? 8 : count, MAX_RESULTS);
         List<ToolDtos.SearchResult> results;
         try {
-            results = runSearch(userId, fullQuery, size);
+            results = searchCacheService.search(userId, fullQuery, size);
         } catch (ToolException exception) {
             throw toBizFailure(exception, "联网搜索暂不可用");
         }
-
-        String token = newToken("st");
-        try {
-            redisTemplate.opsForValue().set(RedisKeys.jdSearchCache(token), jsonCodec.write(results), SEARCH_CACHE_TTL);
-        } catch (RuntimeException exception) {
-            log.warn("候选缓存写入失败，预览将回源：reason={}", exception.getClass().getSimpleName());
-        }
-        return new SearchOutcome(token, results);
+        return new SearchOutcome(searchCacheService.publish(results, null), results);
     }
 
     /**
@@ -128,7 +87,7 @@ public class JdWebImportService {
             throw new BizException(
                     ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("url", exception.getMessage())));
         }
-        FetchOutcome fetched = fetchCleaned(userId, url);
+        JdWebFetchService.Outcome fetched = fetchService.fetch(userId, url);
         if (fetched.cleaned() == null || !JdBodyExtractor.looksLikeJd(fetched.cleaned())) {
             String reason = fetched.cleaned() == null ? fetched.reason() : "FETCH_TOO_SHORT";
             Optional<PreviewOutcome> fallback = searchFallback(userId, url, command.keywords(), reason);
@@ -143,8 +102,8 @@ public class JdWebImportService {
     }
 
     private PreviewOutcome previewFromCandidate(long userId, String searchToken, String resultId) {
-        List<ToolDtos.SearchResult> cached = readSearchCache(searchToken);
-        ToolDtos.SearchResult hit = cached.stream()
+        JdSearchCacheService.SearchCacheEntry cached = searchCacheService.read(searchToken);
+        ToolDtos.SearchResult hit = cached.results().stream()
                 .filter(item -> resultId.equals(resultIdOf(item)))
                 .findFirst()
                 .orElseThrow(() -> new BizException(
@@ -162,15 +121,15 @@ public class JdWebImportService {
                 hit.url(),
                 JobDescription.SOURCE_SEARCH,
                 hit.siteName(),
-                null,
-                "SEARCH");
+                cached.fallbackReason(),
+                cached.fallbackReason() == null ? "SEARCH" : "SEARCH_FALLBACK");
     }
 
     private Optional<PreviewOutcome> searchFallback(long userId, String url, String keywords, String reason) {
         String query = fallbackQuery(url, keywords);
         List<ToolDtos.SearchResult> results;
         try {
-            results = runSearch(userId, query, MAX_RESULTS);
+            results = searchCacheService.search(userId, query, MAX_RESULTS);
         } catch (BizException exception) {
             log.warn("搜索兜底失败：reason={}", exception.getMessage());
             return Optional.empty();
@@ -184,12 +143,7 @@ public class JdWebImportService {
         if (results.isEmpty()) {
             return Optional.empty();
         }
-        String token = newToken("st");
-        try {
-            redisTemplate.opsForValue().set(RedisKeys.jdSearchCache(token), jsonCodec.write(results), SEARCH_CACHE_TTL);
-        } catch (RuntimeException exception) {
-            log.warn("兜底候选缓存写入失败：reason={}", exception.getClass().getSimpleName());
-        }
+        String token = searchCacheService.publish(results, reason);
         ToolDtos.SearchResult best = pickBest(results, url);
         if (best == null) {
             return Optional.of(PreviewOutcome.needsChoice(token, results, reason));
@@ -242,173 +196,11 @@ public class JdWebImportService {
             String siteName,
             String fallbackReason,
             String resolvedBy) {
-        if (rawText.length() < JdBodyExtractor.MIN_USEFUL_LENGTH) {
-            throw new BizException(
-                    ErrorCode.PARSE_NEED_MANUAL, Map.of("reason", "CONTENT_TOO_SHORT", "message", "取到的正文过短，请手动粘贴"));
-        }
-        String title = rawTitle == null || rawTitle.isBlank()
-                ? JdBodyExtractor.firstNonBlankLine(rawText, MAX_TITLE_LENGTH)
-                : rawTitle.strip();
-        JdStructurer.StructuredJd structured = jdStructurer.structure(title, null, rawText);
-        String structuredTitle = structured.structured().get("title") instanceof String value && !value.isBlank()
-                ? value.strip()
-                : title;
-        String displayTitle = preferJobTitle(structuredTitle, title);
-        StructuredPreview preview = new StructuredPreview(
-                displayTitle, blankToNull(siteName), sourceUrl, sourceType, fallbackReason, rawText, structured.json());
-        String token = newToken("pv");
-        try {
-            redisTemplate.opsForValue().set(RedisKeys.jdPreview(token), jsonCodec.write(preview), PREVIEW_TTL);
-        } catch (RuntimeException exception) {
-            log.warn("预览缓存写入失败：reason={}", exception.getClass().getSimpleName());
-        }
-        return PreviewOutcome.preview(token, preview, structured.structured(), resolvedBy);
+        JdPreviewStoreService.StoredPreview stored =
+                previewStoreService.store(rawText, rawTitle, sourceUrl, sourceType, siteName, fallbackReason);
+        return PreviewOutcome.preview(stored.token(), stored.preview(), stored.structured(), resolvedBy);
     }
 
-    /**
-     * 由预览落库为 JD；供创建面试时在事务内调用。
-     */
-    public long materialize(long userId, String previewToken) {
-        String json;
-        try {
-            json = redisTemplate.opsForValue().get(RedisKeys.jdPreview(previewToken));
-        } catch (RuntimeException exception) {
-            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", "PREVIEW_UNAVAILABLE"));
-        }
-        if (json == null) {
-            throw new BizException(
-                    ErrorCode.STATE_CONFLICT, Map.of("reason", "PREVIEW_EXPIRED", "message", "预览已过期，请重新获取"));
-        }
-        StructuredPreview preview = readValue(json, new TypeReference<StructuredPreview>() {});
-        JdService.JdView view = jdService.createWithStructured(
-                userId,
-                preview.title(),
-                null,
-                preview.rawText(),
-                preview.structuredJson(),
-                preview.sourceType(),
-                preview.sourceUrl());
-        return view.id();
-    }
-
-    private FetchOutcome fetchCleaned(long userId, String url) {
-        String key = RedisKeys.jdFetchCache(digest(url));
-        try {
-            String cached = redisTemplate.opsForValue().get(key);
-            if (cached != null) {
-                aiCallLogger.log(
-                        userId, "FETCH", "offercoach-cache", "cache", "DEGRADED", null, null, null, 0, "CACHE_HIT");
-                return cached.isEmpty()
-                        ? new FetchOutcome(null, null, "FETCH_BLOCKED")
-                        : new FetchOutcome(cached, null, null);
-            }
-        } catch (RuntimeException exception) {
-            log.warn("抓取缓存读取失败：reason={}", exception.getClass().getSimpleName());
-        }
-        enforceDailyLimit(
-                userId, RedisKeys.dailyFetch(userId, LocalDate.now().toString()), properties.getFetchDailyLimit());
-        String cleaned;
-        String pageTitle;
-        try {
-            ToolDtos.FetchResponse response = toolGateway.fetch(userId, url);
-            cleaned = WebContentCleaner.clean(response.content() == null ? "" : response.content());
-            pageTitle = response.title();
-        } catch (ToolException exception) {
-            log.info("抓取未成功，转入搜索兜底：kind={}", exception.kind());
-            String reason =
-                    switch (exception.kind()) {
-                        case BLOCKED -> "FETCH_BLOCKED";
-                        case NO_CONTENT -> "FETCH_NO_CONTENT";
-                        default -> "FETCH_FAILED";
-                    };
-            cacheQuietly(key, "", FETCH_CACHE_TTL);
-            return new FetchOutcome(null, null, reason);
-        }
-        cacheQuietly(key, cleaned, FETCH_CACHE_TTL);
-        return new FetchOutcome(cleaned, pageTitle, null);
-    }
-
-    private List<ToolDtos.SearchResult> runSearch(long userId, String query, int count) {
-        String cacheKey = RedisKeys.jdSearchQuery(digest(query + "|" + count));
-        long startedAt = System.nanoTime();
-        try {
-            String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null) {
-                aiCallLogger.log(
-                        userId,
-                        "SEARCH",
-                        "offercoach-cache",
-                        "cache",
-                        "DEGRADED",
-                        null,
-                        null,
-                        null,
-                        (System.nanoTime() - startedAt) / 1_000_000,
-                        "CACHE_HIT");
-                return readValue(cached, new TypeReference<List<ToolDtos.SearchResult>>() {});
-            }
-        } catch (RuntimeException exception) {
-            log.warn("检索缓存读取失败：reason={}", exception.getClass().getSimpleName());
-        }
-        enforceDailyLimit(
-                userId, RedisKeys.dailySearch(userId, LocalDate.now().toString()), properties.getSearchDailyLimit());
-        List<ToolDtos.SearchResult> results = toolGateway.search(userId, query, count, null, true);
-        cacheQuietly(cacheKey, jsonCodec.write(results), SEARCH_CACHE_TTL);
-        return results;
-    }
-
-    private List<ToolDtos.SearchResult> readSearchCache(String token) {
-        String json = redisTemplate.opsForValue().get(RedisKeys.jdSearchCache(token));
-        if (json == null) {
-            throw new BizException(
-                    ErrorCode.STATE_CONFLICT, Map.of("reason", "SEARCH_EXPIRED", "message", "候选已过期，请重新搜索"));
-        }
-        return readValue(json, new TypeReference<List<ToolDtos.SearchResult>>() {});
-    }
-
-    private <T> T readValue(String json, TypeReference<T> type) {
-        try {
-            return objectMapper.readValue(json, type);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
-            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", "CACHE_CORRUPTED"));
-        }
-    }
-
-    /**
-     * 抓取结果：cleaned 非空表示抓到正文，否则 reason 说明失败原因。
-     */
-    private record FetchOutcome(String cleaned, String title, String reason) {}
-
-    private void cacheQuietly(String key, String value, Duration ttl) {
-        try {
-            redisTemplate.opsForValue().set(key, value, ttl);
-        } catch (RuntimeException exception) {
-            log.warn("缓存写入失败：reason={}", exception.getClass().getSimpleName());
-        }
-    }
-
-    private void enforceDailyLimit(long userId, String key, int limit) {
-        if (limit <= 0) {
-            return;
-        }
-        try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, Duration.ofDays(1));
-            }
-            if (count != null && count > limit) {
-                throw new BizException(ErrorCode.RATE_LIMITED, Map.of("limit", limit));
-            }
-        } catch (BizException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
-            log.warn("限额 Redis 不可用，放行：reason={}", exception.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * 把工具异常映射为对外业务错误：上游不可用/超时/关闭统一为 503。
-     */
     private static BizException toBizFailure(ToolException exception, String fallbackMessage) {
         return switch (exception.kind()) {
             case NOT_CONFIGURED, UPSTREAM_BUSY, UPSTREAM_TIMEOUT, UPSTREAM_FAILED, BUSY -> new BizException(
@@ -480,7 +272,6 @@ public class JdWebImportService {
             String candidate = last.replaceAll("\\.[a-zA-Z0-9]{2,5}$", "")
                     .replaceAll("[_\\-+]+", " ")
                     .strip();
-            // 纯数字或过短视为无信息
             if (candidate.length() < 2 || candidate.matches("[0-9 ]+")) {
                 return null;
             }
@@ -491,52 +282,13 @@ public class JdWebImportService {
     }
 
     public static String resultIdOf(ToolDtos.SearchResult item) {
-        return digest(item.url() == null ? "" : item.url());
-    }
-
-    /**
-     * 页面标题常是"XX招聘系统--招聘明细"，比结构化出的岗位名差；优先取像岗位名的那个。
-     */
-    static String preferJobTitle(String structuredTitle, String pageTitle) {
-        if (structuredTitle != null && !structuredTitle.isBlank() && structuredTitle.length() <= MAX_TITLE_LENGTH) {
-            return structuredTitle.strip();
-        }
-        return pageTitle;
-    }
-
-    private static String newToken(String prefix) {
-        return prefix + "_" + UUID.randomUUID().toString().replace("-", "");
-    }
-
-    private static String digest(String value) {
-        try {
-            return HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 不可用", exception);
-        }
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.strip();
+        return JdWebFetchService.digest(item.url() == null ? "" : item.url());
     }
 
     /**
      * 预览请求。
      */
     public record PreviewCommand(String url, String keywords, String searchToken, String resultId) {}
-
-    /**
-     * 落库所需的预览数据。
-     */
-    public record StructuredPreview(
-            String title,
-            String siteName,
-            String sourceUrl,
-            String sourceType,
-            String fallbackReason,
-            String rawText,
-            String structuredJson) {}
 
     /**
      * 预览结果；needsChoice 为真时提示前端展示候选。
@@ -556,7 +308,10 @@ public class JdWebImportService {
             List<Candidate> candidates) {
 
         static PreviewOutcome preview(
-                String token, StructuredPreview preview, Map<String, Object> structured, String resolvedBy) {
+                String token,
+                JdPreviewStoreService.StructuredPreview preview,
+                Map<String, Object> structured,
+                String resolvedBy) {
             return new PreviewOutcome(
                     false,
                     token,

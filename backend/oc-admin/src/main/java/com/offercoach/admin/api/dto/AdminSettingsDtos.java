@@ -23,6 +23,10 @@ public final class AdminSettingsDtos {
             int inviteTotalCap,
             int registrationIpDailyCap,
             int registrationDeviceDailyCap,
+            int ttsPerQuestionLimit,
+            int ocrDailyLimit,
+            int searchDailyLimit,
+            int fetchDailyLimit,
             String updatedAt,
             String updatedBy) {}
 
@@ -37,5 +41,9 @@ public final class AdminSettingsDtos {
             @NotNull @Min(0) @Max(1000) Integer inviteDailyCap,
             @NotNull @Min(0) @Max(10000) Integer inviteTotalCap,
             @NotNull @Min(0) @Max(10000) Integer registrationIpDailyCap,
-            @NotNull @Min(0) @Max(1000) Integer registrationDeviceDailyCap) {}
+            @NotNull @Min(0) @Max(1000) Integer registrationDeviceDailyCap,
+            @NotNull @Min(0) @Max(100) Integer ttsPerQuestionLimit,
+            @NotNull @Min(0) @Max(1000) Integer ocrDailyLimit,
+            @NotNull @Min(0) @Max(1000) Integer searchDailyLimit,
+            @NotNull @Min(0) @Max(1000) Integer fetchDailyLimit) {}
 }

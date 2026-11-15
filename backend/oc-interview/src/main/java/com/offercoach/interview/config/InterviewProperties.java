@@ -20,4 +20,7 @@ public class InterviewProperties {
     private Duration sessionIdleAbandon = Duration.ofHours(24);
 
     private int reportMaxAttempts = 3;
+
+    /** 语音作答音频保留天数（定时清理，0 表示不自动删除）。 */
+    private int voiceRetentionDays = 7;
 }

@@ -683,6 +683,10 @@ export interface AdminPlatformSettings {
   inviteTotalCap: number
   registrationIpDailyCap: number
   registrationDeviceDailyCap: number
+  ttsPerQuestionLimit: number
+  ocrDailyLimit: number
+  searchDailyLimit: number
+  fetchDailyLimit: number
   updatedAt: string
   updatedBy: string
 }
@@ -703,6 +707,10 @@ function mapPlatformSettings(raw: unknown): AdminPlatformSettings {
     inviteTotalCap: asNumber(dto.inviteTotalCap, 20),
     registrationIpDailyCap: asNumber(dto.registrationIpDailyCap, 20),
     registrationDeviceDailyCap: asNumber(dto.registrationDeviceDailyCap, 3),
+    ttsPerQuestionLimit: asNumber(dto.ttsPerQuestionLimit, 3),
+    ocrDailyLimit: asNumber(dto.ocrDailyLimit, 5),
+    searchDailyLimit: asNumber(dto.searchDailyLimit, 20),
+    fetchDailyLimit: asNumber(dto.fetchDailyLimit, 20),
     updatedAt: asString(dto.updatedAt),
     updatedBy: idOf(dto.updatedBy),
   }

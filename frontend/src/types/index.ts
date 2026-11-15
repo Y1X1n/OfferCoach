@@ -246,6 +246,9 @@ export interface Jd {
   createdAt: string
   structured: JdStructured
   match?: JdMatch | undefined
+  /** MANUAL 手工粘贴 / SEARCH 搜索获取 / URL 链接抓取。 */
+  sourceType?: string | null | undefined
+  sourceUrl?: string | null | undefined
 }
 
 export interface JdStructuredDto {
@@ -264,6 +267,8 @@ export interface JdDetailDto {
   rawText?: string | null | undefined
   structured?: JdStructuredDto | null | undefined
   createdAt?: string | null | undefined
+  sourceType?: string | null | undefined
+  sourceUrl?: string | null | undefined
 }
 
 export interface JdMatchDto {
@@ -336,6 +341,8 @@ export interface InterviewSession {
   resumeTitle?: string | null | undefined
   jdTitle?: string | null | undefined
   jdCompany?: string | null | undefined
+  jdSourceType?: string | null | undefined
+  jdSourceUrl?: string | null | undefined
   questionCount?: number | undefined
   reportId?: string | null | undefined
 }
@@ -459,6 +466,8 @@ export interface DashboardActiveSession {
   resumeTitle?: string | null | undefined
   jdTitle?: string | null | undefined
   jdCompany?: string | null | undefined
+  jdSourceType?: string | null | undefined
+  jdSourceUrl?: string | null | undefined
   questionCount: number
   answeredCount: number
   startedAt?: string | null | undefined

@@ -13,6 +13,8 @@ import type {
 import { ApiError, createRequestId, errorMessage } from '@/api/client'
 import * as interviewsApi from '@/api/interviews'
 import { useToast } from '@/composables/useToast'
+import { getAutoReadSpeech, getSpeechVoice } from '@/utils/speechPrefs'
+import type { SpeechVoice } from '@/utils/speechPrefs'
 
 export type StreamState = 'idle' | 'connecting' | 'streaming' | 'done' | 'error'
 
@@ -51,7 +53,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const voiceTranscribing = ref(false)
   const speaking = ref(false)
   const speechError = ref('')
-  const speechVoice = ref<'stella' | 'tide'>('stella')
+  const speechVoice = ref<SpeechVoice>(getSpeechVoice())
   const speechUrls = new Map<string, string>()
 
   let timerId: number | null = null
@@ -72,6 +74,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const timeLimit = computed(() => Math.max(1, config.value.timeLimitSec))
   const jdTitle = computed(() => session.value?.jdTitle ?? '模拟面试')
   const jdCompany = computed(() => session.value?.jdCompany ?? '目标公司')
+  const jdSourceUrl = computed(() => session.value?.jdSourceUrl ?? null)
   const interviewerStyle = computed<InterviewerStyle>(() => config.value.interviewerStyle)
 
   const status = computed<InterviewSession['status'] | 'MISSING'>(
@@ -393,6 +396,8 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   }
 
   function resetQuestionState(): void {
+    // 切换题目 / 离开当前题时必须停止上一题的朗读，避免跨题串音。
+    stopSpeech()
     clearTimer()
     abortStream()
     const question = currentQuestion.value
@@ -583,7 +588,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   /**
    * 朗读当前题目：首次点击取音频，之后复用对象 URL；再次点击停止。
    */
-  async function toggleSpeech(): Promise<void> {
+  async function toggleSpeech(auto = false): Promise<void> {
     const question = currentQuestion.value
     if (!question) return
     if (speaking.value) {
@@ -611,9 +616,24 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       await audio.play()
     } catch (cause) {
       speaking.value = false
+      if (auto) {
+        // 自动朗读被浏览器策略拦截或上游失败时静默跳过，不打扰用户。
+        return
+      }
       speechError.value = errorMessage(cause, '题目朗读失败')
       toast(speechError.value, 'error')
     }
+  }
+
+  /**
+   * 偏好开启时，进入新题自动朗读；首题可能被浏览器自动播放策略拦截。
+   */
+  function maybeAutoRead(): void {
+    if (!getAutoReadSpeech()) return
+    const question = currentQuestion.value
+    if (!question || !isSessionActive.value || isAnswered.value) return
+    if (question.status === 'SKIPPED') return
+    void toggleSpeech(true)
   }
 
   function stopSpeech(): void {
@@ -781,7 +801,10 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
 
   watch(
     () => currentQuestion.value?.id,
-    () => resetQuestionState(),
+    () => {
+      resetQuestionState()
+      maybeAutoRead()
+    },
     { immediate: true },
   )
 
@@ -821,6 +844,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     totalQuestions,
     jdTitle,
     jdCompany,
+    jdSourceUrl,
     interviewerStyle,
     timeLimit,
     isSessionActive,

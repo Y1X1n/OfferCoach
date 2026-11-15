@@ -3,21 +3,21 @@ package com.offercoach.interview.session.application;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.gateway.AiToolGateway;
-import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
 import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
+import com.offercoach.interview.session.application.port.InterviewSessionRepository;
 import com.offercoach.interview.session.domain.InterviewQuestion;
+import com.offercoach.interview.session.domain.InterviewSession;
+import com.offercoach.interview.session.domain.SessionStatus;
 import com.offercoach.interview.storage.FileStorage;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,29 +32,28 @@ public class VoiceAnswerService {
     private static final Logger log = LoggerFactory.getLogger(VoiceAnswerService.class);
     private static final long MAX_AUDIO_BYTES = 8L * 1024 * 1024;
     private static final int MAX_DURATION_MS = 120_000;
-    private static final long DAILY_VOICE_LIMIT = 60L;
     private static final String AUDIO_EXT_WAV = "wav";
 
     private final AnswerService answerService;
+    private final InterviewSessionRepository sessionRepository;
     private final InterviewQuestionRepository questionRepository;
     private final InterviewAnswerRepository answerRepository;
     private final FileStorage fileStorage;
     private final AiToolGateway toolGateway;
-    private final StringRedisTemplate redisTemplate;
 
     public VoiceAnswerService(
             AnswerService answerService,
+            InterviewSessionRepository sessionRepository,
             InterviewQuestionRepository questionRepository,
             InterviewAnswerRepository answerRepository,
             FileStorage fileStorage,
-            AiToolGateway toolGateway,
-            StringRedisTemplate redisTemplate) {
+            AiToolGateway toolGateway) {
         this.answerService = answerService;
+        this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.fileStorage = fileStorage;
         this.toolGateway = toolGateway;
-        this.redisTemplate = redisTemplate;
     }
 
     /**
@@ -76,10 +75,22 @@ public class VoiceAnswerService {
         if (durationMs != null && durationMs > MAX_DURATION_MS) {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("durationMs", "录音不得超过 120 秒")));
         }
+        // 先校验会话/题目状态再做 ASR：避免在已结束或已作答的题上产生上游费用。
+        InterviewSession session = sessionRepository
+                .findOwned(userId, sessionId)
+                .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("sessionId", sessionId)));
+        if (!SessionStatus.IN_PROGRESS.equals(session.status())) {
+            throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("status", session.status()));
+        }
         InterviewQuestion question = questionRepository
                 .findOwned(sessionId, questionId)
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("questionId", questionId)));
-        enforceDailyLimit(userId);
+        if (question.seq() > session.currentSeq()) {
+            throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "NOT_CURRENT_QUESTION"));
+        }
+        if (answerRepository.findByQuestionId(question.id()).isPresent()) {
+            throw new BizException(ErrorCode.DUPLICATE_ANSWER, Map.of("questionId", questionId));
+        }
 
         byte[] audio;
         try {
@@ -126,24 +137,6 @@ public class VoiceAnswerService {
     public void markAsrFailed(long userId, long sessionId, long answerId) {
         answerService.loadOwned(userId, sessionId, answerId);
         answerRepository.updateAsrStatus(answerId, "FAILED");
-    }
-
-    private void enforceDailyLimit(long userId) {
-        String key =
-                RedisKeys.dailyVoiceAnswer(userId, java.time.LocalDate.now().toString());
-        try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, Duration.ofDays(1));
-            }
-            if (count != null && count > DAILY_VOICE_LIMIT) {
-                throw new BizException(ErrorCode.RATE_LIMITED, Map.of("limit", DAILY_VOICE_LIMIT));
-            }
-        } catch (BizException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
-            log.warn("语音作答限流 Redis 不可用，放行：reason={}", exception.getClass().getSimpleName());
-        }
     }
 
     private static String normalizeContentType(String contentType) {

@@ -153,7 +153,9 @@ public class JdController {
                 view.structured(),
                 view.matchScore(),
                 view.matchReport(),
-                timestamp(view.createdAt()));
+                timestamp(view.createdAt()),
+                view.sourceType(),
+                view.sourceUrl());
     }
 
     private static String timestamp(java.time.OffsetDateTime value) {

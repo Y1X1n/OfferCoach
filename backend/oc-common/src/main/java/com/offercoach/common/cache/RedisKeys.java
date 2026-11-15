@@ -70,14 +70,9 @@ public final class RedisKeys {
         return "oc:quota:daily-resume:" + userId + ":" + date;
     }
 
-    /** 每日语音作答次数。 */
-    public static String dailyVoiceAnswer(long userId, String date) {
-        return "oc:quota:daily-voice:" + userId + ":" + date;
-    }
-
-    /** 每日题目朗读次数。 */
-    public static String dailyTts(long userId, String date) {
-        return "oc:quota:daily-tts:" + userId + ":" + date;
+    /** 单题朗读次数（按题计数，TTL 1 天）。 */
+    public static String ttsPerQuestion(long userId, long questionId) {
+        return "oc:quota:tts-q:" + userId + ":" + questionId;
     }
 
     /** 每日 OCR 识别次数。 */

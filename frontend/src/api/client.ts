@@ -261,10 +261,9 @@ async function performRefresh(): Promise<boolean> {
 }
 
 /**
- * 发起 API 请求并返回解析后的 JSON。
- * 401 只重试一次：先刷新，再重放；刷新失败则清空会话并交由回调跳转。
+ * 发送请求并在 401 时刷新重放一次；刷新失败则清空会话并交由回调跳转。
  */
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function sendWithRefreshRetry(path: string, options: RequestOptions): Promise<Response> {
   const response = await send(path, options)
   if (
     response.status === 401 &&
@@ -273,10 +272,16 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   ) {
     const refreshed = await refreshSession()
     if (!refreshed) throw await toApiError(response)
-    const retried = await send(path, options)
-    return parseResponse<T>(retried)
+    return send(path, options)
   }
-  return parseResponse<T>(response)
+  return response
+}
+
+/**
+ * 发起 API 请求并返回解析后的 JSON。
+ */
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return parseResponse<T>(await sendWithRefreshRetry(path, options))
 }
 
 /**
@@ -286,18 +291,10 @@ export async function requestBlob(
   path: string,
   options: RequestOptions = {},
 ): Promise<{ blob: Blob; headers: Headers }> {
-  const response = await send(path, { ...options, headers: { ...options.headers, Accept: '*/*' } })
-  if (
-    response.status === 401 &&
-    options.refreshOnUnauthorized !== false &&
-    (!path.startsWith('/auth/') || path === '/auth/logout')
-  ) {
-    const refreshed = await refreshSession()
-    if (!refreshed) throw await toApiError(response)
-    const retried = await send(path, { ...options, headers: { ...options.headers, Accept: '*/*' } })
-    if (!retried.ok) throw await toApiError(retried)
-    return { blob: await retried.blob(), headers: retried.headers }
-  }
+  const response = await sendWithRefreshRetry(path, {
+    ...options,
+    headers: { ...options.headers, Accept: '*/*' },
+  })
   if (!response.ok) throw await toApiError(response)
   return { blob: await response.blob(), headers: response.headers }
 }
