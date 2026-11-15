@@ -5,6 +5,7 @@ import com.offercoach.ai.AiRuntimeConfigService.AiRuntimeSettings;
 import com.offercoach.ai.tools.config.ToolsProperties;
 import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
+import com.offercoach.ai.tools.http.MultipartBody;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -14,7 +15,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -31,7 +31,6 @@ public class DeepSeekToolsClient {
     private static final Logger log = LoggerFactory.getLogger(DeepSeekToolsClient.class);
     private static final String PROVIDER = "deepseek-tools";
     private static final int MAX_ERROR_BODY = 512;
-    private static final String BOUNDARY_PREFIX = "----ocAiTools";
 
     private final AiRuntimeConfigService runtimeConfig;
     private final ToolsProperties properties;
@@ -58,7 +57,8 @@ public class DeepSeekToolsClient {
      */
     public String asr(byte[] audio, String fileName, String contentType) {
         AiRuntimeSettings settings = requireSettings();
-        Multipart body = multipart(List.of(new Part("file", fileName, contentType, audio)));
+        MultipartBody.Body body =
+                MultipartBody.of(List.of(new MultipartBody.Part("file", fileName, contentType, audio)));
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uriOf(settings, "/tools/asr"))
                 .timeout(properties.getAsrTimeout())
@@ -74,9 +74,9 @@ public class DeepSeekToolsClient {
      */
     public String ocr(byte[] file, String fileName, String contentType, String purpose) {
         AiRuntimeSettings settings = requireSettings();
-        Multipart body = multipart(List.of(
-                new Part("purpose", null, null, purpose.getBytes(StandardCharsets.UTF_8)),
-                new Part("file", fileName, contentType, file)));
+        MultipartBody.Body body = MultipartBody.of(List.of(
+                new MultipartBody.Part("purpose", null, null, purpose.getBytes(StandardCharsets.UTF_8)),
+                new MultipartBody.Part("file", fileName, contentType, file)));
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uriOf(settings, "/tools/ocr"))
                 .timeout(properties.getOcrTimeout())
@@ -274,31 +274,6 @@ public class DeepSeekToolsClient {
         return builder.append('"').toString();
     }
 
-    private static Multipart multipart(List<Part> parts) {
-        String boundary = BOUNDARY_PREFIX + UUID.randomUUID().toString().replace("-", "");
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        for (Part part : parts) {
-            StringBuilder header = new StringBuilder();
-            header.append("--").append(boundary).append("\r\n");
-            header.append("Content-Disposition: form-data; name=\"")
-                    .append(part.name())
-                    .append('"');
-            if (part.fileName() != null) {
-                header.append("; filename=\"").append(part.fileName()).append('"');
-            }
-            header.append("\r\n");
-            if (part.contentType() != null) {
-                header.append("Content-Type: ").append(part.contentType()).append("\r\n");
-            }
-            header.append("\r\n");
-            out.writeBytes(header.toString().getBytes(StandardCharsets.UTF_8));
-            out.writeBytes(part.content());
-            out.writeBytes("\r\n".getBytes(StandardCharsets.UTF_8));
-        }
-        out.writeBytes(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
-        return new Multipart(out.toByteArray(), "multipart/form-data; boundary=" + boundary);
-    }
-
     /**
      * TTS 音频流；调用方必须在读取完毕后关闭。
      */
@@ -313,8 +288,4 @@ public class DeepSeekToolsClient {
             }
         }
     }
-
-    private record Part(String name, String fileName, String contentType, byte[] content) {}
-
-    private record Multipart(byte[] bytes, String contentType) {}
 }

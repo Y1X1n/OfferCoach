@@ -1,7 +1,9 @@
 package com.offercoach.interview.resume.application;
 
+import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.identity.application.port.UserRepository;
 import com.offercoach.identity.application.quota.QuotaService;
+import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.identity.domain.quota.QuotaType;
 import com.offercoach.interview.document.DocumentExtractionException;
 import com.offercoach.interview.document.DocumentTextExtractor;
@@ -10,10 +12,13 @@ import com.offercoach.interview.resume.application.port.ResumeRepository;
 import com.offercoach.interview.resume.domain.Resume;
 import com.offercoach.interview.resume.domain.ResumeSource;
 import com.offercoach.interview.storage.FileStorage;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 /**
@@ -25,6 +30,9 @@ public class ResumeParseExecutor {
     private static final Logger log = LoggerFactory.getLogger(ResumeParseExecutor.class);
 
     private static final int MIN_TEXT_CHARS = 20;
+    /** 低于此长度视为疑似扫描件，先走 OCR 再结构化（见 ai-tools-prd.md §3.3）。 */
+    private static final int OCR_TEXT_THRESHOLD = 200;
+
     private static final String ERROR_NEED_MANUAL = "PARSE_NEED_MANUAL";
     private static final String ERROR_PARSE_FAILED = "PARSE_FAILED";
 
@@ -36,6 +44,8 @@ public class ResumeParseExecutor {
     private final ResumeOcrFallback ocrFallback;
     private final QuotaService quotaService;
     private final UserRepository userRepository;
+    private final PlatformSettingsService platformSettings;
+    private final StringRedisTemplate redisTemplate;
 
     public ResumeParseExecutor(
             ResumeRepository resumeRepository,
@@ -45,7 +55,9 @@ public class ResumeParseExecutor {
             ResumeParseFinalizer finalizer,
             ResumeOcrFallback ocrFallback,
             QuotaService quotaService,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            PlatformSettingsService platformSettings,
+            StringRedisTemplate redisTemplate) {
         this.resumeRepository = resumeRepository;
         this.fileStorage = fileStorage;
         this.documentTextExtractor = documentTextExtractor;
@@ -54,6 +66,8 @@ public class ResumeParseExecutor {
         this.ocrFallback = ocrFallback;
         this.quotaService = quotaService;
         this.userRepository = userRepository;
+        this.platformSettings = platformSettings;
+        this.redisTemplate = redisTemplate;
     }
 
     public void execute(long resumeId) {
@@ -88,8 +102,8 @@ public class ResumeParseExecutor {
                 // 图片 / PPT 无法本地抽取，直接走 OCR。
                 localExtractionFailed = true;
             }
-            if (localExtractionFailed || text.length() < MIN_TEXT_CHARS || ocrFallback.requiresOcr(extension)) {
-                String ocrText = ocrExtract(resume, text);
+            if (localExtractionFailed || text.length() < OCR_TEXT_THRESHOLD || ocrFallback.requiresOcr(extension)) {
+                String ocrText = ocrAllowed(resume.userId()) ? ocrExtract(resume, text) : null;
                 if (ocrText != null && !ocrText.isEmpty()) {
                     text = ocrText;
                     pageCount = Math.max(pageCount, 1);
@@ -137,6 +151,31 @@ public class ResumeParseExecutor {
         byte[] content = fileStorage.load(resume.fileKey());
         ExtractedDocument extracted = documentTextExtractor.extract(content, extensionOf(resume));
         return new ExtractedDocument(DocumentTextExtractor.clean(extracted.text()), extracted.pageCount());
+    }
+
+    /**
+     * OCR 每日次数上限（平台策略可配，0 表示不限）；超限时跳过 OCR 走手动录入兜底。
+     */
+    private boolean ocrAllowed(long userId) {
+        int limit = platformSettings.snapshot().ocrDailyLimit();
+        if (limit <= 0) {
+            return true;
+        }
+        String key = RedisKeys.dailyOcr(userId, LocalDate.now().toString());
+        try {
+            Long count = redisTemplate.opsForValue().increment(key);
+            if (count != null && count == 1L) {
+                redisTemplate.expire(key, Duration.ofDays(1));
+            }
+            if (count != null && count > limit) {
+                log.warn("简历 OCR 达到每日上限，跳过 OCR：userId={} limit={}", userId, limit);
+                return false;
+            }
+            return true;
+        } catch (RuntimeException exception) {
+            log.warn("OCR 限额 Redis 不可用，放行：reason={}", exception.getClass().getSimpleName());
+            return true;
+        }
     }
 
     /**

@@ -22,6 +22,7 @@ public class PlatformSettingsService {
                    invite_reward_inviter_interview, invite_reward_invitee_resume,
                    invite_daily_cap, invite_total_cap,
                    registration_ip_daily_cap, registration_device_daily_cap,
+                   tts_per_question_limit, ocr_daily_limit, search_daily_limit, fetch_daily_limit,
                    updated_by, updated_at
             FROM platform_settings WHERE id = 1
             """;
@@ -33,6 +34,7 @@ public class PlatformSettingsService {
                 invite_reward_inviter_interview = ?, invite_reward_invitee_resume = ?,
                 invite_daily_cap = ?, invite_total_cap = ?,
                 registration_ip_daily_cap = ?, registration_device_daily_cap = ?,
+                tts_per_question_limit = ?, ocr_daily_limit = ?, search_daily_limit = ?, fetch_daily_limit = ?,
                 updated_by = ?, updated_at = now()
             WHERE id = 1
             """;
@@ -69,6 +71,10 @@ public class PlatformSettingsService {
                 requireRange("inviteTotalCap", command.inviteTotalCap(), 0, 10000),
                 requireRange("registrationIpDailyCap", command.registrationIpDailyCap(), 0, 10000),
                 requireRange("registrationDeviceDailyCap", command.registrationDeviceDailyCap(), 0, 1000),
+                requireRange("ttsPerQuestionLimit", command.ttsPerQuestionLimit(), 0, 100),
+                requireRange("ocrDailyLimit", command.ocrDailyLimit(), 0, 1000),
+                requireRange("searchDailyLimit", command.searchDailyLimit(), 0, 1000),
+                requireRange("fetchDailyLimit", command.fetchDailyLimit(), 0, 1000),
                 actorId,
                 null);
         jdbcTemplate.update(
@@ -84,6 +90,10 @@ public class PlatformSettingsService {
                 normalized.inviteTotalCap(),
                 normalized.registrationIpDailyCap(),
                 normalized.registrationDeviceDailyCap(),
+                normalized.ttsPerQuestionLimit(),
+                normalized.ocrDailyLimit(),
+                normalized.searchDailyLimit(),
+                normalized.fetchDailyLimit(),
                 actorId);
         cache = null;
         return snapshot();
@@ -109,6 +119,10 @@ public class PlatformSettingsService {
                             resultSet.getInt("invite_total_cap"),
                             resultSet.getInt("registration_ip_daily_cap"),
                             resultSet.getInt("registration_device_daily_cap"),
+                            resultSet.getInt("tts_per_question_limit"),
+                            resultSet.getInt("ocr_daily_limit"),
+                            resultSet.getInt("search_daily_limit"),
+                            resultSet.getInt("fetch_daily_limit"),
                             resultSet.getObject("updated_by", Long.class),
                             resultSet.getObject("updated_at", OffsetDateTime.class)));
             if (!rows.isEmpty()) {
@@ -117,7 +131,7 @@ public class PlatformSettingsService {
         } catch (RuntimeException exception) {
             // 表缺失或数据库抖动时回退安全默认值，不阻断登录与业务。
         }
-        return new Snapshot(true, 3, 3, 3, 3, 1, 1, 3, 20, 20, 3, null, null);
+        return new Snapshot(true, 3, 3, 3, 3, 1, 1, 3, 20, 20, 3, 3, 5, 20, 20, null, null);
     }
 
     private static int requireRange(String field, int value, int min, int max) {
@@ -140,6 +154,10 @@ public class PlatformSettingsService {
             int inviteTotalCap,
             int registrationIpDailyCap,
             int registrationDeviceDailyCap,
+            int ttsPerQuestionLimit,
+            int ocrDailyLimit,
+            int searchDailyLimit,
+            int fetchDailyLimit,
             Long updatedBy,
             OffsetDateTime updatedAt) {}
 
@@ -154,7 +172,11 @@ public class PlatformSettingsService {
             int inviteDailyCap,
             int inviteTotalCap,
             int registrationIpDailyCap,
-            int registrationDeviceDailyCap) {}
+            int registrationDeviceDailyCap,
+            int ttsPerQuestionLimit,
+            int ocrDailyLimit,
+            int searchDailyLimit,
+            int fetchDailyLimit) {}
 
     private record CacheEntry(Snapshot value, long expiresAtMillis) {}
 }

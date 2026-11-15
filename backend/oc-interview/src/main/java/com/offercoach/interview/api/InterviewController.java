@@ -360,6 +360,8 @@ public class InterviewController {
                 view.totalScore(),
                 view.jdTitle(),
                 view.jdCompany(),
+                view.jdSourceType(),
+                view.jdSourceUrl(),
                 view.reportId(),
                 timestamp(view.startedAt()),
                 timestamp(view.lastActiveAt()),

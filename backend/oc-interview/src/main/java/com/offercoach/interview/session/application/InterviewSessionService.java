@@ -5,7 +5,7 @@ import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.application.quota.QuotaResult;
 import com.offercoach.identity.application.quota.QuotaService;
 import com.offercoach.identity.domain.quota.QuotaType;
-import com.offercoach.interview.jd.application.JdWebImportService;
+import com.offercoach.interview.jd.application.JdPreviewStoreService;
 import com.offercoach.interview.jd.application.port.JobDescriptionRepository;
 import com.offercoach.interview.jd.domain.JobDescription;
 import com.offercoach.interview.report.application.ReportGenerationWorker;
@@ -71,7 +71,7 @@ public class InterviewSessionService {
     private final ReportGenerationWorker reportGenerationWorker;
     private final QuotaService quotaService;
     private final JsonCodec jsonCodec;
-    private final JdWebImportService jdWebImportService;
+    private final JdPreviewStoreService jdPreviewStoreService;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
 
@@ -85,7 +85,7 @@ public class InterviewSessionService {
             ReportGenerationWorker reportGenerationWorker,
             QuotaService quotaService,
             JsonCodec jsonCodec,
-            JdWebImportService jdWebImportService,
+            JdPreviewStoreService jdPreviewStoreService,
             ApplicationEventPublisher eventPublisher,
             PlatformTransactionManager transactionManager) {
         this.sessionRepository = sessionRepository;
@@ -97,7 +97,7 @@ public class InterviewSessionService {
         this.reportGenerationWorker = reportGenerationWorker;
         this.quotaService = quotaService;
         this.jsonCodec = jsonCodec;
-        this.jdWebImportService = jdWebImportService;
+        this.jdPreviewStoreService = jdPreviewStoreService;
         this.eventPublisher = eventPublisher;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -136,7 +136,7 @@ public class InterviewSessionService {
         }
         try {
             return transactionTemplate.execute(status -> {
-                long effectiveJdId = hasJd ? jdId : jdWebImportService.materialize(userId, previewToken);
+                long effectiveJdId = hasJd ? jdId : jdPreviewStoreService.materialize(userId, previewToken);
                 return doCreate(userId, resume.id(), effectiveJdId, config, key);
             });
         } catch (DuplicateKeyException exception) {
@@ -390,6 +390,8 @@ public class InterviewSessionService {
                 session.totalScore(),
                 jd == null ? null : jd.title(),
                 jd == null ? null : jd.company(),
+                jd == null ? null : jd.sourceType(),
+                jd == null ? null : jd.sourceUrl(),
                 report == null ? null : Long.toString(report.id()),
                 session.startedAt(),
                 session.lastActiveAt(),
@@ -546,6 +548,8 @@ public class InterviewSessionService {
             BigDecimal totalScore,
             String jdTitle,
             String jdCompany,
+            String jdSourceType,
+            String jdSourceUrl,
             String reportId,
             OffsetDateTime startedAt,
             OffsetDateTime lastActiveAt,

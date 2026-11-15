@@ -38,6 +38,8 @@ export function mapJd(dto: JdSummaryDto | JdDetailDto): Jd {
     rawText: dto.rawText ?? '',
     createdAt: dto.createdAt ?? '',
     structured: mapStructured(dto.structured),
+    sourceType: dto.sourceType ?? null,
+    sourceUrl: dto.sourceUrl ?? null,
   }
 }
 

@@ -69,12 +69,6 @@ public class ToolsProperties {
 
     private String fetchBaseUrl = "http://127.0.0.1:8098";
 
-    /** 每用户每日搜索次数上限（0 表示不限）。 */
-    private int searchDailyLimit = 20;
-
-    /** 每用户每日抓取次数上限（0 表示不限）。 */
-    private int fetchDailyLimit = 20;
-
     /** 单次搜索返回条数上限（官方 1–50，本侧收紧以控制响应体与成本）。 */
     private int searchMaxCount = 10;
 

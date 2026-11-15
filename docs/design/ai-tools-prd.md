@@ -67,7 +67,7 @@ DeepSeek 于 2026-11-13 开放「全家桶应用 API」：在既有 OpenAI 兼�
 - 接口：`POST /v1/tools/ocr`，`multipart/form-data`，字段 `file`（必填，带文件名）+ `purpose`（必填）。
   - `purpose=text_recognition`：无图 Word/PPT 直接抽取文字；其他**逐页识别**。
   - `purpose=rich_layout_recognition`：全部逐页识别。
-- 输入约束：PDF / Word(DOC/DOCX) / PowerPoint(PPT/PPTX) / 图片(PNG/JPEG/WebP/GIF/BMP/TIFF)；**≤100 MiB**；**≤1000 页**；上传 ≤120s，总时长 ≤180s；每账号并发 15。
+- 输入约束：PDF / Word(DOC/DOCX) / PowerPoint(PPT/PPTX) / 图片(PNG/JPEG/WebP/GIF/BMP/TIFF)；官方上限 **≤100 MiB / ≤1000 页**；**本系统受简历上传入口限制，实际上限 10 MiB**；上传 ≤120s，总时长 ≤180s；每账号并发 15。
 - 输出：`{ id, object:"ocr.result", page_count, pages:[{index,text,finish_reason}], usage }`；逐页文本**保留坐标标记** `<｜ref｜>…<｜/ref｜><｜box｜>[[x1,y1,x2,y2]]<｜/box｜>`（0–1000 归一化坐标，原点左上）。
 - 计费：¥1.5/千页，按成功页数 `page_count` 计费；失败 / 超时不计费。
 - **触发策略**：简历上传后先走既有本地抽取（PDFBox / POI）；当抽取文本**过短（<200 字符，疑似扫描件）**，或用户上传的是**图片 / PPT** 时，自动降级调用 OCR；OCR 文本再进入 `ResumeStructurer` → `structured_json`。既有 `PARSE_NEED_MANUAL` 保持为最终兜底。
@@ -152,7 +152,7 @@ oc-app 依赖 oc-ai-core（作为客户端调用三个服务）
 
 ## 6. 计量、额度与限流
 
-- 上游按量计费（见 §3）；`oc-app` 侧新增**每用户每日次数上限**（平台策略可配，默认：朗读 = 每题 ≤3 次；OCR = 每日 ≤5 次；语音作答 = 面试题目量内不额外计数）。
+- 上游按量计费（见 §3）；`oc-app` 侧上限统一由**平台策略**（`/admin/settings/quota`）配置：朗读 = **每题 ≤3 次**、OCR = **每日 ≤5 次**、语音作答 = **不额外计数**（受面试场次额度约束）。0 表示不限。
 - 复用 `QuotaService` 与 `RedisKeys` 增加日计数器；是否新增 `QuotaType` 见 §11 待决（默认**不新增**，用日限流控制成本）。
 - 上游并发：ASR / TTS 每账号 ≤50、OCR ≤15。工具服务各自用**信号量**限制在途请求，超限快速失败（`TOOL_BUSY`），不排队堆积；`oc-app` 对 `429/503` 退避重试 1 次。
 - 所有调用写 `ai_call_log`（`scene` / `provider=deepseek` / `model=tools-asr|tools-tts|tools-ocr` / 耗时 / 状态 / `error_code`），由工具服务自行追加，`user_id` 取自 `X-OC-User-Id`；成本按官方单价换算后展示在管理端。
@@ -216,3 +216,17 @@ oc-app 依赖 oc-ai-core（作为客户端调用三个服务）
 - **R7 三服务运维成本**：新增 3 个进程（约 +3×320MB JVM 上限）、3 个健康检查、3 套日志与告警；单机 Compose 内存需复核（当前生产 2C4G 级别需评估）。默认每个服务 `-Xmx256m`。
 - **R8 TTS 缓存多副本**：`oc-ai-tts` 多副本时本地缓存不共享，命中率下降但不影响正确性；如需共享改用对象存储或共享卷，本期不实现。
 - **R9 内部 Token 管理**：单一共享密钥轮换需三服务与 `oc-app` 同步滚动；本期不引入 mTLS / 服务网格。
+
+## 13. 代码审查整改（2026-11-15）
+
+| 审查发现 | 整改 |
+|---|---|
+| 切换题目未停止朗读 | `resetQuestionState` 首行 `stopSpeech()` |
+| OCR 触发阈值实现为 20 字 | 新增 `OCR_TEXT_THRESHOLD = 200`，与手动录入阈值 20 分离 |
+| 朗读/OCR/语音限额与设计不符 | 朗读改「每题 ≤3 次」、OCR 改「每日 ≤5 次」、移除语音额外日限；三项均收口到平台策略页 |
+| 设置页缺自动朗读与音色偏好 | 新增「语音朗读」卡片（开关 + 音色，本机保存）；面试间进入新题自动朗读（被浏览器拦截则静默跳过） |
+| 会话详情未展示 JD 来源 | `SessionDetailResponse` 增加 `jdSourceType/jdSourceUrl`，面试间标题区展示「岗位来源」链接 |
+| OCR 服务 20 MiB 不可达 | 与简历上传入口对齐为 10 MiB，并修正文档口径 |
+| 音频文件无保留期 | 新增 `VoiceAudioRetentionJob`（默认 7 天，随每日低峰清理） |
+| TTS 缓存冷数据不清理 | `TtsService` 新增定时清理任务（默认 7 天） |
+| 死代码 `dailyOcr` | 已接入 OCR 每日限额；`dailyTts`/`dailyVoiceAnswer` 已移除 |

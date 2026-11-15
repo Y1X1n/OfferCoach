@@ -14,6 +14,7 @@ import java.util.HexFormat;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
@@ -82,6 +83,38 @@ public class TtsService {
 
     public String defaultVoice() {
         return defaultVoice;
+    }
+
+    /**
+     * 清理过期音频缓存；命中路径的惰性删除只覆盖"再次被读"的文件，本任务兜底冷数据。
+     */
+    @Scheduled(cron = "${oc.ai.tools.tts-cache-cron:0 45 3 * * *}")
+    public void purgeExpiredCache() {
+        if (cacheRoot == null || cacheDays <= 0) {
+            return;
+        }
+        if (!Files.isDirectory(cacheRoot)) {
+            return;
+        }
+        java.time.Instant cutoff = java.time.Instant.now().minus(cacheDays, java.time.temporal.ChronoUnit.DAYS);
+        int removed = 0;
+        try (var stream = Files.walk(cacheRoot)) {
+            for (Path path : stream.filter(Files::isRegularFile).toList()) {
+                try {
+                    if (Files.getLastModifiedTime(path).toInstant().isBefore(cutoff)) {
+                        Files.deleteIfExists(path);
+                        removed++;
+                    }
+                } catch (IOException ignored) {
+                    // 单个文件失败不影响其余清理
+                }
+            }
+        } catch (IOException exception) {
+            log.warn("TTS 缓存清理失败：reason={}", exception.getClass().getSimpleName());
+        }
+        if (removed > 0) {
+            log.info("TTS 缓存清理完成：removed={} retentionDays={}", removed, cacheDays);
+        }
     }
 
     private String normalizeVoice(String voiceId) {

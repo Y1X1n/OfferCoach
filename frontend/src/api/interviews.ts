@@ -34,6 +34,8 @@ interface InterviewDto {
   resumeTitle?: string | null | undefined
   jdTitle?: string | null | undefined
   jdCompany?: string | null | undefined
+  jdSourceType?: string | null | undefined
+  jdSourceUrl?: string | null | undefined
   questionCount?: number | null | undefined
   reportId?: string | null | undefined
 }
@@ -116,6 +118,8 @@ export function mapInterview(dto: InterviewDto): InterviewSession {
     resumeTitle: dto.resumeTitle ?? null,
     jdTitle: dto.jdTitle ?? null,
     jdCompany: dto.jdCompany ?? null,
+    jdSourceType: dto.jdSourceType ?? null,
+    jdSourceUrl: dto.jdSourceUrl ?? null,
     questionCount: dto.questionCount ?? undefined,
     reportId: dto.reportId ?? null,
   }

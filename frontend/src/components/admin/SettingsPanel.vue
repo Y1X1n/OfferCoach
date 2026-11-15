@@ -28,6 +28,10 @@ interface SettingsForm {
   inviteTotalCap: string
   registrationIpDailyCap: string
   registrationDeviceDailyCap: string
+  ttsPerQuestionLimit: string
+  ocrDailyLimit: string
+  searchDailyLimit: string
+  fetchDailyLimit: string
 }
 
 function emptyForm(): SettingsForm {
@@ -43,6 +47,10 @@ function emptyForm(): SettingsForm {
     inviteTotalCap: '20',
     registrationIpDailyCap: '20',
     registrationDeviceDailyCap: '3',
+    ttsPerQuestionLimit: '3',
+    ocrDailyLimit: '5',
+    searchDailyLimit: '20',
+    fetchDailyLimit: '20',
   }
 }
 
@@ -81,6 +89,10 @@ function syncForm(current: AdminPlatformSettings): void {
     inviteTotalCap: String(current.inviteTotalCap),
     registrationIpDailyCap: String(current.registrationIpDailyCap),
     registrationDeviceDailyCap: String(current.registrationDeviceDailyCap),
+    ttsPerQuestionLimit: String(current.ttsPerQuestionLimit),
+    ocrDailyLimit: String(current.ocrDailyLimit),
+    searchDailyLimit: String(current.searchDailyLimit),
+    fetchDailyLimit: String(current.fetchDailyLimit),
   }
 }
 
@@ -107,6 +119,10 @@ const LIMITS: Record<keyof Omit<SettingsForm, 'registrationOpen'>, [number, numb
   inviteTotalCap: [0, 10000, '邀请累计上限'],
   registrationIpDailyCap: [0, 10000, '单 IP 每日注册上限'],
   registrationDeviceDailyCap: [0, 1000, '单设备每日注册上限'],
+  ttsPerQuestionLimit: [0, 100, '单题朗读上限'],
+  ocrDailyLimit: [0, 1000, '每日简历 OCR 上限'],
+  searchDailyLimit: [0, 1000, '每日岗位搜索上限'],
+  fetchDailyLimit: [0, 1000, '每日链接抓取上限'],
 }
 
 function parseForm(): { payload: AdminPlatformSettingsPayload } | { error: string } {
@@ -133,6 +149,10 @@ function parseForm(): { payload: AdminPlatformSettingsPayload } | { error: strin
       inviteRewardInviteeResume: Number(form.value.inviteRewardInviteeResume),
       inviteDailyCap: Number(form.value.inviteDailyCap),
       inviteTotalCap: Number(form.value.inviteTotalCap),
+      ttsPerQuestionLimit: Number(form.value.ttsPerQuestionLimit),
+      ocrDailyLimit: Number(form.value.ocrDailyLimit),
+      searchDailyLimit: Number(form.value.searchDailyLimit),
+      fetchDailyLimit: Number(form.value.fetchDailyLimit),
       registrationIpDailyCap: Number(form.value.registrationIpDailyCap),
       registrationDeviceDailyCap: Number(form.value.registrationDeviceDailyCap),
     },
@@ -295,6 +315,39 @@ onMounted(() => {
                 label="每日简历解析上限"
                 type="number"
                 hint="默认 3 次"
+              />
+            </div>
+          </section>
+
+          <section class="border-t border-border pt-5">
+            <h3 class="text-sm font-medium text-text">AI 工具次数</h3>
+            <p class="mt-0.5 text-xs text-text-muted">
+              语音与联网能力的用量上限；朗读按"每题"计数，其余按"每日"计数，0 表示不限制。
+            </p>
+            <div class="mt-3 grid gap-4 sm:grid-cols-2">
+              <Input
+                v-model="form.ttsPerQuestionLimit"
+                label="单题朗读上限"
+                type="number"
+                hint="默认 3 次 / 题"
+              />
+              <Input
+                v-model="form.ocrDailyLimit"
+                label="每日简历 OCR 上限"
+                type="number"
+                hint="默认 5 次"
+              />
+              <Input
+                v-model="form.searchDailyLimit"
+                label="每日岗位搜索上限"
+                type="number"
+                hint="默认 20 次"
+              />
+              <Input
+                v-model="form.fetchDailyLimit"
+                label="每日链接抓取上限"
+                type="number"
+                hint="默认 20 次"
               />
             </div>
           </section>

@@ -7,6 +7,7 @@ import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.config.ToolsProperties;
 import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
+import com.offercoach.ai.tools.http.MultipartBody;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -31,7 +32,6 @@ public class AiToolGateway {
 
     private static final Logger log = LoggerFactory.getLogger(AiToolGateway.class);
     private static final int MAX_ERROR_BODY = 512;
-    private static final String BOUNDARY_PREFIX = "----ocAiGateway";
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
 
     private final ToolsProperties properties;
@@ -51,7 +51,8 @@ public class AiToolGateway {
      * 调用 ASR 服务；上游不可用时抛 {@link ToolException}，由调用方降级。
      */
     public ToolDtos.AsrResult transcribe(long userId, byte[] audio, String fileName, String contentType) {
-        Multipart body = multipart(List.of(new Part("file", fileName, contentType, audio)));
+        MultipartBody.Body body =
+                MultipartBody.of(List.of(new MultipartBody.Part("file", fileName, contentType, audio)));
         HttpRequest request = baseRequest(properties.getAsrBaseUrl(), "/internal/v1/asr", userId)
                 .timeout(properties.getAsrTimeout())
                 .header("Content-Type", body.contentType())
@@ -107,9 +108,9 @@ public class AiToolGateway {
      * 调用 OCR 服务；用于扫描件简历降级识别。
      */
     public ToolDtos.OcrResult recognize(long userId, byte[] file, String fileName, String contentType, String purpose) {
-        Multipart body = multipart(List.of(
-                new Part("purpose", null, null, purpose.getBytes(StandardCharsets.UTF_8)),
-                new Part("file", fileName, contentType, file)));
+        MultipartBody.Body body = MultipartBody.of(List.of(
+                new MultipartBody.Part("purpose", null, null, purpose.getBytes(StandardCharsets.UTF_8)),
+                new MultipartBody.Part("file", fileName, contentType, file)));
         HttpRequest request = baseRequest(properties.getOcrBaseUrl(), "/internal/v1/ocr", userId)
                 .timeout(properties.getOcrTimeout())
                 .header("Content-Type", body.contentType())
@@ -269,37 +270,8 @@ public class AiToolGateway {
         return value.length() <= MAX_ERROR_BODY ? value : value.substring(0, MAX_ERROR_BODY);
     }
 
-    private static Multipart multipart(List<Part> parts) {
-        String boundary = BOUNDARY_PREFIX + UUID.randomUUID().toString().replace("-", "");
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        for (Part part : parts) {
-            StringBuilder header = new StringBuilder();
-            header.append("--").append(boundary).append("\r\n");
-            header.append("Content-Disposition: form-data; name=\"")
-                    .append(part.name())
-                    .append('"');
-            if (part.fileName() != null) {
-                header.append("; filename=\"").append(part.fileName()).append('"');
-            }
-            header.append("\r\n");
-            if (part.contentType() != null) {
-                header.append("Content-Type: ").append(part.contentType()).append("\r\n");
-            }
-            header.append("\r\n");
-            out.writeBytes(header.toString().getBytes(StandardCharsets.UTF_8));
-            out.writeBytes(part.content());
-            out.writeBytes("\r\n".getBytes(StandardCharsets.UTF_8));
-        }
-        out.writeBytes(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
-        return new Multipart(out.toByteArray(), "multipart/form-data; boundary=" + boundary);
-    }
-
     /**
      * TTS 音频结果；cached 表示命中工具服务缓存。
      */
     public record AudioResult(byte[] audio, String contentType, boolean cached) {}
-
-    private record Part(String name, String fileName, String contentType, byte[] content) {}
-
-    private record Multipart(byte[] bytes, String contentType) {}
 }

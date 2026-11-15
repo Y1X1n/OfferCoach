@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { BriefcaseBusiness, ClipboardPaste, Target, Trash2, Wand2 } from 'lucide-vue-next'
+import { BriefcaseBusiness, ExternalLink, ClipboardPaste, Target, Trash2, Wand2 } from 'lucide-vue-next'
 import type { Jd, JdMatch, ResumeSummary } from '@/types'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
@@ -107,6 +107,15 @@ function scrollToForm(): void {
   formSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+/**
+ * 重复 JD：清空错误并选中已有岗位。
+ */
+async function openExistingJd(id: string): Promise<void> {
+  submitError.value = ''
+  await loadList()
+  selectedId.value = id
+}
+
 async function handleSubmit(payload: {
   title: string
   company: string
@@ -129,9 +138,7 @@ async function handleSubmit(payload: {
     if (cause instanceof ApiError && cause.code === 'STATE_CONFLICT') {
       const existing = typeof cause.details.existingJdId === 'string' ? cause.details.existingJdId : ''
       if (existing) {
-        submitError.value = ''
-        await loadList()
-        selectedId.value = existing
+        await openExistingJd(existing)
         toast('该 JD 已存在', 'info', '已为你打开已有岗位，不会重复保存')
         return
       }
@@ -318,7 +325,19 @@ onMounted(() => {
                 </span>
                 <div class="min-w-0">
                   <h2 class="text-base font-semibold text-text">{{ selectedJd.title }}</h2>
-                  <p class="mt-0.5 text-xs text-text-muted">{{ selectedJd.company }}</p>
+                  <p class="mt-0.5 text-xs text-text-muted">
+                    {{ selectedJd.company }}
+                    <a
+                      v-if="selectedJd.sourceUrl"
+                      :href="selectedJd.sourceUrl"
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      class="ml-1 inline-flex items-center gap-0.5 underline-offset-2 hover:text-text hover:underline"
+                    >
+                      来源{{ selectedJd.sourceType === 'SEARCH' ? '（搜索）' : '' }}
+                      <ExternalLink class="h-3 w-3" aria-hidden="true" />
+                    </a>
+                  </p>
                 </div>
               </div>
 

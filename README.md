@@ -46,13 +46,13 @@ Nginx ──▶ Spring Boot oc-app（模块化单体，端口 8081）
 
 | 模块 | 文件 / 行数 | 职责 |
 |---|---:|---|
-| `oc-interview` | 128 / 11,945 | 简历解析与编辑、JD 匹配、题库检索、会话状态机、答题、反馈、报告、异步 Worker |
-| `oc-identity` | 57 / 4,178 | 注册 / 登录 / Refresh 轮换、额度与流水、邀请奖励、验证码、注册风控、平台策略 |
-| `oc-admin` | 51 / 4,424 | 题库、用户、指标、AI 日志、Prompt、实验、平台策略、审计 |
-| `oc-ai-client` | 8 / 807 | OpenAI 兼容调用、AES-GCM 密钥、URL 安全校验、运行时配置 |
-| `oc-ai` | — | AI 工具域：`oc-ai-core` 共享库（DeepSeek 工具客户端、内部鉴权、调用日志）+ `oc-ai-asr`(8094) / `oc-ai-tts`(8095) / `oc-ai-ocr`(8096) / `oc-ai-search`(8097) / `oc-ai-fetch`(8098) 五个独立服务，仅内网可达 |
-| `oc-common` | 5 / 218 | 错误码、异常、Trace、Redis Key |
-| `oc-app` | 8 / 409 | Spring Boot 聚合启动、安全配置、管理员 / 演示账号引导 |
+| `oc-interview` | 144 / 14,728 | 简历解析与编辑、JD 匹配、题库检索、会话状态机、答题、反馈、报告、异步 Worker |
+| `oc-identity` | 60 / 4,532 | 注册 / 登录 / Refresh 轮换、额度与流水、邀请奖励、验证码、注册风控、平台策略 |
+| `oc-admin` | 54 / 4,689 | 题库、用户、指标、AI 日志、Prompt、实验、平台策略、审计 |
+| `oc-ai-client` | 8 / 1,008 | OpenAI 兼容调用、AES-GCM 密钥、URL 安全校验、运行时配置 |
+| `oc-ai` | 23 / 2,004 | AI 工具域：`oc-ai-core` 共享库（DeepSeek 工具客户端、内部鉴权、调用日志）+ `oc-ai-asr`(8094) / `oc-ai-tts`(8095) / `oc-ai-ocr`(8096) / `oc-ai-search`(8097) / `oc-ai-fetch`(8098) 五个独立服务，仅内网可达 |
+| `oc-common` | 5 / 287 | 错误码、异常、Trace、Redis Key |
+| `oc-app` | 8 / 413 | Spring Boot 聚合启动、安全配置、管理员 / 演示账号引导 |
 | `oc-gateway` | 2 / 104 | 预留网关模块，当前生产由 Nginx 直接反代 `oc-app` |
 | `oc-report-worker` | 1 / 4 | 预留独立 Worker，当前报告由 `oc-interview` 内调度器生成 |
 

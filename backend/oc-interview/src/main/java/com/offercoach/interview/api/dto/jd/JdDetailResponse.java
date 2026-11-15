@@ -14,4 +14,6 @@ public record JdDetailResponse(
         Map<String, Object> structured,
         BigDecimal matchScore,
         Map<String, Object> matchReport,
-        String createdAt) {}
+        String createdAt,
+        String sourceType,
+        String sourceUrl) {}
