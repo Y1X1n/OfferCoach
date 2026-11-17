@@ -3,7 +3,14 @@
 > 状态：生效 ｜ 版本：v1.1 ｜ 更新：2026-11-07
 > 本文只讲**怎么构建、怎么打 tag、怎么发布与回滚**；环境、端口、Compose、K8s 与 Nginx 见 [deployment.md](deployment.md)；监控告警与故障处置见 [observability.md](observability.md)。
 >
-> **当前实现**：`.github/workflows/ci.yml` 在 push main 与 PR 上执行后端 `mvn verify` 与前端 `pnpm check`；镜像构建、推送、金丝雀与自动回滚仍按本文手动执行，尚未接入 CI/CD。
+> **当前实现**：`.github/workflows/ci.yml` 在 push main、PR 与手动触发时执行，策略如下：
+>
+> - **按变更路径裁剪**：由 `.github/scripts/changed-paths.sh` 判断改动范围，只改前端/文档时跳过后端重活，反过来同理；基线缺失或 diff 失败时保守全跑。
+> - **后端快速失败 + 并行**：`spotless:check` 与 `checkstyle:check` 绑定在 `validate` 阶段，规范问题约 4s 失败；随后 `mvn -T 1C verify` 并行构建（本地 clean verify 96s → 73s，约 −24%）；失败时上传 surefire 报告。
+> - **前端分步**：`typecheck → lint → unit → build`，build 直接调 `vite build`，避免 `pnpm check` 中重复执行 `vue-tsc`。
+> - **Pages 工作流**：仓库为私有库且 Pages 未启用，`pages.yml` 仅保留手动触发，避免 `site/**` 变更产生必然失败的运行。
+>
+> 镜像构建、推送、金丝雀与自动回滚仍按本文手动执行，尚未接入 CI/CD。
 
 ## 1. 一页结论
 

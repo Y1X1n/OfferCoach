@@ -1,11 +1,9 @@
 name: Deploy GitHub Pages
 
+# 注意：本仓库为私有库，GitHub Pages 未启用（API 返回 404）。
+# 保留 push 触发会让任何 site/** 变更必然产生一次失败运行、白耗 runner 分钟，
+# 因此改为仅手动触发；启用 Pages 后再恢复 push 触发。
 on:
-  push:
-    branches: [main]
-    paths:
-      - "site/**"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
