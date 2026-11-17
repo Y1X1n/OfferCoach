@@ -38,6 +38,12 @@
 
 ## 文档版本
 
+### v2.25（2026-11-17）——发放额度前回查订单事实
+
+- `oc-identity` 发放套餐前回查 `payment_order`：订单必须存在、`status=PAID`，且用户、套餐、金额与内部通知完全一致；不一致直接拒绝并记 ERROR，不再仅凭内部令牌与请求体授信。
+- 新增只读端口 `PaymentOrderFactsPort` + `PaymentOrderFactsAdapter`（application 不依赖 infrastructure，满足 ArchUnit 分层规则）。
+- 补 `PaymentEntitlementServiceTest`（订单缺失、未支付、三项不一致、重复通知幂等）。
+
 ### v2.24（2026-11-17）——发放失败终态与死信
 
 - `notification_status` 增加终态 `DEAD`：`FAILED` 且本次为最后一次尝试时原子升级为 `DEAD`，`findPendingNotify` 只捞 `PENDING/FAILED`，避免终态被反复重试。
