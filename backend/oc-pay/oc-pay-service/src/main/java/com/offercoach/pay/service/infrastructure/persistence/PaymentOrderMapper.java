@@ -101,13 +101,22 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrderDO> {
             """)
     int releaseRefundAmount(@Param("orderNo") String orderNo, @Param("amountCents") int amountCents);
 
+    /**
+     * 更新通知状态与尝试次数；FAILED 且已达最大尝试次数时升级为 DEAD（终态，不再重试）。
+     */
     @Update(
             """
             UPDATE payment_order
-            SET notify_status = #{status}, notify_attempts = notify_attempts + 1, updated_at = now()
+            SET notify_status = CASE
+                    WHEN #{status} = 'FAILED' AND notify_attempts + 1 >= #{maxAttempts} THEN 'DEAD'
+                    ELSE #{status}
+                END,
+                notify_attempts = notify_attempts + 1,
+                updated_at = now()
             WHERE order_no = #{orderNo}
             """)
-    int updateNotify(@Param("orderNo") String orderNo, @Param("status") String status);
+    int updateNotify(
+            @Param("orderNo") String orderNo, @Param("status") String status, @Param("maxAttempts") int maxAttempts);
 
     @Select(
             """
@@ -134,7 +143,7 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrderDO> {
     @Select(
             """
             SELECT * FROM payment_order
-            WHERE status = 'PAID' AND notify_status <> 'NOTIFIED' AND notify_attempts < #{maxAttempts}
+            WHERE status = 'PAID' AND notify_status IN ('PENDING', 'FAILED') AND notify_attempts < #{maxAttempts}
             ORDER BY updated_at ASC
             LIMIT #{limit}
             """)
