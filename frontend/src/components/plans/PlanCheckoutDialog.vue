@@ -8,11 +8,13 @@ import Dialog from '@/components/ui/Dialog.vue'
 import Spinner from '@/components/ui/Spinner.vue'
 import { errorMessage } from '@/api/client'
 import * as ordersApi from '@/api/orders'
+import { useToast } from '@/composables/useToast'
 import type { Order, PayChannel, PayChannelCode, Plan } from '@/types'
 import { formatCents } from '@/utils/format'
 
 const props = defineProps<{ open: boolean; plan: Plan | null }>()
 const emit = defineEmits<{ 'update:open': [boolean]; paid: [] }>()
+const { toast } = useToast()
 
 const CHANNEL_LABELS: Record<PayChannelCode, string> = {
   wechat: '微信支付',
@@ -20,7 +22,6 @@ const CHANNEL_LABELS: Record<PayChannelCode, string> = {
   mock: '模拟支付（本地联调）',
 }
 const POLL_INTERVAL_MS = 2500
-const MAX_POLL_MS = 5 * 60 * 1000
 
 type Phase = 'loading' | 'select' | 'paying' | 'success' | 'failed'
 
@@ -31,8 +32,13 @@ const order = ref<Order | null>(null)
 const qrDataUrl = ref('')
 const message = ref('')
 const copied = ref(false)
+const creating = ref(false)
+const pollPaused = ref(false)
+const pollError = ref('')
 let pollTimer: number | null = null
-let pollStartedAt = 0
+/** 首次下单确定的支付截止时间；轮询返回的 expiresAt 不覆盖它。 */
+let deadlineAt = 0
+let disposed = false
 
 const enabledChannels = computed(() => channels.value.filter((item) => item.enabled))
 const selected = computed(
@@ -44,19 +50,30 @@ const amountLabel = computed(() => (props.plan ? formatCents(props.plan.priceCen
 watch(
   () => props.open,
   (open) => {
-    if (open) void begin()
-    else stopPolling()
+    if (open) {
+      void begin()
+      return
+    }
+    // 遮罩、Esc 等路径也走这里，确保关闭弹窗时旧订单被关闭
+    const current = order.value
+    resetPayState()
+    void cancelPendingOrder(current, '关闭支付弹窗')
   },
 )
 
-onBeforeUnmount(stopPolling)
+onBeforeUnmount(() => {
+  disposed = true
+  stopPolling()
+  void cancelPendingOrder(order.value, '离开页面')
+})
 
 async function begin(): Promise<void> {
-  stopPolling()
+  // 重新下单前先关掉上一笔未支付订单，避免旧二维码继续可付
+  const current = order.value
+  resetPayState()
+  void cancelPendingOrder(current, '重新下单')
   channels.value = []
   channel.value = ''
-  order.value = null
-  qrDataUrl.value = ''
   message.value = ''
   copied.value = false
   if (!props.plan) {
@@ -89,20 +106,42 @@ function createIdempotencyKey(): string {
 }
 
 async function pay(): Promise<void> {
-  if (!props.plan || !channel.value) return
+  if (!props.plan || !channel.value || creating.value) return
+  creating.value = true
   phase.value = 'paying'
   message.value = ''
+  pollPaused.value = false
+  pollError.value = ''
   try {
     const created = await ordersApi.createOrder(
       { planCode: props.plan.code, channel: channel.value },
       createIdempotencyKey(),
     )
+    // 下单期间弹窗已关闭、组件已卸载或已重新开始：立即关掉这笔订单
+    if (disposed || !props.open || phase.value !== 'paying') {
+      void cancelPendingOrder(created, '下单结果已失效')
+      return
+    }
     order.value = created
+    // 截止时间只取首次下单的 expiresAt，后续轮询刷新不覆盖
+    deadlineAt = ordersApi.orderDeadline(created)
     await renderQr(created.codeUrl)
+    if (
+      disposed ||
+      !props.open ||
+      phase.value !== 'paying' ||
+      order.value?.orderNo !== created.orderNo
+    ) {
+      return
+    }
     startPolling()
   } catch (cause) {
+    // 已关闭或已重新开始的流程不再展示旧请求的错误
+    if (disposed || !props.open || phase.value !== 'paying') return
     phase.value = 'failed'
     message.value = errorMessage(cause, '下单失败，请重试')
+  } finally {
+    creating.value = false
   }
 }
 
@@ -124,20 +163,20 @@ async function renderQr(codeUrl: string | null): Promise<void> {
 
 function startPolling(): void {
   stopPolling()
-  pollStartedAt = Date.now()
   pollTimer = window.setInterval(() => void poll(), POLL_INTERVAL_MS)
 }
 
 async function poll(): Promise<void> {
-  if (!order.value) return
-  if (Date.now() - pollStartedAt > MAX_POLL_MS) {
-    stopPolling()
-    phase.value = 'failed'
-    message.value = '支付超时，请重新下单'
+  const current = order.value
+  if (!current || phase.value !== 'paying') return
+  if (ordersApi.isOrderExpired(deadlineAt)) {
+    expireOrder()
     return
   }
   try {
-    const latest = await ordersApi.getOrder(order.value.orderNo)
+    const latest = await ordersApi.getOrder(current.orderNo)
+    // 请求返回前订单可能已切换或重置，忽略过期响应
+    if (phase.value !== 'paying' || order.value?.orderNo !== current.orderNo) return
     order.value = latest
     if (latest.status === 'PAID') {
       stopPolling()
@@ -148,7 +187,7 @@ async function poll(): Promise<void> {
     if (latest.status === 'CLOSED') {
       stopPolling()
       phase.value = 'failed'
-      message.value = '订单已关闭或过期，请重新下单'
+      message.value = '订单已关闭，请重新下单'
       return
     }
     if (latest.status === 'FAILED') {
@@ -163,13 +202,55 @@ async function poll(): Promise<void> {
       message.value = '该订单已退款'
       return
     }
-    if (latest.expiresAt && new Date(latest.expiresAt).getTime() < Date.now()) {
-      stopPolling()
-      phase.value = 'failed'
-      message.value = '二维码已过期，请重新下单'
+    if (ordersApi.isOrderExpired(deadlineAt)) {
+      expireOrder()
+    }
+  } catch (cause) {
+    if (phase.value !== 'paying' || order.value?.orderNo !== current.orderNo) return
+    // 网络抖动/超时不等于订单过期：暂停轮询，保留二维码，由用户决定是否继续刷新
+    stopPolling()
+    pollPaused.value = true
+    pollError.value = errorMessage(cause, '订单状态查询失败，请检查网络后重试')
+  }
+}
+
+function expireOrder(): void {
+  stopPolling()
+  pollPaused.value = false
+  pollError.value = ''
+  phase.value = 'failed'
+  message.value = '订单已过期，请重新下单'
+}
+
+/** 轮询因网络异常暂停后，继续查询直到订单截止时间。 */
+function resumePolling(): void {
+  if (!order.value) return
+  if (ordersApi.isOrderExpired(deadlineAt)) {
+    expireOrder()
+    return
+  }
+  pollPaused.value = false
+  pollError.value = ''
+  startPolling()
+  void poll()
+}
+
+/**
+ * best-effort 关闭未支付订单；失败不阻断 UI，仅轻提示，避免静默失败。
+ */
+async function cancelPendingOrder(target: Order | null, reason: string): Promise<void> {
+  if (!target || !ordersApi.needsCancel(target.status)) return
+  try {
+    const latest = await ordersApi.cancelOrder(target.orderNo)
+    if (disposed || latest.status !== 'PAID') return
+    // 关单时发现订单已支付：同步成功态，避免用户对同一套餐再次下单
+    emit('paid')
+    if (props.open && !order.value) {
+      order.value = latest
+      phase.value = 'success'
     }
   } catch {
-    // 轮询期间网络抖动不打断，等待下一次轮询
+    toast('旧订单关闭失败', 'warning', `${reason}时未能关闭订单，该订单可能仍可支付。`)
   }
 }
 
@@ -197,16 +278,38 @@ async function copyCodeUrl(): Promise<void> {
   }
 }
 
-function backToSelect(): void {
+/** 切换支付方式：若已存在未支付订单，先关闭它，避免两笔订单同时可付。 */
+function chooseChannel(next: PayChannelCode): void {
+  if (channel.value === next) return
+  const current = order.value
+  channel.value = next
+  if (!current) return
+  resetPayState()
+  phase.value = 'select'
+  void cancelPendingOrder(current, '切换支付方式')
+}
+
+function resetPayState(): void {
   stopPolling()
   order.value = null
   qrDataUrl.value = ''
+  deadlineAt = 0
+  pollPaused.value = false
+  pollError.value = ''
+}
+
+function backToSelect(): void {
+  const current = order.value
+  resetPayState()
   phase.value = 'select'
+  void cancelPendingOrder(current, '重新选择支付方式')
 }
 
 function close(): void {
-  stopPolling()
+  const current = order.value
+  resetPayState()
   emit('update:open', false)
+  void cancelPendingOrder(current, '关闭支付弹窗')
 }
 </script>
 
@@ -234,7 +337,7 @@ function close(): void {
               ? 'border-accent/60 bg-surface-2'
               : 'border-border hover:border-text/25 hover:bg-surface-2',
           ]"
-          @click="channel = item.channel"
+          @click="chooseChannel(item.channel)"
         >
           <span class="text-sm font-medium text-text">{{ CHANNEL_LABELS[item.channel] }}</span>
           <span v-if="item.channel === 'mock'" class="text-2xs text-text-muted"
@@ -242,7 +345,9 @@ function close(): void {
           >
         </button>
       </div>
-      <Button block :disabled="!channel" @click="pay">立即支付 {{ amountLabel }}</Button>
+      <Button block :disabled="!channel || creating" @click="pay">
+        立即支付 {{ amountLabel }}
+      </Button>
     </div>
 
     <div v-else-if="phase === 'paying'" class="flex flex-col items-center gap-4 py-2">
@@ -263,7 +368,11 @@ function close(): void {
           <Copy class="h-4 w-4" aria-hidden="true" />{{ copied ? '已复制' : '复制链接' }}
         </Button>
       </div>
-      <p class="text-xs text-text-muted">支付完成后本页会自动刷新，无需手动操作。</p>
+      <div v-if="pollPaused" class="flex flex-col items-center gap-2 text-center">
+        <p class="text-xs text-warning">{{ pollError }}</p>
+        <Button variant="outline" size="sm" @click="resumePolling">继续刷新</Button>
+      </div>
+      <p v-else class="text-xs text-text-muted">支付完成后本页会自动刷新，无需手动操作。</p>
       <button type="button" class="text-xs text-text-muted underline" @click="backToSelect">
         重新选择支付方式
       </button>

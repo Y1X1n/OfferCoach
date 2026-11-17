@@ -57,6 +57,14 @@ public class OrderController {
     }
 
     /**
+     * 关闭未支付订单；已支付/已关闭订单幂等返回当前视图。
+     */
+    @PostMapping("/orders/{orderNo}/cancel")
+    public OrderResponse cancel(@PathVariable String orderNo) {
+        return paymentOrderService.cancel(currentUser.userId(), orderNo);
+    }
+
+    /**
      * 可用支付渠道；登录后调用，前端据此展示微信 / 支付宝等支付方式。
      */
     @GetMapping("/pay-channels")
