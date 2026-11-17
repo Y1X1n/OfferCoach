@@ -38,6 +38,13 @@
 
 ## 文档版本
 
+### v2.21（2026-11-17）——套餐页接入支付下单与二维码
+
+- 新增 `GET /api/v1/pay-channels`（登录态）：代理 `oc-pay` 渠道可用性，前端据此展示可用支付方式。
+- 前端新增 `api/orders.ts`（下单 / 查单 / 查渠道，`Idempotency-Key`）、`components/plans/PlanCheckoutDialog.vue`（渠道选择 → 下单 → 二维码 → 2.5s 轮询 → 成功），`PlansPage` 升级按钮接通该弹窗并在支付成功后刷新额度；引入 `qrcode` 渲染二维码。本地模拟渠道提供“打开模拟支付页 / 复制链接”。
+- 端到端验证（本地真实前后端 + oc-pay 模拟渠道）：下单 → 模拟支付 → 回调 → 额度发放，`user_quota` 由 FREE 3/3 变为 PRO 33/10002，`notify_status=NOTIFIED`；重复回调不产生重复流水（幂等命中）。
+- 文档同步 [design/payment.md](design/payment.md) §9 与 [design/api.md](design/api.md) §3.2；README 限额与规模更新。
+
 ### v2.20（2026-11-17）——支付服务 oc-pay
 
 - 新增聚合模块 `oc-pay`：`oc-pay-core`（契约 DTO、配置、内部令牌工具、`PayGateway`）+ `oc-pay-service`（订单生命周期、微信 v3 / 支付宝渠道适配与验签、退款、对账扫描、额度发放通知）。
