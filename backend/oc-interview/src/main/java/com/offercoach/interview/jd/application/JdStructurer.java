@@ -2,6 +2,7 @@ package com.offercoach.interview.jd.application;
 
 import com.offercoach.ai.AiProvider;
 import com.offercoach.ai.AiScene;
+import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.ai.AiGateway;
 import com.offercoach.interview.support.JsonCodec;
 import java.util.ArrayList;
@@ -36,15 +37,27 @@ public class JdStructurer {
     private final AiGateway aiGateway;
     private final JsonCodec jsonCodec;
     private final JdHeuristicStructurer heuristicStructurer;
+    private final AiCallLogger aiCallLogger;
 
-    public JdStructurer(AiGateway aiGateway, JsonCodec jsonCodec, JdHeuristicStructurer heuristicStructurer) {
+    public JdStructurer(
+            AiGateway aiGateway,
+            JsonCodec jsonCodec,
+            JdHeuristicStructurer heuristicStructurer,
+            AiCallLogger aiCallLogger) {
         this.aiGateway = aiGateway;
         this.jsonCodec = jsonCodec;
         this.heuristicStructurer = heuristicStructurer;
+        this.aiCallLogger = aiCallLogger;
     }
 
-    public StructuredJd structure(String title, String company, String rawText) {
-        Map<String, Object> structured = aiGateway.available() ? viaAi(title, company, rawText) : null;
+    public StructuredJd structure(long userId, String title, String company, String rawText) {
+        Map<String, Object> structured;
+        if (aiGateway.available()) {
+            structured = viaAi(userId, title, company, rawText);
+        } else {
+            logAiCall(userId, "DEGRADED", null, System.nanoTime(), "UNAVAILABLE");
+            structured = null;
+        }
         if (structured == null) {
             structured = heuristicStructurer.structure(title, company, rawText);
         }
@@ -78,26 +91,62 @@ public class JdStructurer {
         structured.put("confidence", Math.round(Math.min(Math.max(confidence, 0.3), 0.95) * 100.0) / 100.0);
     }
 
-    private Map<String, Object> viaAi(String title, String company, String rawText) {
+    private Map<String, Object> viaAi(long userId, String title, String company, String rawText) {
+        long startedAt = System.nanoTime();
+        Optional<AiProvider.AiResult> result;
         try {
             String prompt = "岗位标题：" + safe(title) + "\n公司：" + safe(company) + "\nJD 原文：\n"
                     + truncate(rawText, MAX_PROMPT_CHARS);
-            Optional<AiProvider.AiResult> result = aiGateway.complete(
+            result = aiGateway.complete(
                     AiScene.JD_ANALYZE, aiGateway.systemPrompt(AiScene.JD_ANALYZE, SYSTEM_PROMPT), prompt);
-            if (result.isEmpty()) {
-                return null;
-            }
-            Map<String, Object> parsed =
-                    jsonCodec.readMap(jsonCodec.extractJsonObject(result.get().text()));
+        } catch (RuntimeException exception) {
+            log.warn("AI JD 结构化调用失败，降级启发式：{}", exception.getClass().getSimpleName());
+            logAiCall(userId, "FAILED", null, startedAt, exception.getClass().getSimpleName());
+            return null;
+        }
+        if (result.isEmpty()) {
+            logAiCall(userId, "DEGRADED", null, startedAt, "UNAVAILABLE");
+            return null;
+        }
+        AiProvider.AiResult aiResult = result.get();
+        if (aiResult.text() == null || aiResult.text().isBlank()) {
+            logAiCall(userId, "DEGRADED", aiResult, startedAt, "EMPTY");
+            return null;
+        }
+        Map<String, Object> parsed;
+        try {
+            parsed = jsonCodec.readMap(jsonCodec.extractJsonObject(aiResult.text()));
             if (!isValid(parsed)) {
+                logAiCall(userId, "DEGRADED", aiResult, startedAt, "INVALID_JSON");
                 return null;
             }
             normalize(parsed);
-            return parsed;
         } catch (RuntimeException exception) {
             log.warn("AI JD 结构化输出非法，降级启发式：{}", exception.getClass().getSimpleName());
+            logAiCall(userId, "DEGRADED", aiResult, startedAt, "INVALID_JSON");
             return null;
         }
+        logAiCall(userId, "SUCCESS", aiResult, startedAt, null);
+        return parsed;
+    }
+
+    private void logAiCall(long userId, String status, AiProvider.AiResult result, long startedAt, String errorCode) {
+        Integer tokensIn = result == null ? null : result.tokensIn();
+        Integer tokensOut = result == null ? null : result.tokensOut();
+        // provider/model 在 ai_call_log 中为 NOT NULL：未真正调用模型时用稳定占位值，保证降级行也能入库。
+        String provider = result == null || result.provider() == null ? "unknown" : result.provider();
+        String model = result == null || result.model() == null ? "unknown" : result.model();
+        aiCallLogger.log(
+                userId,
+                AiScene.JD_ANALYZE.name(),
+                provider,
+                model,
+                status,
+                tokensIn,
+                tokensOut,
+                null,
+                (System.nanoTime() - startedAt) / 1_000_000,
+                errorCode);
     }
 
     private static List<String> asStringList(Object value) {

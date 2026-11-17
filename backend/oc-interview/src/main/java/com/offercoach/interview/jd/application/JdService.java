@@ -37,6 +37,7 @@ public class JdService {
     private final ResumeRepository resumeRepository;
     private final JdStructurer jdStructurer;
     private final JdMatcher jdMatcher;
+    private final JdAiGuard jdAiGuard;
     private final JsonCodec jsonCodec;
 
     public JdService(
@@ -44,11 +45,13 @@ public class JdService {
             ResumeRepository resumeRepository,
             JdStructurer jdStructurer,
             JdMatcher jdMatcher,
+            JdAiGuard jdAiGuard,
             JsonCodec jsonCodec) {
         this.jdRepository = jdRepository;
         this.resumeRepository = resumeRepository;
         this.jdStructurer = jdStructurer;
         this.jdMatcher = jdMatcher;
+        this.jdAiGuard = jdAiGuard;
         this.jsonCodec = jsonCodec;
     }
 
@@ -66,7 +69,8 @@ public class JdService {
             throw new BizException(
                     ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("rawText", "JD 原文长度需为 50-8000")));
         }
-        JdStructurer.StructuredJd structured = jdStructurer.structure(title, company, text);
+        jdAiGuard.checkAndCount(userId);
+        JdStructurer.StructuredJd structured = jdStructurer.structure(userId, title, company, text);
         String safeTitle = blankToNull(title);
         String safeCompany = blankToNull(company);
         String safeSourceType = sourceType == null || sourceType.isBlank() ? JobDescription.SOURCE_MANUAL : sourceType;
@@ -214,7 +218,8 @@ public class JdService {
         Resume resume = resumeRepository
                 .findOwned(userId, resumeId)
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("resumeId", resumeId)));
-        MatchResult result = jdMatcher.match(jd, resume);
+        jdAiGuard.checkAndCount(userId);
+        MatchResult result = jdMatcher.match(userId, jd, resume);
         BigDecimal score = BigDecimal.valueOf(result.matchScore()).setScale(1, java.math.RoundingMode.HALF_UP);
         jdRepository.updateMatch(jdId, score, jsonCodec.write(result));
         log.info("JD 匹配完成：jdId={} resumeId={} degraded={}", jdId, resumeId, result.degraded());

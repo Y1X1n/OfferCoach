@@ -23,4 +23,15 @@ public class InterviewProperties {
 
     /** 语音作答音频保留天数（定时清理，0 表示不自动删除）。 */
     private int voiceRetentionDays = 7;
+
+    /** JD 场景配置。 */
+    private final Jd jd = new Jd();
+
+    @Getter
+    @Setter
+    public static class Jd {
+
+        /** 每用户每日 AI 调用上限（结构化与匹配共用，0 表示不限）。 */
+        private int aiDailyLimit = 20;
+    }
 }
