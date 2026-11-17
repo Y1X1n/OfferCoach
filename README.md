@@ -31,6 +31,7 @@ AI 模拟面试与简历诊断平台：上传简历与目标岗位 JD，自动�
 - **逐题反馈**：异步生成后一次性展示（不做流式 token 渲染）；五维评分、证据引用、场景化优点 / 改进建议与 PRO 改写。
 - **报告**：五维雷达、亮点与风险、改进计划、逐题拆解（回答原文 + 证据）、失败重试、打印导出。
 - **管理端**：题库 CRUD / 导入 / 发布归档、用户角色 / 解锁 / 重置密码 / 额度补偿、指标概览、AI 调用日志、Prompt 模板与版本、实验、平台策略、AI 运行时配置、审计日志。
+- **套餐与支付**：`GET /plans`、`POST /orders` 下单并生成支付二维码（微信支付 v3 / 支付宝扫码，独立服务 `oc-pay`）；渠道回调验签后幂等发放套餐与额度，支持退款与对账兜底。
 
 ## 技术栈
 
@@ -58,14 +59,16 @@ Nginx ──▶ Spring Boot oc-app（模块化单体，端口 8081）
              ├─ oc-admin      管理端 API、指标、Prompt、审计
              ├─ oc-ai-client  OpenAI 兼容客户端、AES-GCM 密钥、运行时配置
              ├─ oc-common     错误码、Trace、Redis Key、摘要工具
-             └─ oc-ai         AI 工具域：oc-ai-core 共享库
+             ├─ oc-ai         AI 工具域：oc-ai-core 共享库
                               + oc-ai-asr(8094) / oc-ai-tts(8095) / oc-ai-ocr(8096)
                               / oc-ai-search(8097) / oc-ai-fetch(8098)（仅回环监听，无公网路由）
+             └─ oc-pay        支付域：oc-pay-core 共享库 + oc-pay-service(8099)
+                              （微信支付 v3 / 支付宝扫码；仅回环监听，渠道回调 /pay/notify/* 经 Nginx 反代）
                           │
               PostgreSQL 16 · Redis 7 · Flyway
 ```
 
-`oc-app` 是所有业务判断的唯一归属（鉴权、会话校验、额度、去重、降级）；工具服务只做「文件 ↔ 文本 / 音频」转换，通过共享密钥 `X-OC-Internal-Token` 鉴权。
+`oc-app` 是所有业务判断的唯一归属（鉴权、会话校验、额度、去重、降级）；AI 工具服务只做「文件 ↔ 文本 / 音频」转换，`oc-pay-service` 只做「订单 ↔ 渠道」，通过共享密钥 `X-OC-Internal-Token` 鉴权。支付成功后由 `oc-pay` 回调 `oc-app` 发放套餐与额度（金额与套餐以服务端为准，见 [design/payment.md](docs/design/payment.md)）。
 
 **模块职责与规模**（`src/main/java`）
 
@@ -75,6 +78,7 @@ Nginx ──▶ Spring Boot oc-app（模块化单体，端口 8081）
 | `oc-identity` | 61 / 4,624 | 注册 / 登录 / Refresh 轮换、额度与流水、邀请奖励、验证码、注册风控、平台策略 |
 | `oc-admin` | 54 / 4,689 | 题库、用户、指标、AI 日志、Prompt、实验、平台策略、审计 |
 | `oc-ai` | 23 / 2,046 | `oc-ai-core`（1,197 行：工具客户端、内部鉴权、并发限流、`ai_call_log` 写入、DTO）+ asr / tts / ocr / search / fetch 五个独立服务 |
+| `oc-pay` | 46 / 3,529 | `oc-pay-core`（契约 DTO、配置、内部令牌工具、`PayGateway`）+ `oc-pay-service`（订单生命周期、微信 v3 / 支付宝渠道适配与验签、退款、对账扫描、额度发放通知） |
 | `oc-ai-client` | 8 / 1,013 | OpenAI 兼容调用、AES-GCM 密钥、URL 安全校验、运行时配置 |
 | `oc-app` | 8 / 413 | Spring Boot 聚合启动、安全配置、管理员 / 演示账号引导 |
 | `oc-common` | 6 / 313 | 错误码、异常、Trace、Redis Key、SHA-256 摘要 |
@@ -92,6 +96,7 @@ Nginx ──▶ Spring Boot oc-app（模块化单体，端口 8081）
 7. 题目朗读 → `oc-app` 校验归属与每题次数 → `oc-ai-tts` 合成（内容哈希缓存）→ 浏览器播放。
 8. 简历扫描件 → 本地抽取文本过短或为图片 / PPT → `oc-ai-ocr` 识别 → 清理坐标标记 → 结构化。
 9. 目标岗位获取 → 粘贴链接优先 `oc-ai-fetch` 抓取 → 抓不到自动 `oc-ai-search` 兜底 → 抽取 JD 正文 → 预览确认 → `previewToken` → 创建面试事务内落库并用于出题。
+10. 套餐下单 → `oc-app` 校验套餐（金额以服务端为准）→ `oc-pay` 渠道下单返回二维码 → 用户扫码支付 → 渠道回调验签置 `PAID` → `oc-pay` 回调 `oc-app` 幂等发放套餐与额度（`payment_entitlement.order_no` 唯一）。
 
 ## 目录结构
 
@@ -103,6 +108,7 @@ backend/
   oc-admin/          管理端 API
   oc-ai-client/      AI 客户端与运行时配置
   oc-ai/             AI 工具域（oc-ai-core + 五个工具服务）
+  oc-pay/            支付域（oc-pay-core + oc-pay-service）
   oc-common/         通用错误、Trace、缓存 Key
   oc-gateway/        预留网关
   oc-report-worker/  预留报告 Worker
@@ -150,6 +156,12 @@ mvn -pl oc-ai/oc-ai-search spring-boot:run # 8097
 mvn -pl oc-ai/oc-ai-fetch  spring-boot:run # 8098
 ```
 
+支付服务（可选）同样按需单独启动，需与 oc-app 配置同一 `OC_PAY_INTERNAL_TOKEN`：
+
+```bash
+mvn -pl oc-pay/oc-pay-service spring-boot:run   # 8099；本地联调可开 OC_PAY_MOCK_ENABLED=true
+```
+
 **前端**
 
 ```bash
@@ -179,12 +191,12 @@ CI 对每个 PR 运行 `Backend verify` 与 `Frontend check`。其中：
 
 | 范围 | 文件 | 行数 |
 |---|---:|---:|
-| 后端主代码（9 个模块） | 307 | 27,977 |
-| 后端测试 | 32 | 2,868 |
+| 后端主代码（10 个模块） | 353 | 31,506 |
+| 后端测试 | 37 | 3,339 |
 | 前端 Vue | 94 | 14,385 |
 | 前端 TypeScript（含 5 个单测） | 40 | 6,019 |
-| SQL 迁移 | 16 | 708 |
-| 文档 | 37 | 10,662 |
+| SQL 迁移 | 17 | 793 |
+| 文档 | 38 | 11,283 |
 | 脚本（题库 / 冒烟 / 验证） | 5 | 1,878 |
 
 其他规模：24 个 Controller、84 个 HTTP 端点、23 张业务表、22,409 条题库（MIT 来源，不在仓库内）。
@@ -219,6 +231,7 @@ node scripts/qbank/clean-and-evaluate.mjs       # 清洗、质量分、相关性
 - 备份在单机，未接入异地 / PITR；Redis 为单实例。
 - 管理端尚未启用 MFA / IP 白名单；Prompt 注入防护仍需加强。
 - 会话创建暂不接受 `answerMode=VOICE`（语音是逐题选择，非会话级默认）。
+- 套餐支付后端已就绪（`oc-pay`）；前端套餐页尚未接入下单与二维码展示，按钮仍提示"在线支付即将开放"。
 - 题库少量维度标注存在语义噪声，AI-Agent 长题较多，建议继续人工抽检。
 - 历史报告中的逐题反馈是生成时快照，不随评分规则升级自动重算。
 
@@ -230,6 +243,7 @@ node scripts/qbank/clean-and-evaluate.mjs       # 清洗、质量分、相关性
 | 需求与验收 | [docs/requirements.md](docs/requirements.md) |
 | 架构与服务拆分 | [docs/design/architecture.md](docs/design/architecture.md) |
 | AI 工具能力 | [docs/design/ai-tools-prd.md](docs/design/ai-tools-prd.md)、[docs/design/ai-jd-web-prd.md](docs/design/ai-jd-web-prd.md) |
+| 套餐与支付 | [docs/design/payment.md](docs/design/payment.md) |
 | 数据模型 | [docs/design/data-model.md](docs/design/data-model.md) |
 | API 契约 | [docs/design/api.md](docs/design/api.md) |
 | 开发规范 | [docs/dev/conventions.md](docs/dev/conventions.md) |

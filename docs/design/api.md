@@ -15,7 +15,7 @@
 | 用户 | `GET/PATCH/DELETE /users/me` | USER | 资料、隐私、注销 |
 | 额度 | `GET /quota` | USER | 余额与每日用量 |
 | 工作台 | `GET /dashboard` | USER | 首屏聚合：额度、简历/JD 就绪、进行中会话、最近报告 |
-| 套餐 | `GET /plans`、`POST /orders` | USER | 套餐与下单（V1.1） |
+| 套餐 | `GET /plans`、`POST /orders`、`GET /orders/{orderNo}` | USER | 套餐、下单与订单查询 |
 | 简历 | `POST/GET /resumes` | USER | 上传、列表 |
 | 简历 | `GET/PATCH/DELETE /resumes/{id}` | USER | 详情、修正、删除 |
 | 简历 | `POST /resumes/{id}/reparse` | USER | 重新解析 |
@@ -259,18 +259,33 @@
 }
 ```
 
-### 3.2 套餐与下单（V1.1）
+### 3.2 套餐与下单
 
 - `GET /plans` → 套餐列表（公开，可缓存 5 分钟）。
-- `POST /orders`（`Idempotency-Key` 必填）
+- `POST /orders`（USER，`Idempotency-Key` 必填）
 
 ```json
-{"planCode": "PRO_MONTHLY"}
+{"planCode": "PRO", "channel": "wechat"}
 ```
 
-`201` → `{"orderId":"7001","orderNo":"OC202611070001","amountCents":3900,"status":"CREATED","payUrl":"https://pay.example.com/..."}`
+`channel` 取值 `wechat` / `alipay` / `mock`（mock 仅本地联调）。金额与商品名以服务端套餐配置为准，前端只传 `planCode` 与渠道。
 
-- `POST /payments/mock-callback`（仅开发环境）模拟支付成功；生产由支付网关回调，验签后发额度。
+`201` →
+
+```json
+{"orderId":"7001","orderNo":"OC202611170001","planCode":"PRO","amountCents":3900,"currency":"CNY",
+ "status":"CREATED","channel":"wechat","codeUrl":"weixin://wxpay/bizpayurl?pr=...",
+ "expiresAt":"2026-11-17T10:30:00Z","paidAt":null,"createdAt":"2026-11-17T10:00:00Z"}
+```
+
+- `GET /orders/{orderNo}`（USER）→ 订单视图；非本人订单返回 `404`。前端轮询该接口直到 `status=PAID`。
+- 状态：`CREATED` 待支付 / `PAID` 已支付 / `FAILED` 失败 / `REFUNDED` 已退款 / `CLOSED` 已关闭。
+
+支付由独立服务 `oc-pay` 承载（微信 Native 扫码 / 支付宝扫码），时序、幂等与对账见 [payment.md](./payment.md)：
+
+- 内部下单：`POST /internal/v1/pay/orders`（oc-app → oc-pay，携带 `X-OC-Internal-Token`）。
+- 渠道回调：`POST /pay/notify/{wechat|alipay}`（公网可达，验签即鉴权）→ oc-pay 置 `PAID`。
+- 额度发放：`POST {oc-app}/internal/v1/payments/notify`（oc-pay → oc-app，令牌校验，幂等发套餐与额度）。
 
 ### 3.3 工作台聚合
 

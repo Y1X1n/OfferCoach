@@ -15,6 +15,7 @@ TTS_PID=""
 OCR_PID=""
 SEARCH_PID=""
 FETCH_PID=""
+PAY_PID=""
 
 die() {
   echo "[错误] $*" >&2
@@ -73,7 +74,7 @@ port_open 127.0.0.1 "$PG_PORT" \
 port_open 127.0.0.1 "$REDIS_PORT" \
   || die "Redis 127.0.0.1:$REDIS_PORT 不可连接，先运行 bash scripts/check-infra.sh"
 
-for port in 8080 8081 8094 8095 8096 8097 8098; do
+for port in 8080 8081 8094 8095 8096 8097 8098 8099; do
   if port_open 127.0.0.1 "$port"; then
     die "端口 $port 已被占用，请先停止已有进程"
   fi
@@ -86,10 +87,10 @@ cleanup() {
   local status=$?
   trap - EXIT INT TERM
   if [ -n "$APP_PID" ] || [ -n "$GW_PID" ] || [ -n "$ASR_PID" ] || [ -n "$TTS_PID" ] || [ -n "$OCR_PID" ] \
-     || [ -n "$SEARCH_PID" ] || [ -n "$FETCH_PID" ]; then
+     || [ -n "$SEARCH_PID" ] || [ -n "$FETCH_PID" ] || [ -n "$PAY_PID" ]; then
     echo
     echo "停止 dev 服务..."
-    for pid in ${APP_PID} ${GW_PID} ${ASR_PID} ${TTS_PID} ${OCR_PID} ${SEARCH_PID} ${FETCH_PID}; do
+    for pid in ${APP_PID} ${GW_PID} ${ASR_PID} ${TTS_PID} ${OCR_PID} ${SEARCH_PID} ${FETCH_PID} ${PAY_PID}; do
       [ -n "$pid" ] || continue
       kill "$pid" 2>/dev/null || true
     done
@@ -136,7 +137,15 @@ if [ -z "${OC_AI_INTERNAL_TOKEN:-}" ]; then
   echo "  已生成本次会话的 OC_AI_INTERNAL_TOKEN（仅进程内共享）"
 fi
 
-echo "[2/4] 启动 AI 工具服务（8094-8098）..."
+# 支付服务内部令牌：oc-app 与 oc-pay 必须一致；同时默认开启本地模拟渠道。
+if [ -z "${OC_PAY_INTERNAL_TOKEN:-}" ]; then
+  OC_PAY_INTERNAL_TOKEN="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  export OC_PAY_INTERNAL_TOKEN
+  echo "  已生成本次会话的 OC_PAY_INTERNAL_TOKEN（仅进程内共享）"
+fi
+export OC_PAY_MOCK_ENABLED="${OC_PAY_MOCK_ENABLED:-true}"
+
+echo "[2/5] 启动 AI 工具服务（8094-8098）..."
 (cd "$ROOT" && exec "$MVN_BIN" -pl oc-ai/oc-ai-asr spring-boot:run) >"$LOG_DIR/ai-asr.log" 2>&1 &
 ASR_PID=$!
 (cd "$ROOT" && exec "$MVN_BIN" -pl oc-ai/oc-ai-tts spring-boot:run) >"$LOG_DIR/ai-tts.log" 2>&1 &
@@ -153,12 +162,17 @@ wait_ready "ai-ocr" "http://127.0.0.1:8096/actuator/health" 8096 "$OCR_PID" || d
 wait_ready "ai-search" "http://127.0.0.1:8097/actuator/health" 8097 "$SEARCH_PID" || die "oc-ai-search 未就绪"
 wait_ready "ai-fetch" "http://127.0.0.1:8098/actuator/health" 8098 "$FETCH_PID" || die "oc-ai-fetch 未就绪"
 
-echo "[3/4] 启动 oc-app（8081）..."
+echo "[3/5] 启动 oc-pay（8099）..."
+(cd "$ROOT" && exec "$MVN_BIN" -pl oc-pay/oc-pay-service spring-boot:run) >"$LOG_DIR/pay.log" 2>&1 &
+PAY_PID=$!
+wait_ready "pay" "http://127.0.0.1:8099/actuator/health" 8099 "$PAY_PID" || die "oc-pay 未就绪"
+
+echo "[4/5] 启动 oc-app（8081）..."
 (cd "$ROOT" && exec "$MVN_BIN" -pl oc-app spring-boot:run) >"$LOG_DIR/app.log" 2>&1 &
 APP_PID=$!
 wait_ready "app" "http://127.0.0.1:8081/actuator/health" 8081 "$APP_PID" || die "oc-app 未就绪"
 
-echo "[4/4] 启动 oc-gateway（8080）..."
+echo "[5/5] 启动 oc-gateway（8080）..."
 (cd "$ROOT" && exec "$MVN_BIN" -pl oc-gateway spring-boot:run) >"$LOG_DIR/gateway.log" 2>&1 &
 GW_PID=$!
 wait_ready "gateway" "http://127.0.0.1:8080/actuator/health" 8080 "$GW_PID" || die "oc-gateway 未就绪"
@@ -172,8 +186,9 @@ echo "  ai-tts   pid=$TTS_PID  http://127.0.0.1:8095/actuator/health"
 echo "  ai-ocr   pid=$OCR_PID  http://127.0.0.1:8096/actuator/health"
 echo "  ai-search pid=$SEARCH_PID  http://127.0.0.1:8097/actuator/health"
 echo "  ai-fetch pid=$FETCH_PID  http://127.0.0.1:8098/actuator/health"
+echo "  pay      pid=$PAY_PID  http://127.0.0.1:8099/actuator/health（模拟支付已开启）"
 echo "  API 基址              http://127.0.0.1:8080/api/v1"
-echo "  日志                  $LOG_DIR/{app,gateway,ai-*}.log"
+echo "  日志                  $LOG_DIR/{app,gateway,ai-*,pay}.log"
 echo
 
 wait

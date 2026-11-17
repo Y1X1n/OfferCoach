@@ -122,6 +122,25 @@ public interface UserQuotaMapper extends BaseMapper<UserQuotaDO> {
             @Param("nextPeriodEnd") LocalDate nextPeriodEnd);
 
     /**
+     * 购买成功后切换套餐并刷新有效期；不调整余额（额度由调用方单独追加）。
+     */
+    @Update(
+            """
+            UPDATE user_quota
+            SET plan_code = #{planCode},
+                period_start = #{periodStart},
+                period_end = #{periodEnd},
+                version = version + 1,
+                updated_at = now()
+            WHERE user_id = #{userId}
+            """)
+    int updatePlanPeriod(
+            @Param("userId") long userId,
+            @Param("planCode") String planCode,
+            @Param("periodStart") LocalDate periodStart,
+            @Param("periodEnd") LocalDate periodEnd);
+
+    /**
      * 原子占用一次每日会话名额：跨天自动重置为 1，同日未达上限则 +1。
      * 返回 0 表示已达上限（或行不存在）。
      */

@@ -23,6 +23,7 @@
 | 查业务规则、额度、状态机、验收口径 | [design/product-requirements.md](design/product-requirements.md) |
 | 做语音作答 / 题目朗读 / 简历 OCR | [design/ai-tools-prd.md](design/ai-tools-prd.md)（ASR / TTS / OCR 口径与验收） |
 | 做目标岗位联网获取（Search / Fetch） | [design/ai-jd-web-prd.md](design/ai-jd-web-prd.md)（面试出题用真实 JD） |
+| 做套餐下单 / 支付（微信 / 支付宝） | [design/payment.md](design/payment.md)（oc-pay 服务、渠道、订单状态机与幂等发额度） |
 | 看服务怎么拆、为什么这么拆、核心时序 | [design/architecture.md](design/architecture.md) |
 | 建表 / 改表 / 写实体 / 查索引与类型 | [design/data-model.md](design/data-model.md)（含命名、类型、软删、建表自查） |
 | 写 / 改 HTTP 或 SSE 接口 | [design/api.md](design/api.md) + [dev/workflow.md](dev/workflow.md)（契约冻结与变更） |
@@ -60,6 +61,7 @@
 | [product-requirements.md](design/product-requirements.md) | PRD：角色、旅程、业务规则、非功能指标、风险 | 评审中 |
 | [ai-tools-prd.md](design/ai-tools-prd.md) | AI 工具 PRD：语音作答 ASR / 题目朗读 TTS / 简历 OCR（DeepSeek Tools API） | 评审中 |
 | [ai-jd-web-prd.md](design/ai-jd-web-prd.md) | 目标岗位联网获取 PRD：Search / Fetch，面试出题用真实 JD | 评审中 |
+| [payment.md](design/payment.md) | 支付（oc-pay）：订单与渠道边界、状态机、下单/回调/退款时序、幂等与对账、配置与安全 | 生效 |
 | [architecture.md](design/architecture.md) | ADR、服务边界、逻辑架构、核心时序、容量与降级 | 生效 |
 | [data-model.md](design/data-model.md) | PostgreSQL DDL、Redis Key、Milvus Collection、对象存储、建表规范 | 生效 |
 | [api.md](design/api.md) | REST/SSE 契约、错误码、幂等、限流、接口总览 | 生效 |

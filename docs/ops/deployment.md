@@ -28,6 +28,7 @@
 | identity / interview / admin | 8081–8083 | 业务服务（单体模式只起 app） |
 | ai-asr / ai-tts / ai-ocr | 8094 / 8095 / 8096 | AI 工具服务，仅内网可达，由 oc-app 调用；见 [ai-tools-prd.md](../design/ai-tools-prd.md) §4 |
 | ai-search / ai-fetch | 8097 / 8098 | 联网检索 / 抓取服务，仅内网可达，用于目标岗位 JD 获取；见 [ai-jd-web-prd.md](../design/ai-jd-web-prd.md) §3 |
+| pay | 8099 | 支付服务（`oc-pay-service`），仅内网可达；渠道回调 `/pay/notify/*` 经 Nginx 反代暴露；见 [payment.md](../design/payment.md) |
 | report-worker | — | 无 HTTP |
 | ai-orchestrator | 8000 | FastAPI |
 | postgres | 5432 | 主库 |
@@ -285,7 +286,7 @@ spec:
 | 公网 IP | `<ECS_PUBLIC_IP>` |
 | 域名 | `https://<PUBLIC_DOMAIN>`（阿里云 DNS A 记录） |
 | TLS | Let's Encrypt，`<PUBLIC_DOMAIN>`，有效期至 2027-02-05，Certbot 自动续期 |
-| 入口 | 宿主 Nginx 80/443 → `/` `127.0.0.1:8082`（web 容器）、`/api/` `127.0.0.1:8081`（app 容器） |
+| 入口 | 宿主 Nginx 80/443 → `/` `127.0.0.1:8082`（web 容器）、`/api/` `127.0.0.1:8081`（app 容器）、`/pay/notify/` `127.0.0.1:8099`（pay 容器，验签即鉴权） |
 | 容器 | `offercoach-app:0.8.11`、`offercoach-web:0.7.7`、`offercoach-postgres:16-alpine`、`offercoach-redis:7.2-alpine`；均为 `restart=unless-stopped` |
 | 数据 | 命名卷 `offercoach_pgdata`、`offercoach_redisdata`；宿主目录 `/opt/offercoach/data` 挂载为 `/data`（UID 10001）；仅绑定 `127.0.0.1` 的 5432/6379；Redis `maxmemory-policy=volatile-lru` |
 | 配置 | `/opt/offercoach`（Compose、`offercoach.env`、JWT 密钥，目录 700 / 文件 600）；`DEVICE_SALT` 用于设备指纹散列，首次部署时随机生成 |

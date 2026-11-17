@@ -60,7 +60,7 @@
 
 ### 3.2 后端
 
-- Maven 多模块：`oc-common`、`oc-ai-client`、`oc-ai`（内含 `oc-ai-core` 与 asr/tts/ocr/search/fetch 五个独立服务）、`oc-identity`、`oc-interview`、`oc-admin`、`oc-report-worker`、`oc-gateway`、`oc-app`。
+- Maven 多模块：`oc-common`、`oc-ai-client`、`oc-ai`（内含 `oc-ai-core` 与 asr/tts/ocr/search/fetch 五个独立服务）、`oc-pay`（内含 `oc-pay-core` 与独立部署的 `oc-pay-service`）、`oc-identity`、`oc-interview`、`oc-admin`、`oc-report-worker`、`oc-gateway`、`oc-app`。
 - 分层：`api`（Controller/DTO）→ `application`（用例/事务）→ `domain`（状态机/规则）→ `infrastructure`（Mapper/Client/MQ）。
 - Controller 不写规则；Service 不返回 Entity；Repository 不调用外部服务；跨模块不共享表。
 - 模块依赖用 ArchUnit 强制，禁止循环。
