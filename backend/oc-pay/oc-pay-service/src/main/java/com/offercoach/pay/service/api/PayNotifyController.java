@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,16 +34,19 @@ public class PayNotifyController {
     private final OrderService orderService;
     private final PayChannelProperties channelProperties;
     private final PayOpsProperties ops;
+    private final Environment environment;
 
     public PayNotifyController(
             NotifyService notifyService,
             OrderService orderService,
             PayChannelProperties channelProperties,
-            PayOpsProperties ops) {
+            PayOpsProperties ops,
+            Environment environment) {
         this.notifyService = notifyService;
         this.orderService = orderService;
         this.channelProperties = channelProperties;
         this.ops = ops;
+        this.environment = environment;
     }
 
     @PostMapping("/pay/notify/{channel}")
@@ -71,13 +75,13 @@ public class PayNotifyController {
     }
 
     /**
-     * 本地模拟支付确认：默认关闭；开启时仅对 mock 订单生效。
+     * 本地模拟支付确认：默认关闭；开启时仅对 mock 订单生效，且生产 profile 一律拒绝。
      */
     @RequestMapping(
             path = "/pay/mock/{orderNo}/pay",
             method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<String> mockPay(@PathVariable String orderNo) {
-        if (!channelProperties.getMock().isEnabled()) {
+        if (!channelProperties.getMock().isEnabled() || productionProfile()) {
             throw new PayException(PayErrorKind.NOT_FOUND, "模拟支付未启用");
         }
         PayDtos.OrderView view = orderService.confirmMockPayment(orderNo);
@@ -96,5 +100,22 @@ public class PayNotifyController {
             headers.put(name, request.getHeader(name));
         }
         return headers;
+    }
+
+    /**
+     * 生产 profile 下即使误开 mock 开关也拒绝确认，作为启动期校验之外的第二道防线。
+     */
+    private boolean productionProfile() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("prod".equals(profile)) {
+                return true;
+            }
+        }
+        for (String profile : environment.getDefaultProfiles()) {
+            if ("prod".equals(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

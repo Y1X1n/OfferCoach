@@ -123,14 +123,14 @@ public class OrderService {
     }
 
     /**
-     * 关闭待支付订单。
+     * 关闭待支付订单；渠道关单未确认时保持待支付并报错，避免本地已关单但渠道仍可支付。
      */
     public PayDtos.OrderView closeOrder(long userId, String orderNo) {
         PaymentOrder order = loadOwned(userId, orderNo);
         if (order.status() == OrderStatus.CREATED) {
             PaymentChannel channel = registry.find(order.channel());
-            if (channel != null) {
-                channel.close(order);
+            if (channel != null && !channel.close(order)) {
+                throw new PayException(PayErrorKind.STATE_CONFLICT, "渠道关单未确认，订单仍可支付，请稍后重试");
             }
             orderRepository.markClosed(orderNo);
             order = orderRepository.findByOrderNo(orderNo).orElse(order);

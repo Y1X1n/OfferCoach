@@ -38,6 +38,12 @@
 
 ## 文档版本
 
+### v2.23（2026-11-17）——关单确认与回调交叉校验
+
+- 关单语义收紧：`PaymentChannel.close()` 改为返回「渠道是否确认不可再支付」，微信/支付宝在渠道未启用或关单失败时返回 `false`；`PaymentSweeper` 只有「渠道明确未支付 + 关单确认」才置 `CLOSED`，不确定时保留 `CREATED` 重试，超过 `close-grace`（默认 24h）置 `FAILED` 并入队 `CLOSE_UNCERTAIN`，避免用户事后支付成功但本地已关单。
+- 回调交叉校验：验签之外必须通过「订单存在 + 渠道一致 + 金额一致 + 渠道流水号非空」；微信增加 300s 时间戳窗口（`oc.pay.ops.notify-max-skew-seconds`），支付宝增加 `app_id` 校验。校验失败不改订单状态、写审计与 `payment_exception`、返回失败让渠道重试。
+- 对账补记增加渠道金额比对；`/pay/mock` 增加运行期 prod profile 拒绝（启动期校验之外的第二道防线），`.env.example` 的 `OC_PAY_MOCK_ENABLED` 默认改为 `false`。
+
 ### v2.22（2026-11-17）——支付异常队列与巡检
 
 - 新增迁移 `V202611180001__payment_reconciliation.sql`：`payment_exception` 人工处理队列表（同一订单同一类型唯一，重复命中保留首次现场），并把 `payment_order.notify_status` 放宽到包含终态 `DEAD`。

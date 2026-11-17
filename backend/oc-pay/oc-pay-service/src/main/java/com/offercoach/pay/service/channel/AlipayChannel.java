@@ -115,19 +115,23 @@ public class AlipayChannel implements PaymentChannel {
         String tradeState = response.path("trade_status").asText("");
         String txnId = response.path("trade_no").asText("");
         Instant paidAt = parseInstant(response.path("send_pay_date").asText(""));
-        return new ChannelOrderState(isPaidTradeState(tradeState), txnId, paidAt, tradeState);
+        JsonNode total = response.path("total_amount");
+        Integer amountCents = total.isTextual() ? cents(total.asText()) : null;
+        return new ChannelOrderState(isPaidTradeState(tradeState), txnId, paidAt, tradeState, amountCents);
     }
 
     @Override
-    public void close(PaymentOrder order) {
+    public boolean close(PaymentOrder order) {
         if (!available()) {
-            return;
+            return false;
         }
         try {
             ObjectNode biz = objectMapper.createObjectNode().put("out_trade_no", order.orderNo());
             invoke(CLOSE_METHOD, biz);
+            return true;
         } catch (PayException exception) {
-            log.warn("支付宝关单失败（忽略）：orderNo={} reason={}", order.orderNo(), exception.getMessage());
+            log.warn("支付宝关单未确认，订单保留待支付等待重试：orderNo={} reason={}", order.orderNo(), exception.getMessage());
+            return false;
         }
     }
 
@@ -153,6 +157,11 @@ public class AlipayChannel implements PaymentChannel {
         PublicKey key = alipayPublicKey();
         if (key == null || sign == null || !RsaSigner.verify(key, canonical(params), sign)) {
             throw new PayException(PayErrorKind.VALIDATION_FAILED, "支付宝回调验签失败");
+        }
+        String appId = params.getOrDefault("app_id", "");
+        String expectedAppId = properties.getAlipay().getAppId();
+        if (appId.isBlank() || expectedAppId == null || !appId.equals(expectedAppId)) {
+            throw new PayException(PayErrorKind.VALIDATION_FAILED, "支付宝回调应用标识不匹配");
         }
         String tradeState = params.getOrDefault("trade_status", "");
         Integer amount = params.containsKey("total_amount") ? cents(params.get("total_amount")) : null;

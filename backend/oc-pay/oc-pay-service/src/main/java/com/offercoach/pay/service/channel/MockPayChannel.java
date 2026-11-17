@@ -54,12 +54,13 @@ public class MockPayChannel implements PaymentChannel {
     @Override
     public ChannelOrderState query(PaymentOrder order) {
         boolean paid = order.status() == OrderStatus.PAID;
-        return new ChannelOrderState(paid, order.providerTxnId(), order.paidAt(), paid ? "SUCCESS" : "NOTPAY");
+        return new ChannelOrderState(paid, order.providerTxnId(), order.paidAt(), paid ? "SUCCESS" : "NOTPAY", null);
     }
 
     @Override
-    public void close(PaymentOrder order) {
-        // 模拟渠道无需与外部交互
+    public boolean close(PaymentOrder order) {
+        // 模拟渠道无需与外部交互，本地关单即可生效
+        return true;
     }
 
     @Override

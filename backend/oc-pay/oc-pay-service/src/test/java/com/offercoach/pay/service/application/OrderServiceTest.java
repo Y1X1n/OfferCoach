@@ -125,6 +125,30 @@ class OrderServiceTest {
         verify(orderRepository).reserveRefundAmount("OC-TEST", 2000);
     }
 
+    @Test
+    void closeOrderRefusesLocalCloseWhenChannelNotConfirmed() {
+        when(orderRepository.findByOrderNo("OC-TEST")).thenReturn(Optional.of(order(OrderStatus.CREATED, 0, null)));
+        when(registry.find(ChannelCode.WECHAT)).thenReturn(wechat);
+        when(wechat.close(any())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.closeOrder(1L, "OC-TEST")).isInstanceOf(PayException.class);
+        verify(orderRepository, never()).markClosed(anyString());
+    }
+
+    @Test
+    void closeOrderMarksClosedWhenChannelConfirmed() {
+        when(orderRepository.findByOrderNo("OC-TEST"))
+                .thenReturn(Optional.of(order(OrderStatus.CREATED, 0, null)))
+                .thenReturn(Optional.of(order(OrderStatus.CLOSED, 0, null)));
+        when(registry.find(ChannelCode.WECHAT)).thenReturn(wechat);
+        when(wechat.close(any())).thenReturn(true);
+
+        PayDtos.OrderView view = service.closeOrder(1L, "OC-TEST");
+
+        assertThat(view.status()).isEqualTo("CLOSED");
+        verify(orderRepository).markClosed("OC-TEST");
+    }
+
     private static PaymentOrder order(OrderStatus status, int refundedCents, String providerTxnId) {
         Instant now = Instant.now();
         return new PaymentOrder(

@@ -116,13 +116,15 @@ public class WechatPayChannel implements PaymentChannel {
         String tradeState = response.path("trade_state").asText("");
         String txnId = response.path("transaction_id").asText("");
         Instant paidAt = parseInstant(response.path("success_time").asText(""));
-        return new ChannelOrderState("SUCCESS".equals(tradeState), txnId, paidAt, tradeState);
+        JsonNode total = response.path("amount").path("total");
+        Integer amountCents = total.isNumber() ? total.asInt() : null;
+        return new ChannelOrderState("SUCCESS".equals(tradeState), txnId, paidAt, tradeState, amountCents);
     }
 
     @Override
-    public void close(PaymentOrder order) {
+    public boolean close(PaymentOrder order) {
         if (!available()) {
-            return;
+            return false;
         }
         try {
             String path = "/v3/pay/transactions/out-trade-no/" + order.orderNo() + "/close";
@@ -130,8 +132,10 @@ public class WechatPayChannel implements PaymentChannel {
                     .createObjectNode()
                     .put("mchid", properties.getWechat().getMchId());
             call("POST", path, payload);
+            return true;
         } catch (PayException exception) {
-            log.warn("微信关单失败（忽略）：orderNo={} reason={}", order.orderNo(), exception.getMessage());
+            log.warn("微信关单未确认，订单保留待支付等待重试：orderNo={} reason={}", order.orderNo(), exception.getMessage());
+            return false;
         }
     }
 
@@ -166,6 +170,7 @@ public class WechatPayChannel implements PaymentChannel {
         if (timestamp == null || nonce == null || signature == null) {
             throw new PayException(PayErrorKind.VALIDATION_FAILED, "微信回调缺少签名头");
         }
+        requireFreshTimestamp(timestamp);
         PublicKey key = platformKey();
         boolean valid = key != null && RsaSigner.verify(key, timestamp + "\n" + nonce + "\n" + body + "\n", signature);
         if (!valid) {
@@ -268,6 +273,24 @@ public class WechatPayChannel implements PaymentChannel {
     private void requireAvailable() {
         if (!available()) {
             throw new PayException(PayErrorKind.NOT_CONFIGURED, "微信支付未启用或凭据不全");
+        }
+    }
+
+    /**
+     * 回调时间戳窗口校验：签名覆盖时间戳，超出窗口的旧报文视为重放。
+     *
+     * <p>微信重推每次都会带新时间戳，因此窗口只影响重放，不影响正常重试。</p>
+     */
+    private void requireFreshTimestamp(String timestamp) {
+        long seconds;
+        try {
+            seconds = Long.parseLong(timestamp.strip());
+        } catch (NumberFormatException exception) {
+            throw new PayException(PayErrorKind.VALIDATION_FAILED, "微信回调时间戳非法");
+        }
+        long skew = Math.abs(Instant.now().getEpochSecond() - seconds);
+        if (skew > ops.getNotifyMaxSkewSeconds()) {
+            throw new PayException(PayErrorKind.VALIDATION_FAILED, "微信回调时间戳超出允许窗口");
         }
     }
 

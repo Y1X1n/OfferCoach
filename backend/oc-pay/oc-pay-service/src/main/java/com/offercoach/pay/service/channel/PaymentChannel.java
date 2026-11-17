@@ -39,9 +39,13 @@ public interface PaymentChannel {
     ChannelOrderState query(PaymentOrder order);
 
     /**
-     * 关闭未支付订单；尽力而为，失败不阻断本地关单。
+     * 关闭未支付订单。
+     *
+     * <p>返回 {@code true} 表示渠道已确认该订单不可再支付（或渠道无需关单），调用方可将本地订单置为 CLOSED；
+     * 返回 {@code false} 表示无法确认（渠道未配置、网络失败、渠道异常），调用方必须保留待支付状态等待下轮重试，
+     * 否则用户事后完成支付会变成「已付款但本地已关单」的资损场景。</p>
      */
-    void close(PaymentOrder order);
+    boolean close(PaymentOrder order);
 
     /**
      * 发起退款。
@@ -64,9 +68,10 @@ public interface PaymentChannel {
     record Prepay(String codeUrl, String prepayId) {}
 
     /**
-     * 渠道订单状态。
+     * 渠道订单状态；{@code amountCents} 为渠道侧金额（渠道未返回时为 null），用于对账时交叉校验。
      */
-    record ChannelOrderState(boolean paid, String providerTxnId, Instant paidAt, String tradeState) {}
+    record ChannelOrderState(
+            boolean paid, String providerTxnId, Instant paidAt, String tradeState, Integer amountCents) {}
 
     /**
      * 退款结果。
