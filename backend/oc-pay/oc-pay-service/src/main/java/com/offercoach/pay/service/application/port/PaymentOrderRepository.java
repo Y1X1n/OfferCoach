@@ -44,7 +44,10 @@ public interface PaymentOrderRepository {
      */
     boolean releaseRefundAmount(String orderNo, int amountCents);
 
-    void updateNotify(String orderNo, String status);
+    /**
+     * 更新发放通知状态；{@code status=FAILED} 且本次为最后一次尝试时，落地状态升级为 DEAD。
+     */
+    void updateNotify(String orderNo, String status, int maxAttempts);
 
     List<PaymentOrder> findExpired(int limit);
 

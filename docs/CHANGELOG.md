@@ -38,6 +38,12 @@
 
 ## 文档版本
 
+### v2.24（2026-11-17）——发放失败终态与死信
+
+- `notification_status` 增加终态 `DEAD`：`FAILED` 且本次为最后一次尝试时原子升级为 `DEAD`，`findPendingNotify` 只捞 `PENDING/FAILED`，避免终态被反复重试。
+- 发放通知被 oc-app 以 4xx（除 408/429）永久拒绝时直接置 `DEAD` 并入队 `ENTITLEMENT_REJECTED`；重试耗尽入队 `ENTITLEMENT_DEAD`。两者都输出 ERROR，由 `PaymentOpsMonitor` 汇总告警。
+- 目的：已付款订单不会再出现「8 次重试后静默放弃」的黑洞。
+
 ### v2.23（2026-11-17）——关单确认与回调交叉校验
 
 - 关单语义收紧：`PaymentChannel.close()` 改为返回「渠道是否确认不可再支付」，微信/支付宝在渠道未启用或关单失败时返回 `false`；`PaymentSweeper` 只有「渠道明确未支付 + 关单确认」才置 `CLOSED`，不确定时保留 `CREATED` 重试，超过 `close-grace`（默认 24h）置 `FAILED` 并入队 `CLOSE_UNCERTAIN`，避免用户事后支付成功但本地已关单。
