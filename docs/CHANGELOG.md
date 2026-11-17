@@ -38,6 +38,12 @@
 
 ## 文档版本
 
+### v2.22（2026-11-17）——支付异常队列与巡检
+
+- 新增迁移 `V202611180001__payment_reconciliation.sql`：`payment_exception` 人工处理队列表（同一订单同一类型唯一，重复命中保留首次现场），并把 `payment_order.notify_status` 放宽到包含终态 `DEAD`。
+- 新增 `PaymentExceptionKind`（七类异常码）、`PaymentExceptionRecorder`（写库失败只告警，不中断回调应答）与 `PaymentOpsMonitor`（默认每 30 分钟统计 `OPEN` 异常并输出 ERROR 日志，作为告警接入点）。
+- 目的：把「资金已发生但权益未发放/订单状态无法收敛」从一行 WARN 变成可查询、可告警、可人工收敛的记录；处理口径见 [payment.md](design/payment.md) §6.1。
+
 ### v2.21（2026-11-17）——套餐页接入支付下单与二维码
 
 - 新增 `GET /api/v1/pay-channels`（登录态）：代理 `oc-pay` 渠道可用性，前端据此展示可用支付方式。
