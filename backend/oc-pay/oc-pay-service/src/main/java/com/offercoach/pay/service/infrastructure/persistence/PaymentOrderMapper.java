@@ -65,17 +65,41 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrderDO> {
     int markFailed(@Param("orderNo") String orderNo);
 
     /**
-     * 累计退款金额；退满后标记为 REFUNDED。
+     * 原子预占可退金额：条件更新，超出剩余可退金额或非已支付状态时影响 0 行。
+     * 并发退款的安全性由本语句（而非仅行锁）保证。
      */
     @Update(
             """
             UPDATE payment_order
-            SET refunded_cents = refunded_cents + #{amountCents},
-                status = CASE WHEN refunded_cents + #{amountCents} >= amount_cents THEN 'REFUNDED' ELSE status END,
-                updated_at = now()
-            WHERE order_no = #{orderNo} AND status IN ('PAID', 'REFUNDED')
+            SET refunded_cents = refunded_cents + #{amountCents}, updated_at = now()
+            WHERE order_no = #{orderNo}
+              AND status IN ('PAID', 'REFUNDED')
+              AND refunded_cents + #{amountCents} <= amount_cents
             """)
-    int addRefunded(@Param("orderNo") String orderNo, @Param("amountCents") int amountCents);
+    int reserveRefundAmount(@Param("orderNo") String orderNo, @Param("amountCents") int amountCents);
+
+    /**
+     * 退款成功后将退满的订单标记为 REFUNDED；部分退款保持 PAID。
+     */
+    @Update(
+            """
+            UPDATE payment_order
+            SET status = CASE WHEN refunded_cents >= amount_cents THEN 'REFUNDED' ELSE status END,
+                updated_at = now()
+            WHERE order_no = #{orderNo} AND status = 'PAID'
+            """)
+    int finalizeRefund(@Param("orderNo") String orderNo);
+
+    /**
+     * 渠道退款失败时归还预占金额。
+     */
+    @Update(
+            """
+            UPDATE payment_order
+            SET refunded_cents = refunded_cents - #{amountCents}, updated_at = now()
+            WHERE order_no = #{orderNo} AND refunded_cents >= #{amountCents}
+            """)
+    int releaseRefundAmount(@Param("orderNo") String orderNo, @Param("amountCents") int amountCents);
 
     @Update(
             """

@@ -29,7 +29,20 @@ public interface PaymentOrderRepository {
 
     boolean markFailed(String orderNo);
 
-    boolean addRefunded(String orderNo, int amountCents);
+    /**
+     * 原子预占可退金额；超出剩余可退金额或非已支付状态返回 false。
+     */
+    boolean reserveRefundAmount(String orderNo, int amountCents);
+
+    /**
+     * 退款成功后将退满的订单标记为 REFUNDED。
+     */
+    boolean finalizeRefund(String orderNo);
+
+    /**
+     * 渠道退款失败时归还预占金额。
+     */
+    boolean releaseRefundAmount(String orderNo, int amountCents);
 
     void updateNotify(String orderNo, String status);
 

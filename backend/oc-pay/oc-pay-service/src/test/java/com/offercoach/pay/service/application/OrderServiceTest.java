@@ -101,11 +101,13 @@ class OrderServiceTest {
         PaymentOrder paid = order(OrderStatus.PAID, 1000, "WX-1");
         when(orderRepository.lockByOrderNo("OC-TEST")).thenReturn(Optional.of(paid));
         when(refundRepository.findByOrderIdempotency("OC-TEST", "r1")).thenReturn(Optional.empty());
+        // 原子预占失败：剩余可退 2900，申请 3000。
+        when(orderRepository.reserveRefundAmount("OC-TEST", 3000)).thenReturn(false);
 
         assertThatThrownBy(() ->
                         reservationService.reserveRefund(1L, "OC-TEST", new PayDtos.RefundRequest(3000, "重复购买", "r1")))
                 .isInstanceOf(PayException.class);
-        verify(refundRepository, never()).insert(any());
+        verify(orderRepository).reserveRefundAmount("OC-TEST", 3000);
     }
 
     @Test
@@ -113,12 +115,14 @@ class OrderServiceTest {
         PaymentOrder paid = order(OrderStatus.PAID, 1000, "WX-1");
         when(orderRepository.lockByOrderNo("OC-TEST")).thenReturn(Optional.of(paid));
         when(refundRepository.findByOrderIdempotency("OC-TEST", "r2")).thenReturn(Optional.empty());
+        when(orderRepository.reserveRefundAmount("OC-TEST", 2000)).thenReturn(true);
 
         PaymentReservationService.Reservation reservation =
                 reservationService.reserveRefund(1L, "OC-TEST", new PayDtos.RefundRequest(2000, "部分退款", "r2"));
 
         assertThat(reservation.created()).isTrue();
         verify(refundRepository).insert(any());
+        verify(orderRepository).reserveRefundAmount("OC-TEST", 2000);
     }
 
     private static PaymentOrder order(OrderStatus status, int refundedCents, String providerTxnId) {

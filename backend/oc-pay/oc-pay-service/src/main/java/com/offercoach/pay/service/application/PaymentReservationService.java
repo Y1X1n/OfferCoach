@@ -53,10 +53,6 @@ public class PaymentReservationService {
         if (order.status() != OrderStatus.PAID && order.status() != OrderStatus.REFUNDED) {
             throw new PayException(PayErrorKind.STATE_CONFLICT, "仅已支付订单可退款");
         }
-        int remaining = order.amountCents() - order.refundedCents();
-        if (request.amountCents() > remaining) {
-            throw new PayException(PayErrorKind.VALIDATION_FAILED, "退款金额超过剩余可退金额");
-        }
         Instant now = Instant.now();
         PaymentRefund refund = new PaymentRefund(
                 0L,
@@ -77,6 +73,10 @@ public class PaymentReservationService {
                     .findByOrderIdempotency(orderNo, request.idempotencyKey())
                     .orElseThrow(() -> new PayException(PayErrorKind.STATE_CONFLICT, "退款请求冲突，请重试"));
             return new Reservation(order, concurrent, false);
+        }
+        // 原子预占：并发退款以条件更新为准，超出剩余可退金额时失败并回滚本次退款单。
+        if (!orderRepository.reserveRefundAmount(orderNo, request.amountCents())) {
+            throw new PayException(PayErrorKind.VALIDATION_FAILED, "退款金额超过剩余可退金额");
         }
         return new Reservation(order, refund, true);
     }

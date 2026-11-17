@@ -26,12 +26,4 @@ public record PaymentOrder(
         Instant closedAt,
         int refundedCents,
         Instant createdAt,
-        Instant updatedAt) {
-
-    /**
-     * 是否仍可支付（未支付且未过期）。
-     */
-    public boolean payable(Instant now) {
-        return status == OrderStatus.CREATED && (expiresAt == null || expiresAt.isAfter(now));
-    }
-}
+        Instant updatedAt) {}

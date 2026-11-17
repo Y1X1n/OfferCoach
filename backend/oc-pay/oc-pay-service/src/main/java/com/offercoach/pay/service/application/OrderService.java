@@ -16,8 +16,6 @@ import com.offercoach.pay.service.error.PayException;
 import com.offercoach.pay.service.support.OrderNumbers;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +27,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class OrderService {
 
-    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
     private static final String NOTIFY_PENDING = "PENDING";
 
     private final PaymentOrderRepository orderRepository;
@@ -119,17 +116,10 @@ public class OrderService {
     }
 
     /**
-     * 查询订单；非本人订单按不存在处理；已过期待支付订单惰性关闭。
+     * 查询订单；非本人订单按不存在处理，纯读不改状态（过期关闭与支付对账由扫描任务完成）。
      */
     public PayDtos.OrderView getOrder(long userId, String orderNo) {
-        PaymentOrder order = loadOwned(userId, orderNo);
-        if (order.status() == OrderStatus.CREATED
-                && order.expiresAt() != null
-                && order.expiresAt().isBefore(Instant.now())) {
-            closeExpired(order);
-            order = orderRepository.findByOrderNo(orderNo).orElse(order);
-        }
-        return OrderViews.of(order);
+        return OrderViews.of(loadOwned(userId, orderNo));
     }
 
     /**
@@ -149,26 +139,29 @@ public class OrderService {
     }
 
     /**
-     * 退款；预占在事务内完成，渠道调用在事务外，失败回写为 FAILED。
+     * 退款；预占在事务内完成，渠道调用在事务外。
+     *
+     * <p>已预占但未完成的退款（如进程中断）在重试时以同一 {@code out_refund_no} 幂等重发；
+     * 渠道失败归还预占金额。</p>
      */
     public PayDtos.RefundView refund(long userId, String orderNo, PayDtos.RefundRequest request) {
         PaymentReservationService.Reservation reservation = reservationService.reserveRefund(userId, orderNo, request);
-        if (reservation.created()) {
+        PaymentRefund refund = reservation.refund();
+        if (refund.status() == RefundStatus.CREATED) {
             PaymentChannel channel = registry.require(reservation.order().channel());
-            PaymentChannel.RefundOutcome outcome = channel.refund(reservation.order(), reservation.refund());
-            refundRepository.updateResult(
-                    reservation.refund().refundNo(),
-                    outcome.success() ? RefundStatus.SUCCESS : RefundStatus.FAILED,
-                    outcome.channelRefundId());
+            PaymentChannel.RefundOutcome outcome = channel.refund(reservation.order(), refund);
             if (outcome.success()) {
-                orderRepository.addRefunded(orderNo, reservation.refund().amountCents());
+                refundRepository.updateResult(refund.refundNo(), RefundStatus.SUCCESS, outcome.channelRefundId());
+                orderRepository.finalizeRefund(orderNo);
             } else {
+                refundRepository.updateResult(refund.refundNo(), RefundStatus.FAILED, outcome.channelRefundId());
+                orderRepository.releaseRefundAmount(orderNo, refund.amountCents());
                 throw new PayException(PayErrorKind.UPSTREAM_FAILED, "退款失败：" + outcome.message());
             }
+            refund = refundRepository
+                    .findByOrderIdempotency(orderNo, request.idempotencyKey())
+                    .orElse(refund);
         }
-        PaymentRefund refund = refundRepository
-                .findByOrderIdempotency(orderNo, request.idempotencyKey())
-                .orElse(reservation.refund());
         return new PayDtos.RefundView(
                 refund.refundNo(),
                 orderNo,
@@ -195,17 +188,6 @@ public class OrderService {
             }
         }
         return OrderViews.of(orderRepository.findByOrderNo(orderNo).orElse(order));
-    }
-
-    private void closeExpired(PaymentOrder order) {
-        PaymentChannel channel = registry.find(order.channel());
-        if (channel != null) {
-            channel.close(order);
-        }
-        boolean closed = orderRepository.markClosed(order.orderNo());
-        if (closed) {
-            log.info("待支付订单过期关闭：orderNo={}", order.orderNo());
-        }
     }
 
     private PaymentOrder loadOwned(long userId, String orderNo) {

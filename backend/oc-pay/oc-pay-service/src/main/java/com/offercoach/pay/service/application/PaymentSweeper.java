@@ -97,9 +97,11 @@ public class PaymentSweeper {
 
     /**
      * 查询渠道并对已支付订单就地补记；返回是否确认为已支付。
+     *
+     * <p>不限制订单是否过期：过期订单在关闭前先对账，避免误关已支付订单。</p>
      */
     private boolean reconcile(PaymentOrder order) {
-        if (order.status() != OrderStatus.CREATED || !order.payable(Instant.now())) {
+        if (order.status() != OrderStatus.CREATED) {
             return false;
         }
         PaymentChannel channel = registry.find(order.channel());

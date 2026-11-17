@@ -77,8 +77,18 @@ public class PaymentOrderRepositoryImpl implements PaymentOrderRepository {
     }
 
     @Override
-    public boolean addRefunded(String orderNo, int amountCents) {
-        return mapper.addRefunded(orderNo, amountCents) > 0;
+    public boolean reserveRefundAmount(String orderNo, int amountCents) {
+        return mapper.reserveRefundAmount(orderNo, amountCents) > 0;
+    }
+
+    @Override
+    public boolean finalizeRefund(String orderNo) {
+        return mapper.finalizeRefund(orderNo) > 0;
+    }
+
+    @Override
+    public boolean releaseRefundAmount(String orderNo, int amountCents) {
+        return mapper.releaseRefundAmount(orderNo, amountCents) > 0;
     }
 
     @Override
