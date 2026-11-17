@@ -10,6 +10,10 @@ oc:
     root: ${STORAGE_ROOT}
   ai:
     enabled: ${AI_ENABLED:true}
+  pay:
+    # 未配置内部令牌时内部接口一律拒绝（fail-closed）：应用仍可启动，但支付回调无法发放额度。
+    internal-token: ${OC_PAY_INTERNAL_TOKEN:}
+    base-url: ${OC_PAY_BASE_URL:http://127.0.0.1:8099}
   auth:
     jwt:
       # 无默认值：未显式提供 PEM 路径时启动失败，禁止生成临时密钥（否则重启即全员掉线）。

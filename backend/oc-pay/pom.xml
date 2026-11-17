@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.offercoach</groupId>
+    <artifactId>offercoach-backend</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>oc-pay</artifactId>
+  <packaging>pom</packaging>
+  <name>oc-pay</name>
+  <description>支付能力域：共享库 oc-pay-core 与可独立部署的 oc-pay-service（微信支付 / 支付宝）</description>
+
+  <modules>
+    <module>oc-pay-core</module>
+    <module>oc-pay-service</module>
+  </modules>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>ban-business-dependencies</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <!-- 支付服务独立部署，不得依赖任何业务模块；额度与套餐发放由 oc-app 回调完成。 -->
+                <bannedDependencies>
+                  <excludes>
+                    <exclude>com.offercoach:oc-identity</exclude>
+                    <exclude>com.offercoach:oc-interview</exclude>
+                    <exclude>com.offercoach:oc-admin</exclude>
+                    <exclude>com.offercoach:oc-report-worker</exclude>
+                    <exclude>com.offercoach:oc-gateway</exclude>
+                    <exclude>com.offercoach:oc-app</exclude>
+                  </excludes>
+                  <message>oc-pay 不得依赖业务模块：支付服务只负责订单与渠道，额度发放由 oc-app 内部回调承担</message>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

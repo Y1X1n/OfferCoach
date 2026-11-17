@@ -255,6 +255,50 @@ services:
         max-file: "3"
     restart: unless-stopped
 
+  # ---- 支付服务：仅内网可达；渠道 notify 路径由 Nginx 反代暴露到公网（验签即鉴权）----
+  # 本地 dev 默认用 scripts/run-dev.sh 以 Maven 启动；需要容器化时启用本服务。
+  # 注意：oc-app 未容器化，默认经 host.docker.internal 回调额度发放；商户私钥等凭据请用只读卷挂载。
+  pay:
+    profiles: ["pay"]
+    build: ./oc-pay/oc-pay-service
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:postgresql://postgres:5432/offercoach
+      DB_USER: oc
+      DB_PASSWORD: ${PG_PASSWORD:-change_me_local}
+      OC_PAY_INTERNAL_TOKEN: ${OC_PAY_INTERNAL_TOKEN:-}
+      OC_PAY_PUBLIC_BASE_URL: ${OC_PAY_PUBLIC_BASE_URL:-}
+      OC_PAY_APP_BASE_URL: ${OC_PAY_APP_BASE_URL:-http://host.docker.internal:8081}
+      OC_PAY_MOCK_ENABLED: ${OC_PAY_MOCK_ENABLED:-false}
+      OC_PAY_WECHAT_ENABLED: ${OC_PAY_WECHAT_ENABLED:-false}
+      WECHAT_PAY_APP_ID: ${WECHAT_PAY_APP_ID:-}
+      WECHAT_PAY_MCH_ID: ${WECHAT_PAY_MCH_ID:-}
+      WECHAT_PAY_MCH_SERIAL_NO: ${WECHAT_PAY_MCH_SERIAL_NO:-}
+      WECHAT_PAY_PRIVATE_KEY_PATH: ${WECHAT_PAY_PRIVATE_KEY_PATH:-}
+      WECHAT_PAY_API_V3_KEY: ${WECHAT_PAY_API_V3_KEY:-}
+      WECHAT_PAY_PLATFORM_CERT_PATH: ${WECHAT_PAY_PLATFORM_CERT_PATH:-}
+      OC_PAY_ALIPAY_ENABLED: ${OC_PAY_ALIPAY_ENABLED:-false}
+      ALIPAY_APP_ID: ${ALIPAY_APP_ID:-}
+      ALIPAY_PRIVATE_KEY_PATH: ${ALIPAY_PRIVATE_KEY_PATH:-}
+      ALIPAY_PUBLIC_KEY_PATH: ${ALIPAY_PUBLIC_KEY_PATH:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8099/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
   # 以下三个服务仅在 vector profile 下启用；Milvus 复用上面的 minio。
   etcd:
     image: quay.io/coreos/etcd:v3.5.5

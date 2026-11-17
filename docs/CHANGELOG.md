@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.19 ｜ 更新：2026-11-14
+> 状态：生效 ｜ 版本：v2.20 ｜ 更新：2026-11-17
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -17,6 +17,7 @@
 - **AI**：OpenAI 兼容客户端已接入；未配置密钥时简历/JD/出题/评分/报告自动走启发式降级（`degraded=true`）；管理端发布的 Prompt 版本会被运行时读取（60s 缓存）。
 - **AI 工具服务（2026-11-14）**：新增 `oc-ai` 聚合模块，内含 5 个独立服务（仅内网）：ASR 8094 / TTS 8095 / OCR 8096 / Search 8097 / Fetch 8098。已接入真实 DeepSeek Key 并实测：语音作答闭环、题目朗读（含缓存）、扫描件/图片简历 OCR、目标岗位 JD 的「链接抓取 → 搜索兜底 → 预览 → 定制出题」全部通过；管理端可开关各项能力。详见 [ai-tools-prd.md](design/ai-tools-prd.md)、[ai-jd-web-prd.md](design/ai-jd-web-prd.md)。
 - **AI 工具第四轮整改（2026-11-15）**：配额守卫改 Lua 原子计数并区分"限流 vs 计费额度"（ADR-012）；能力关闭/上游失败不再扣次数；朗读上限恢复"每题"语义；跨服务 Trace 透传 + 可重试错误退避重试；`AiScene` 补齐工具场景；补 oc-ai 单测与 ArchUnit 隔离规则。
+- **支付服务 oc-pay（2026-11-17）**：新增聚合模块 `oc-pay`（`oc-pay-core` 共享库 + 独立部署的 `oc-pay-service`，8099）。实现微信支付 v3（Native 扫码）与支付宝（`alipay.trade.precreate` 扫码）下单 / 回调验签 / 退款 / 对账，以及仅本地联调的 `MOCK` 渠道；`oc-app` 新增 `POST/GET /api/v1/orders` 与内部发放接口，支付成功后由 `oc-pay` 幂等回调发放套餐与额度（`payment_entitlement.order_no` 唯一）。详见 [payment.md](design/payment.md)、[architecture.md](design/architecture.md) ADR-013。前端套餐页接入下单与二维码展示为待办。
 - **下一步**：配置真实模型密钥、Git/CI 发布基线、异地备份与监控告警、管理端 MFA 与 Prompt 注入防护、题库检索召回优化。
 - **未决**：见 [README.md](README.md) §4。
 
@@ -36,6 +37,16 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.20（2026-11-17）——支付服务 oc-pay
+
+- 新增聚合模块 `oc-pay`：`oc-pay-core`（契约 DTO、配置、内部令牌工具、`PayGateway`）+ `oc-pay-service`（订单生命周期、微信 v3 / 支付宝渠道适配与验签、退款、对账扫描、额度发放通知）。
+- 渠道：微信支付 v3（Native 扫码，商户私钥 `SHA256withRSA` 签名、平台证书验签、APIv3 密钥 AES-GCM 解回调）、支付宝（`alipay.trade.precreate` 扫码、RSA2 签名与验签）、`MOCK`（仅本地，生产禁用）。
+- `oc-app` 集成：`POST /api/v1/orders`（`Idempotency-Key` 必填，金额以服务端套餐为准）、`GET /api/v1/orders/{orderNo}`、内部 `POST /internal/v1/payments/notify`（令牌校验），支付成功幂等发放套餐与额度。
+- 数据库：新增 `payment_order` / `payment_refund` / `payment_entitlement` / `payment_notify_log`（迁移 `V202611170001__payment.sql`）。
+- 质量：oc-pay 单测 16 项（PEM 往返、微信/支付宝签名验签、AES-GCM 解密、回调解密、下单幂等、退款超额拒绝）；全量 `mvn test` 通过（含 Testcontainers 迁移校验与 ArchUnit）。
+- 新文档 [design/payment.md](design/payment.md)；同步 [architecture.md](design/architecture.md)（ADR-013）、[api.md](design/api.md) §3.2、[data-model.md](design/data-model.md) §3、[deployment.md](ops/deployment.md)。
+- 待办：前端套餐页接入下单与二维码展示；微信 JSAPI/H5 与支付宝电脑网站跳转支付。
 
 ### v2.18（2026-11-11）——UI 极简重构与设计系统 v1.4
 

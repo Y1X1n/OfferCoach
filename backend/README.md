@@ -11,13 +11,15 @@ Spring Boot 3.3.5 / Java 21 的 Maven 多模块工程。
 | `oc-common` | 错误码、异常、Trace、Redis Key | M0 |
 | `oc-identity` | 账号、JWT、额度、套餐 | M0 |
 | `oc-ai-client` | AI 服务客户端 | M3+ |
+| `oc-ai` | AI 工具域（`oc-ai-core` + asr/tts/ocr/search/fetch 五个独立服务） | V1.1 |
+| `oc-pay` | 支付域（`oc-pay-core` + `oc-pay-service`，微信 / 支付宝） | V1.1 |
 | `oc-interview` | 简历 / JD / 会话 / 回答 / 报告 | M1+ |
 | `oc-admin` | 题库、Prompt、运营查询 | M5+ |
 | `oc-report-worker` | RabbitMQ 消费者、报告编排 | M4+ |
 | `oc-gateway` | Spring Cloud Gateway，统一入口 | M0（路由） |
 | `oc-app` | 聚合启动（MVP 单体部署） | M0 |
 
-模块依赖：`oc-app → identity / interview / admin / report-worker / ai-client / common`；禁止循环，由 ArchUnit 强制。
+模块依赖：`oc-app → identity / interview / admin / report-worker / ai-client / oc-ai-core / oc-pay-core / common`；`oc-pay-service` 不依赖任何业务模块（enforcer 强制）；禁止循环，由 ArchUnit 强制。
 
 ## 端口
 
@@ -25,6 +27,8 @@ Spring Boot 3.3.5 / Java 21 的 Maven 多模块工程。
 |---|---|
 | gateway（统一入口） | 8080 |
 | app | 8081 |
+| ai-asr / ai-tts / ai-ocr / ai-search / ai-fetch | 8094–8098（仅内网） |
+| pay（oc-pay-service） | 8099（仅内网；渠道回调由 Nginx 反代） |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
 | RabbitMQ / 管理台 | 5672 / 15672 |

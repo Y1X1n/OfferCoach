@@ -72,6 +72,11 @@ public class QuotaRepositoryImpl implements QuotaRepository {
     }
 
     @Override
+    public boolean updatePlanPeriod(long userId, String planCode, LocalDate periodStart, LocalDate periodEnd) {
+        return quotaMapper.updatePlanPeriod(userId, planCode, periodStart, periodEnd) > 0;
+    }
+
+    @Override
     public void insertLedgerIfAbsent(QuotaLedgerEntry entry) {
         ledgerMapper.insertIfAbsent(
                 entry.userId(),

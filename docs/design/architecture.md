@@ -81,6 +81,12 @@
 - **理由**：这些上限用于控上游成本而非售卖计量，Redis 即可满足，且无需迁移 `quota_ledger.quota_type` 的 CHECK 约束（[ai-tools-prd.md](./ai-tools-prd.md) R4 已确认不新增 `QuotaType`）；与既有登录/注册限流（`AuthAttemptService`）同一口径。原子脚本消除"`INCR` 后 `EXPIRE` 失败或中断留下永久计数键"的缺陷；业务失败时 `release` 归还，与上游"仅 200 且有结果计费"对齐。
 - **代价**：Redis 丢键会使当日计数重置（上限放宽而非收紧），可接受；若未来把 AI 次数纳入售卖计量，须改为写 `quota_ledger` 流水。
 
+### ADR-013 支付独立为 oc-pay 服务，套餐与额度发放仍归 oc-app
+
+- **决策**：新增聚合模块 `oc-pay`，其下为共享库 `oc-pay-core`（契约 DTO、配置、内部令牌工具、`PayGateway`）与可独立部署的 `oc-pay-service`（端口 8099，**仅内网可达**）。渠道支持微信支付 v3（Native 扫码）与支付宝（`alipay.trade.precreate` 扫码），以及仅本地联调的 `MOCK` 渠道。`oc-pay` 只负责订单与渠道（下单 / 回调验签 / 退款 / 对账）；**套餐与额度事实源仍在 `oc-app`**：支付成功后 `oc-pay` 回调 `POST {oc-app}/internal/v1/payments/notify`，由 `oc-identity` 幂等发放。仅渠道回调路径 `/pay/notify/{channel}` 由 Nginx 反代暴露到公网（渠道验签即鉴权）。
+- **理由**：支付涉及商户密钥、渠道协议与 PCI 风险，独立部署便于隔离凭据与独立扩缩；同时避免把渠道 SDK / 签名逻辑塞进业务单体。渠道回调需公网可达且 `oc-app` 一直是唯一业务入口的约束下，「回调进 oc-pay、发放回 oc-app」既保证边界清晰，又不让 `oc-app` 承担渠道协议。金额与商品名以服务端 `subscription_plan` 为准，前端只传 `planCode` 与渠道。
+- **代价**：新增一个部署单元与内部双向调用（`oc-app → oc-pay` 下单 / 查单；`oc-pay → oc-app` 额度发放）；`oc-app` 首次开放一个内部写接口（`/internal/v1/payments/notify`，令牌校验，其余 `/internal/**` 仍 `denyAll`）。支付表由 `oc-app` Flyway 统一建表、`oc-pay-service` 独占写入（与 `oc-ai` 同口径）。详见 [payment.md](./payment.md)。
+
 ## 3. 逻辑架构
 
 ```mermaid
@@ -284,6 +290,8 @@ offercCoach/
 │   ├── pom.xml
 │   ├── oc-common/                   # 错误码、结果封装、Trace、工具
 │   ├── oc-ai-client/                # 调用 Python AI 服务的客户端 + LangChain4j
+│   ├── oc-ai/                       # AI 工具域：oc-ai-core + asr/tts/ocr/search/fetch
+│   ├── oc-pay/                      # 支付域：oc-pay-core + oc-pay-service（微信 / 支付宝）
 │   ├── oc-identity/                 # 账号、订阅、额度
 │   ├── oc-interview/                # 简历、JD、会话、回答、报告
 │   ├── oc-admin/                    # 题库、Prompt、日志

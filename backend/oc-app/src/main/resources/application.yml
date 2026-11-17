@@ -127,6 +127,10 @@ oc:
       call-log-enabled: false
   storage:
     root: ${STORAGE_ROOT:.local/storage}
+  # 支付服务间通信：oc-app 经内部令牌调用 oc-pay（下单 / 查单）。
+  pay:
+    internal-token: ${OC_PAY_INTERNAL_TOKEN:}
+    base-url: ${OC_PAY_BASE_URL:http://127.0.0.1:8099}
   # 数据保留策略：每天低峰（默认 03:30）分批清理过期日志，避免表无限增长。
   retention:
     ai-call-days: ${RETENTION_AI_CALL_DAYS:90}

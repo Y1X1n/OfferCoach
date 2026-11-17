@@ -1,0 +1,98 @@
+server:
+  port: ${SERVER_PORT:8099}
+  shutdown: graceful
+  # 默认仅监听回环地址；渠道回调由 Nginx 反代暴露到公网（验签即鉴权）。
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
+spring:
+  application:
+    name: offercoach-pay
+  profiles:
+    default: local
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/offercoach}
+    username: ${DB_USER:oc}
+    password: ${DB_PASSWORD:oc_dev_password}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:8}
+      minimum-idle: 1
+      connection-timeout: 3000
+  # 支付表由 oc-app 的 Flyway 统一管理；本服务共享同一数据库，不自行迁移。
+  flyway:
+    enabled: false
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    # 支付正确性依赖数据库与订单状态，数据库不可用视为不健康。
+    db:
+      enabled: true
+    redis:
+      enabled: false
+
+oc:
+  pay:
+    # 服务间内部令牌：oc-app 与 oc-pay 必须一致；为空时内部接口全部拒绝（fail-closed）。
+    internal-token: ${OC_PAY_INTERNAL_TOKEN:}
+    base-url: ${OC_PAY_BASE_URL:http://127.0.0.1:8099}
+    request-timeout: ${OC_PAY_REQUEST_TIMEOUT:15s}
+    ops:
+      # 对外可访问基地址（公网域名），用于渠道 notify_url / return_url 拼接。
+      public-base-url: ${OC_PAY_PUBLIC_BASE_URL:}
+      # oc-app 基础地址，支付成功后回调发放套餐与额度。
+      app-base-url: ${OC_PAY_APP_BASE_URL:http://127.0.0.1:8081}
+      entitlement-path: /internal/v1/payments/notify
+      order-expire-minutes: ${OC_PAY_ORDER_EXPIRE_MINUTES:30}
+      notify-max-attempts: ${OC_PAY_NOTIFY_MAX_ATTEMPTS:8}
+      notify-timeout: ${OC_PAY_NOTIFY_TIMEOUT:5s}
+      sweep-cron: "${OC_PAY_SWEEP_CRON:0 */3 * * * *}"
+    channels:
+      wechat:
+        enabled: ${OC_PAY_WECHAT_ENABLED:false}
+        app-id: ${WECHAT_PAY_APP_ID:}
+        mch-id: ${WECHAT_PAY_MCH_ID:}
+        merchant-serial-no: ${WECHAT_PAY_MCH_SERIAL_NO:}
+        private-key-path: ${WECHAT_PAY_PRIVATE_KEY_PATH:}
+        private-key-pem: ${WECHAT_PAY_PRIVATE_KEY_PEM:}
+        api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
+        platform-cert-path: ${WECHAT_PAY_PLATFORM_CERT_PATH:}
+        platform-public-key-path: ${WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH:}
+        platform-public-key-pem: ${WECHAT_PAY_PLATFORM_PUBLIC_KEY_PEM:}
+        api-base-url: ${WECHAT_PAY_API_BASE_URL:https://api.mch.weixin.qq.com}
+        notify-path: /pay/notify/wechat
+      alipay:
+        enabled: ${OC_PAY_ALIPAY_ENABLED:false}
+        app-id: ${ALIPAY_APP_ID:}
+        private-key-path: ${ALIPAY_PRIVATE_KEY_PATH:}
+        private-key-pem: ${ALIPAY_PRIVATE_KEY_PEM:}
+        alipay-public-key-path: ${ALIPAY_PUBLIC_KEY_PATH:}
+        alipay-public-key-pem: ${ALIPAY_PUBLIC_KEY_PEM:}
+        gateway-url: ${ALIPAY_GATEWAY_URL:https://openapi.alipay.com/gateway.do}
+        notify-path: /pay/notify/alipay
+        return-path: /pay/return/alipay
+        sign-type: RSA2
+      mock:
+        # 仅本地联调；生产环境开启会在启动时直接失败。
+        enabled: ${OC_PAY_MOCK_ENABLED:false}
+        confirm-path: /pay/mock
+
+logging:
+  level:
+    root: INFO
+    com.offercoach: INFO

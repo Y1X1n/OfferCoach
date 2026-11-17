@@ -1,0 +1,87 @@
+package com.offercoach.pay.service.channel;
+
+import com.offercoach.pay.service.domain.ChannelCode;
+import com.offercoach.pay.service.domain.PaymentOrder;
+import com.offercoach.pay.service.domain.PaymentRefund;
+import java.time.Instant;
+import java.util.Map;
+
+/**
+ * 支付渠道适配器 SPI：下单、查询、关单、退款与回调解析。
+ *
+ * <p>实现方只负责与渠道对接；订单状态、幂等与额度发放由应用层统一处理。</p>
+ */
+public interface PaymentChannel {
+
+    /**
+     * 渠道编码。
+     */
+    ChannelCode code();
+
+    /**
+     * 渠道是否已启用且凭据齐备。
+     */
+    boolean available();
+
+    /**
+     * 渠道回调路径，例如 {@code /pay/notify/wechat}。
+     */
+    String notifyPath();
+
+    /**
+     * 渠道下单，返回二维码链接或预支付标识。
+     */
+    Prepay prepay(PaymentOrder order, String clientIp);
+
+    /**
+     * 主动查询订单支付状态（回调缺失时的兜底）。
+     */
+    ChannelOrderState query(PaymentOrder order);
+
+    /**
+     * 关闭未支付订单；尽力而为，失败不阻断本地关单。
+     */
+    void close(PaymentOrder order);
+
+    /**
+     * 发起退款。
+     */
+    RefundOutcome refund(PaymentOrder order, PaymentRefund refund);
+
+    /**
+     * 解析并验签渠道回调，返回归一化结果。
+     */
+    ChannelNotify parseNotify(Map<String, String> headers, String body);
+
+    /**
+     * 回调应答体；微信要求的 {@code {"code":"SUCCESS"}} 或支付宝的纯文本 {@code success} 由调用方按渠道返回。
+     */
+    String successResponseBody();
+
+    /**
+     * 渠道下单结果。
+     */
+    record Prepay(String codeUrl, String prepayId) {}
+
+    /**
+     * 渠道订单状态。
+     */
+    record ChannelOrderState(boolean paid, String providerTxnId, Instant paidAt, String tradeState) {}
+
+    /**
+     * 退款结果。
+     */
+    record RefundOutcome(boolean success, String channelRefundId, String tradeState, String message) {}
+
+    /**
+     * 归一化回调：无论渠道差异，应用层只需 orderNo + 是否支付 + 金额 + 渠道流水号。
+     */
+    record ChannelNotify(
+            String orderNo,
+            String providerTxnId,
+            boolean paid,
+            Integer amountCents,
+            String tradeState,
+            String eventType,
+            Instant paidAt) {}
+}

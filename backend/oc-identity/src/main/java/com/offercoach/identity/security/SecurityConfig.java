@@ -65,7 +65,10 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
-                        // 服务间内部接口不对外暴露；应用侧一律拒绝，避免任意 USER Token 越权命中。
+                        // 支付额度发放回调是唯一对外开放的内部接口，令牌由 InternalTokenFilter 校验；
+                        // 其余内部接口不对外暴露，应用侧一律拒绝，避免任意 USER Token 越权命中。
+                        .requestMatchers(HttpMethod.POST, "/internal/v1/payments/notify")
+                        .permitAll()
                         .requestMatchers("/internal/**")
                         .denyAll()
                         .anyRequest()

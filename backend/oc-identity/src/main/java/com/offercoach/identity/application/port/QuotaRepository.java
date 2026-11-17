@@ -50,6 +50,12 @@ public interface QuotaRepository {
             long userId, String planCode, int interviewAdd, int resumeAdd, LocalDate today, LocalDate nextPeriodEnd);
 
     /**
+     * 购买成功后切换套餐并刷新有效期；不影响余额（额度由调用方单独追加）。
+     * 行不存在时影响 0 行。
+     */
+    boolean updatePlanPeriod(long userId, String planCode, LocalDate periodStart, LocalDate periodEnd);
+
+    /**
      * 幂等追加流水，冲突时忽略。
      */
     void insertLedgerIfAbsent(QuotaLedgerEntry entry);
