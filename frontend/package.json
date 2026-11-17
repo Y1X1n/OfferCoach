@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.6.6",
     "@types/qrcode": "1.5.5",
     "@vitejs/plugin-vue": "^5.2.1",
     "autoprefixer": "^10.4.20",
