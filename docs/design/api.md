@@ -15,7 +15,7 @@
 | 用户 | `GET/PATCH/DELETE /users/me` | USER | 资料、隐私、注销 |
 | 额度 | `GET /quota` | USER | 余额与每日用量 |
 | 工作台 | `GET /dashboard` | USER | 首屏聚合：额度、简历/JD 就绪、进行中会话、最近报告 |
-| 套餐 | `GET /plans`、`POST /orders`、`GET /orders/{orderNo}` | USER | 套餐、下单与订单查询 |
+| 套餐 | `GET /plans`、`POST /orders`、`GET /orders/{orderNo}`、`GET /pay-channels` | USER | 套餐、下单、订单查询与可用支付渠道 |
 | 简历 | `POST/GET /resumes` | USER | 上传、列表 |
 | 简历 | `GET/PATCH/DELETE /resumes/{id}` | USER | 详情、修正、删除 |
 | 简历 | `POST /resumes/{id}/reparse` | USER | 重新解析 |
@@ -279,6 +279,13 @@
 ```
 
 - `GET /orders/{orderNo}`（USER）→ 订单视图；非本人订单返回 `404`。前端轮询该接口直到 `status=PAID`。
+- `GET /pay-channels`（USER）→ 支付渠道可用性，前端据此展示支付方式：
+
+```json
+[{"channel":"wechat","enabled":true,"method":"QR"},{"channel":"alipay","enabled":false,"method":"QR"},
+ {"channel":"mock","enabled":false,"method":"MOCK"}]
+```
+
 - 状态：`CREATED` 待支付 / `PAID` 已支付 / `FAILED` 失败 / `REFUNDED` 已退款 / `CLOSED` 已关闭。
 
 支付由独立服务 `oc-pay` 承载（微信 Native 扫码 / 支付宝扫码），时序、幂等与对账见 [payment.md](./payment.md)：

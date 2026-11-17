@@ -3,6 +3,7 @@ import { computed, onMounted, ref, type Component } from 'vue'
 import { Check, CreditCard, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
+import PlanCheckoutDialog from '@/components/plans/PlanCheckoutDialog.vue'
 import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -35,6 +36,8 @@ const { toast } = useToast()
 const plans = ref<Plan[]>([])
 const loading = ref(true)
 const loadError = ref<string | null>(null)
+const checkoutOpen = ref(false)
+const checkoutPlan = ref<Plan | null>(null)
 
 const FEATURE_LABELS: Record<string, string> = {
   rewrittenAnswer: '建议改写',
@@ -94,11 +97,21 @@ function planDescription(plan: Plan): string {
 }
 
 function onSelect(plan: Plan) {
+  if (plan.priceCents > 0 && !isCurrent(plan)) {
+    checkoutPlan.value = plan
+    checkoutOpen.value = true
+    return
+  }
   toast(
-    '在线支付即将开放',
+    '无需支付',
     'info',
-    `${plan.name}的在线支付与套餐切换即将开放；当前升级入口不会产生扣费。`,
+    plan.code === 'FREE' ? '免费版为默认套餐。' : `${plan.name}已是当前套餐。`,
   )
+}
+
+function onPaid() {
+  void store.loadQuota()
+  toast('支付成功', 'success', '套餐已开通，额度已生效。')
 }
 
 const faqItems: FaqItem[] = [
@@ -146,7 +159,7 @@ onMounted(() => {
   <div>
     <PageHeader
       title="套餐与额度"
-      description="按求职节奏选择套餐。在线支付开放前，套餐变更由运营在后台配置。"
+      description="按求职节奏选择套餐；支持微信支付与支付宝扫码，支付成功后额度立即生效。"
     >
       <template #actions>
         <span class="text-xs text-text-muted">
@@ -157,121 +170,126 @@ onMounted(() => {
       </template>
     </PageHeader>
 
-    <AsyncState
-      :loading="loading"
-      :error="loadError"
-      error-title="套餐加载失败"
-      :loading-lines="6"
-      class="mt-6"
-      @retry="loadPlans"
-    >
-      <section class="grid gap-4 md:grid-cols-2 md:items-stretch" aria-label="套餐对比">
-        <Card
-          v-for="plan in plans"
-          :key="plan.code"
-          padding="lg"
-          :class="
-            cn(
-              'relative flex flex-col',
-              (plan.recommended ?? plan.code === 'PRO') && 'border-text/25',
-            )
-          "
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <h2 class="text-lg font-semibold text-text">{{ plan.name }}</h2>
-                <Badge v-if="plan.recommended ?? plan.code === 'PRO'" variant="brand">推荐</Badge>
-                <Badge v-if="isCurrent(plan)" variant="success" dot>当前</Badge>
+    <div class="mt-6">
+      <AsyncState
+        :loading="loading"
+        :error="loadError"
+        error-title="套餐加载失败"
+        :loading-lines="6"
+        @retry="loadPlans"
+      >
+        <section class="grid gap-4 md:grid-cols-2 md:items-stretch" aria-label="套餐对比">
+          <Card
+            v-for="plan in plans"
+            :key="plan.code"
+            padding="lg"
+            :class="
+              cn(
+                'relative flex flex-col',
+                (plan.recommended ?? plan.code === 'PRO') && 'border-text/25',
+              )
+            "
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h2 class="text-lg font-semibold text-text">{{ plan.name }}</h2>
+                  <Badge v-if="plan.recommended ?? plan.code === 'PRO'" variant="brand">推荐</Badge>
+                  <Badge v-if="isCurrent(plan)" variant="success" dot>当前</Badge>
+                </div>
+                <p class="mt-2 text-sm leading-6 text-text-muted">{{ planDescription(plan) }}</p>
               </div>
-              <p class="mt-2 text-sm leading-6 text-text-muted">{{ planDescription(plan) }}</p>
             </div>
-          </div>
 
-          <div class="mt-5 flex flex-wrap items-end gap-x-2 gap-y-1">
-            <span class="tabular text-3xl font-semibold text-text">{{ planPrice(plan) }}</span>
-            <span v-if="planPeriod(plan)" class="pb-1 text-xs text-text-muted">
-              {{ planPeriod(plan) }}
-            </span>
-          </div>
-          <p class="mt-1 text-xs text-text-muted">{{ planCredits(plan) }}</p>
+            <div class="mt-5 flex flex-wrap items-end gap-x-2 gap-y-1">
+              <span class="tabular text-3xl font-semibold text-text">{{ planPrice(plan) }}</span>
+              <span v-if="planPeriod(plan)" class="pb-1 text-xs text-text-muted">
+                {{ planPeriod(plan) }}
+              </span>
+            </div>
+            <p class="mt-1 text-xs text-text-muted">{{ planCredits(plan) }}</p>
 
-          <ul class="mt-5 flex-1 space-y-2.5 border-t border-border pt-4 text-sm">
-            <li v-for="row in planFeatures(plan)" :key="row.label" class="flex items-start gap-2">
-              <Check
-                v-if="row.state === 'included'"
-                class="mt-0.5 h-4 w-4 shrink-0 text-success"
-                aria-hidden="true"
-              />
-              <X
-                v-else-if="row.state === 'excluded'"
-                class="mt-0.5 h-4 w-4 shrink-0 text-text-muted"
-                aria-hidden="true"
-              />
-              <Check v-else class="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-              <span
-                :class="[
-                  'min-w-0 flex-1',
-                  row.state === 'excluded' ? 'text-text-muted' : 'text-text',
-                ]"
+            <ul class="mt-5 flex-1 space-y-2.5 border-t border-border pt-4 text-sm">
+              <li v-for="row in planFeatures(plan)" :key="row.label" class="flex items-start gap-2">
+                <Check
+                  v-if="row.state === 'included'"
+                  class="mt-0.5 h-4 w-4 shrink-0 text-success"
+                  aria-hidden="true"
+                />
+                <X
+                  v-else-if="row.state === 'excluded'"
+                  class="mt-0.5 h-4 w-4 shrink-0 text-text-muted"
+                  aria-hidden="true"
+                />
+                <Check v-else class="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                <span
+                  :class="[
+                    'min-w-0 flex-1',
+                    row.state === 'excluded' ? 'text-text-muted' : 'text-text',
+                  ]"
+                >
+                  {{ row.label }}
+                </span>
+                <span v-if="row.state === 'coming' && row.note" class="text-2xs text-text-muted">
+                  {{ row.note }}
+                </span>
+              </li>
+            </ul>
+
+            <div class="mt-5">
+              <Button
+                :variant="
+                  isCurrent(plan) ? 'secondary' : plan.code === 'PRO' ? 'primary' : 'outline'
+                "
+                block
+                :disabled="isCurrent(plan) || (plan.code === 'FREE' && isPro)"
+                @click="onSelect(plan)"
               >
-                {{ row.label }}
-              </span>
-              <span v-if="row.state === 'coming' && row.note" class="text-2xs text-text-muted">
-                {{ row.note }}
-              </span>
-            </li>
-          </ul>
-
-          <div class="mt-5">
-            <Button
-              :variant="isCurrent(plan) ? 'secondary' : plan.code === 'PRO' ? 'primary' : 'outline'"
-              block
-              :disabled="isCurrent(plan) || (plan.code === 'FREE' && isPro)"
-              @click="onSelect(plan)"
-            >
-              {{
-                isCurrent(plan)
-                  ? '当前套餐'
-                  : plan.code === 'PRO'
-                    ? '升级到专业版'
-                    : '降级暂未开放'
-              }}
-            </Button>
-          </div>
-        </Card>
-      </section>
-
-      <section class="mt-8" aria-labelledby="plans-faq-title">
-        <div class="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 id="plans-faq-title" class="text-base font-semibold text-text">额度与计费说明</h2>
-            <p class="mt-1 text-sm text-text-muted">规则以服务端额度流水与套餐配置为准。</p>
-          </div>
-          <Badge variant="neutral" size="md">在线支付即将开放</Badge>
-        </div>
-
-        <div class="mt-4 grid gap-3 md:grid-cols-2">
-          <Card v-for="item in faqItems" :key="item.title" padding="sm" class="flex gap-3">
-            <span
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-2 text-text-muted"
-            >
-              <component :is="item.icon" class="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div class="min-w-0">
-              <h3 class="text-sm font-semibold text-text">{{ item.title }}</h3>
-              <p class="mt-1 text-sm leading-6 text-text-muted">{{ item.body }}</p>
+                {{
+                  isCurrent(plan)
+                    ? '当前套餐'
+                    : plan.code === 'PRO'
+                      ? '升级到专业版'
+                      : '降级暂未开放'
+                }}
+              </Button>
             </div>
           </Card>
-        </div>
+        </section>
 
-        <Alert
-          variant="info"
-          class="mt-4"
-          title="关于套餐变更"
-          description="当前在线支付暂未开放，升级按钮不会发起支付；开通后会以服务端订单与额度流水为准。套餐说明不构成效果承诺。"
-        />
-      </section>
-    </AsyncState>
+        <section class="mt-8" aria-labelledby="plans-faq-title">
+          <div class="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 id="plans-faq-title" class="text-base font-semibold text-text">额度与计费说明</h2>
+              <p class="mt-1 text-sm text-text-muted">规则以服务端额度流水与套餐配置为准。</p>
+            </div>
+            <Badge variant="success" size="md">支持微信 / 支付宝</Badge>
+          </div>
+
+          <div class="mt-4 grid gap-3 md:grid-cols-2">
+            <Card v-for="item in faqItems" :key="item.title" padding="sm" class="flex gap-3">
+              <span
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-2 text-text-muted"
+              >
+                <component :is="item.icon" class="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div class="min-w-0">
+                <h3 class="text-sm font-semibold text-text">{{ item.title }}</h3>
+                <p class="mt-1 text-sm leading-6 text-text-muted">{{ item.body }}</p>
+              </div>
+            </Card>
+          </div>
+
+          <Alert
+            variant="info"
+            class="mt-4"
+            title="关于套餐变更"
+            description="支付与到账以服务端订单与额度流水为准；支付成功后额度会即时生效。若支付后额度未更新，请稍后刷新或联系客服。套餐说明不构成效果承诺。"
+          />
+        </section>
+      </AsyncState>
+    </div>
+
+    <PlanCheckoutDialog v-model:open="checkoutOpen" :plan="checkoutPlan" @paid="onPaid" />
   </div>
 </template>

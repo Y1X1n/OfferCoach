@@ -3,11 +3,13 @@ package com.offercoach.identity.application.payment;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.api.dto.OrderResponse;
+import com.offercoach.identity.api.dto.PayChannelOption;
 import com.offercoach.identity.application.port.QuotaRepository;
 import com.offercoach.identity.domain.quota.SubscriptionPlan;
 import com.offercoach.pay.api.PayDtos;
 import com.offercoach.pay.client.PayClientException;
 import com.offercoach.pay.client.PayGateway;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +74,20 @@ public class PaymentOrderService {
                 throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("orderNo", orderNo));
             }
             log.warn("订单查询失败：orderNo={} reason={}", orderNo, exception.getMessage());
+            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
+        }
+    }
+
+    /**
+     * 支付渠道可用性；前端据此决定展示哪些支付方式。
+     */
+    public List<PayChannelOption> channels() {
+        try {
+            return payGateway.channels().channels().stream()
+                    .map(info -> new PayChannelOption(info.channel(), info.enabled(), info.method()))
+                    .toList();
+        } catch (PayClientException exception) {
+            log.warn("支付渠道查询失败：reason={}", exception.getMessage());
             throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
         }
     }

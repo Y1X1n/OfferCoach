@@ -4,10 +4,12 @@ import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.api.dto.CreateOrderRequest;
 import com.offercoach.identity.api.dto.OrderResponse;
+import com.offercoach.identity.api.dto.PayChannelOption;
 import com.offercoach.identity.application.payment.PaymentOrderService;
 import com.offercoach.identity.security.ClientIpResolver;
 import com.offercoach.identity.security.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -52,5 +54,13 @@ public class OrderController {
     @GetMapping("/orders/{orderNo}")
     public OrderResponse get(@PathVariable String orderNo) {
         return paymentOrderService.get(currentUser.userId(), orderNo);
+    }
+
+    /**
+     * 可用支付渠道；登录后调用，前端据此展示微信 / 支付宝等支付方式。
+     */
+    @GetMapping("/pay-channels")
+    public List<PayChannelOption> payChannels() {
+        return paymentOrderService.channels();
     }
 }

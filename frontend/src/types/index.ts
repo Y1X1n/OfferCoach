@@ -73,6 +73,36 @@ export interface PageQuery {
 }
 
 // ---------------------------------------------------------------------------
+// 支付
+// ---------------------------------------------------------------------------
+
+export type PayChannelCode = 'wechat' | 'alipay' | 'mock'
+
+/** GET /pay-channels：单个渠道可用性。 */
+export interface PayChannel {
+  channel: PayChannelCode
+  enabled: boolean
+  method: string
+}
+
+export type OrderStatus = 'CREATED' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CLOSED'
+
+/** POST /orders 与 GET /orders/{orderNo} 的订单视图。 */
+export interface Order {
+  orderId: string
+  orderNo: string
+  planCode: string
+  amountCents: number
+  currency: string
+  status: OrderStatus
+  channel: PayChannelCode
+  codeUrl: string | null
+  expiresAt: string | null
+  paidAt: string | null
+  createdAt: string
+}
+
+// ---------------------------------------------------------------------------
 // 简历
 // ---------------------------------------------------------------------------
 
@@ -522,7 +552,8 @@ export interface ReportDetailDto {
   improvementPlan?: ImprovementItem[] | null | undefined
   match?: ReportMatch | null | undefined
   questionBreakdown?: ReportBreakdownItem[] | null | undefined
-  pdf?: { available?: boolean | undefined; expiresAt?: string | null | undefined } | null | undefined
+  pdf?:
+    { available?: boolean | undefined; expiresAt?: string | null | undefined } | null | undefined
   generatedAt?: string | null | undefined
   createdAt?: string | null | undefined
 }
