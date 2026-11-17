@@ -31,6 +31,7 @@ public class JdPreviewStoreService {
 
     private final JdService jdService;
     private final JdStructurer jdStructurer;
+    private final JdAiGuard jdAiGuard;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final JsonCodec jsonCodec;
@@ -38,11 +39,13 @@ public class JdPreviewStoreService {
     public JdPreviewStoreService(
             JdService jdService,
             JdStructurer jdStructurer,
+            JdAiGuard jdAiGuard,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
             JsonCodec jsonCodec) {
         this.jdService = jdService;
         this.jdStructurer = jdStructurer;
+        this.jdAiGuard = jdAiGuard;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.jsonCodec = jsonCodec;
@@ -52,6 +55,7 @@ public class JdPreviewStoreService {
      * 结构化并缓存预览；返回 token、预览数据与结构化结果。
      */
     public StoredPreview store(
+            long userId,
             String rawText,
             String rawTitle,
             String sourceUrl,
@@ -65,7 +69,8 @@ public class JdPreviewStoreService {
         String title = rawTitle == null || rawTitle.isBlank()
                 ? JdBodyExtractor.firstNonBlankLine(rawText, MAX_TITLE_LENGTH)
                 : rawTitle.strip();
-        JdStructurer.StructuredJd structured = jdStructurer.structure(title, null, rawText);
+        jdAiGuard.checkAndCount(userId);
+        JdStructurer.StructuredJd structured = jdStructurer.structure(userId, title, null, rawText);
         String structuredTitle = structured.structured().get("title") instanceof String value && !value.isBlank()
                 ? value.strip()
                 : title;

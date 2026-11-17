@@ -2,6 +2,7 @@ package com.offercoach.interview.jd.application;
 
 import com.offercoach.ai.AiProvider;
 import com.offercoach.ai.AiScene;
+import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.ai.AiGateway;
 import com.offercoach.interview.jd.domain.JobDescription;
 import com.offercoach.interview.jd.domain.MatchResult;
@@ -42,43 +43,86 @@ public class JdMatcher {
     private final AiGateway aiGateway;
     private final JsonCodec jsonCodec;
     private final JdMatchEngine matchEngine;
+    private final AiCallLogger aiCallLogger;
 
-    public JdMatcher(AiGateway aiGateway, JsonCodec jsonCodec, JdMatchEngine matchEngine) {
+    public JdMatcher(AiGateway aiGateway, JsonCodec jsonCodec, JdMatchEngine matchEngine, AiCallLogger aiCallLogger) {
         this.aiGateway = aiGateway;
         this.jsonCodec = jsonCodec;
         this.matchEngine = matchEngine;
+        this.aiCallLogger = aiCallLogger;
     }
 
-    public MatchResult match(JobDescription jd, Resume resume) {
+    public MatchResult match(long userId, JobDescription jd, Resume resume) {
         Map<String, Object> jdStructured = parse(jd.structuredJson());
         Map<String, Object> resumeStructured = parse(resume.structuredJson());
         if (aiGateway.available()) {
-            MatchResult viaAi = viaAi(jdStructured, jd.rawText(), resume);
+            MatchResult viaAi = viaAi(userId, jdStructured, jd.rawText(), resume);
             if (viaAi != null) {
                 return viaAi;
             }
+        } else {
+            logAiCall(userId, "DEGRADED", null, System.nanoTime(), "UNAVAILABLE");
         }
         return matchEngine.match(jdStructured, jd.rawText(), resumeStructured, resume.rawText());
     }
 
-    private MatchResult viaAi(Map<String, Object> jdStructured, String jdRawText, Resume resume) {
+    private MatchResult viaAi(long userId, Map<String, Object> jdStructured, String jdRawText, Resume resume) {
+        long startedAt = System.nanoTime();
+        Optional<AiProvider.AiResult> result;
         try {
             String prompt = "JD 结构化：" + jsonCodec.write(jdStructured)
                     + "\nJD 原文：" + truncate(jdRawText, MAX_RESUME_PROMPT_CHARS)
                     + "\n简历摘要：" + safe(resume.summary())
                     + "\n简历原文：" + truncate(resume.rawText(), MAX_RESUME_PROMPT_CHARS);
-            Optional<AiProvider.AiResult> result = aiGateway.complete(
+            result = aiGateway.complete(
                     AiScene.JD_MATCH, aiGateway.systemPrompt(AiScene.JD_MATCH, SYSTEM_PROMPT), prompt);
-            if (result.isEmpty()) {
-                return null;
-            }
-            Map<String, Object> parsed =
-                    jsonCodec.readMap(jsonCodec.extractJsonObject(result.get().text()));
-            return parseAiResult(parsed);
         } catch (RuntimeException exception) {
-            log.warn("AI JD 匹配输出非法，降级确定性匹配：{}", exception.getClass().getSimpleName());
+            log.warn("AI JD 匹配调用失败，降级确定性匹配：{}", exception.getClass().getSimpleName());
+            logAiCall(userId, "FAILED", null, startedAt, exception.getClass().getSimpleName());
             return null;
         }
+        if (result.isEmpty()) {
+            logAiCall(userId, "DEGRADED", null, startedAt, "UNAVAILABLE");
+            return null;
+        }
+        AiProvider.AiResult aiResult = result.get();
+        if (aiResult.text() == null || aiResult.text().isBlank()) {
+            logAiCall(userId, "DEGRADED", aiResult, startedAt, "EMPTY");
+            return null;
+        }
+        MatchResult parsed;
+        try {
+            parsed = parseAiResult(jsonCodec.readMap(jsonCodec.extractJsonObject(aiResult.text())));
+        } catch (RuntimeException exception) {
+            log.warn("AI JD 匹配输出非法，降级确定性匹配：{}", exception.getClass().getSimpleName());
+            logAiCall(userId, "DEGRADED", aiResult, startedAt, "INVALID_JSON");
+            return null;
+        }
+        if (parsed == null) {
+            logAiCall(userId, "DEGRADED", aiResult, startedAt, "INVALID_JSON");
+            return null;
+        }
+        logAiCall(userId, "SUCCESS", aiResult, startedAt, null);
+        return parsed;
+    }
+
+    private void logAiCall(long userId, String status, AiProvider.AiResult result, long startedAt, String errorCode) {
+        Integer tokensIn = result == null ? null : result.tokensIn();
+        Integer tokensOut = result == null ? null : result.tokensOut();
+        // provider/model 在 ai_call_log 中为 NOT NULL：未真正调用模型时用稳定占位值，保证降级行也能入库。
+        String provider = result == null || result.provider() == null ? "unknown" : result.provider();
+        String model = result == null || result.model() == null ? "unknown" : result.model();
+        aiCallLogger.log(
+                userId,
+                AiScene.JD_MATCH.name(),
+                provider,
+                model,
+                status,
+                tokensIn,
+                tokensOut,
+                null,
+                (System.nanoTime() - startedAt) / 1_000_000,
+                errorCode);
     }
 
     private static MatchResult parseAiResult(Map<String, Object> parsed) {

@@ -90,6 +90,11 @@ public final class RedisKeys {
         return "oc:quota:daily-fetch:" + userId + ":" + date;
     }
 
+    /** 每日 JD 场景 AI 调用次数（结构化与匹配共用）。 */
+    public static String dailyJdAi(long userId, String date) {
+        return "oc:quota:daily-jd-ai:" + userId + ":" + date;
+    }
+
     /** 岗位搜索候选缓存，值为候选列表 JSON（含正文）。 */
     public static String jdSearchCache(String token) {
         return "oc:jd:search:" + token;

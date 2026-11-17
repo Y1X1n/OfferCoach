@@ -38,6 +38,13 @@
 
 ## 文档版本
 
+### v2.27（2026-11-17）——JD AI 每日限额与调用记账
+
+- 新增 `JdAiGuard` 与配置 `oc.interview.jd.ai-daily-limit`（默认 20，0=不限）：按用户按天计数（Redis key `oc:quota:daily-jd-ai:{userId}:{date}`，TTL 2 天），覆盖「手工创建 JD 结构化 / JD 匹配 / 网页导入预览」三个真正触发模型的入口；确认预览结果不重复计数，Redis 故障时降级放行。
+- `JdStructurer` / `JdMatcher` 接入 `AiCallLogger`：成功记 `SUCCESS` + 真实 token/latency，降级记 `DEGRADED`（`UNAVAILABLE/EMPTY/INVALID_JSON`），异常记 `FAILED`；`provider/model` 为 NOT NULL，未实际调用时用 `unknown` 占位，保证降级行也能入库。
+- 目的：JD 三条 AI 路径不再「零配额、零记账」，管理端 AI 调用日志与成本统计可以覆盖到这部分消耗。
+- 补 `JdAiGuardTest`（限额 0 不限、未超限放行、超限 429、Redis 异常放行）。
+
 ### v2.26（2026-11-17）——订单生命周期对齐与取消订单
 
 - 前端删除 5 分钟轮询上限，改用订单自身 `expiresAt`（缺失时 30 分钟兜底，只取首次下单值）；轮询网络异常改为暂停 + 「继续刷新」，不再谎报订单过期。

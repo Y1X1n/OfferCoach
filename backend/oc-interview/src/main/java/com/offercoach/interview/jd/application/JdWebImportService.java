@@ -201,7 +201,7 @@ public class JdWebImportService {
             String fallbackReason,
             String resolvedBy) {
         JdPreviewStoreService.StoredPreview stored =
-                previewStoreService.store(rawText, rawTitle, sourceUrl, sourceType, siteName, fallbackReason);
+                previewStoreService.store(userId, rawText, rawTitle, sourceUrl, sourceType, siteName, fallbackReason);
         return PreviewOutcome.preview(stored.token(), stored.preview(), stored.structured(), resolvedBy);
     }
 
