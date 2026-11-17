@@ -117,7 +117,8 @@
         <executions>
           <execution>
             <id>spotless-check</id>
-            <phase>verify</phase>
+            <!-- 绑定 validate：格式问题在编译与测试之前失败，CI 反馈从分钟级降到秒级 -->
+            <phase>validate</phase>
             <goals>
               <goal>check</goal>
             </goals>
@@ -145,7 +146,8 @@
         <executions>
           <execution>
             <id>checkstyle-check</id>
-            <phase>verify</phase>
+            <!-- 绑定 validate：与 spotless 同阶段，规范问题在编译与测试之前失败 -->
+            <phase>validate</phase>
             <goals>
               <goal>check</goal>
             </goals>
