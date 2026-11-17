@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 public class PaymentOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentOrderService.class);
+    private static final String STATUS_CREATED = "CREATED";
 
     private final QuotaRepository quotaRepository;
     private final PayGateway payGateway;
@@ -74,6 +75,41 @@ public class PaymentOrderService {
                 throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("orderNo", orderNo));
             }
             log.warn("订单查询失败：orderNo={} reason={}", orderNo, exception.getMessage());
+            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
+        }
+    }
+
+    /**
+     * 关闭未支付订单；已支付/已关闭等终态订单直接返回当前视图，重复调用幂等。
+     *
+     * <p>oc-pay 在渠道关单失败时会返回错误，这里不吞异常，按既有错误体透出给前端。</p>
+     */
+    public OrderResponse cancel(long userId, String orderNo) {
+        PayDtos.OrderView current;
+        try {
+            current = payGateway.getOrder(orderNo, userId);
+        } catch (PayClientException exception) {
+            if (exception.status() == 404) {
+                throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("orderNo", orderNo));
+            }
+            log.warn("取消前查询订单失败：orderNo={} reason={}", orderNo, exception.getMessage());
+            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
+        }
+        if (!STATUS_CREATED.equals(current.status())) {
+            return OrderResponse.from(current);
+        }
+        try {
+            return OrderResponse.from(payGateway.closeOrder(orderNo, userId));
+        } catch (PayClientException exception) {
+            if (exception.status() == 404) {
+                throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("orderNo", orderNo));
+            }
+            if (exception.status() == 409) {
+                // 渠道关单未确认：订单仍可支付，必须让用户看到「关闭失败」而不是静默成功
+                log.warn("渠道关单未确认，订单保持待支付：orderNo={} reason={}", orderNo, exception.getMessage());
+                throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", exception.getMessage()));
+            }
+            log.warn("订单关闭失败：orderNo={} reason={}", orderNo, exception.getMessage());
             throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
         }
     }
