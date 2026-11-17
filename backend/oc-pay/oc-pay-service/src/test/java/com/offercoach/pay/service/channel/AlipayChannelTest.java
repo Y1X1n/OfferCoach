@@ -47,6 +47,7 @@ class AlipayChannelTest {
     @Test
     void parseNotifyVerifiesAndNormalizes() {
         Map<String, String> params = new LinkedHashMap<>();
+        params.put("app_id", "2021000000000000");
         params.put("notify_type", "trade_status_sync");
         params.put("out_trade_no", "OC202611170002");
         params.put("trade_no", "ALI-TXN-1");

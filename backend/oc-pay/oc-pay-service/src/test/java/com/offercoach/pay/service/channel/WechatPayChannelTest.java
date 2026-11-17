@@ -51,7 +51,7 @@ class WechatPayChannelTest {
     @Test
     void parseNotifyVerifiesAndDecrypts() {
         String body = notifyBody();
-        Map<String, String> headers = signedHeaders(body, "1700000000", "nonce-abc");
+        Map<String, String> headers = signedHeaders(body, freshTimestamp(), "nonce-abc");
 
         PaymentChannel.ChannelNotify notify = channel.parseNotify(headers, body);
 
@@ -62,9 +62,17 @@ class WechatPayChannelTest {
     }
 
     @Test
-    void parseNotifyRejectsBadSignature() {
+    void parseNotifyRejectsStaleTimestamp() {
         String body = notifyBody();
         Map<String, String> headers = signedHeaders(body, "1700000000", "nonce-abc");
+
+        assertThatThrownBy(() -> channel.parseNotify(headers, body)).isInstanceOf(PayException.class);
+    }
+
+    @Test
+    void parseNotifyRejectsBadSignature() {
+        String body = notifyBody();
+        Map<String, String> headers = signedHeaders(body, freshTimestamp(), "nonce-abc");
         headers.put("Wechatpay-Signature", "invalid-signature");
 
         assertThatThrownBy(() -> channel.parseNotify(headers, body)).isInstanceOf(PayException.class);
@@ -85,6 +93,10 @@ class WechatPayChannelTest {
         root.put("event_type", "TRANSACTION.SUCCESS");
         root.set("resource", resource);
         return root.toString();
+    }
+
+    private static String freshTimestamp() {
+        return Long.toString(System.currentTimeMillis() / 1000);
     }
 
     private Map<String, String> signedHeaders(String body, String timestamp, String nonce) {

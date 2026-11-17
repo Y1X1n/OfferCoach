@@ -5,6 +5,7 @@ import com.offercoach.pay.service.channel.ChannelRegistry;
 import com.offercoach.pay.service.channel.PaymentChannel;
 import com.offercoach.pay.service.config.PayOpsProperties;
 import com.offercoach.pay.service.domain.OrderStatus;
+import com.offercoach.pay.service.domain.PaymentExceptionKind;
 import com.offercoach.pay.service.domain.PaymentOrder;
 import java.time.Duration;
 import java.time.Instant;
@@ -17,6 +18,10 @@ import org.springframework.stereotype.Component;
  * 支付兜底扫描：关闭过期订单、对账遗漏回调、重试额度发放通知。
  *
  * <p>回调是主路径；本任务是安全网，保证「渠道已支付但本地未置位」「已支付但额度未发放」最终一致。</p>
+ *
+ * <p>关单是保守的：只有渠道明确返回未支付、且关单被渠道确认后才把本地订单置为 CLOSED。
+ * 渠道不可用或关单未确认时保留待支付状态继续重试，超过宽限期仍无法确认则置 FAILED 并进入人工队列，
+ * 避免「用户事后支付成功但本地已关单」造成资金损失。</p>
  */
 @Component
 public class PaymentSweeper {
@@ -28,16 +33,19 @@ public class PaymentSweeper {
     private final PaymentOrderRepository orderRepository;
     private final ChannelRegistry registry;
     private final EntitlementNotifier notifier;
+    private final PaymentExceptionRecorder exceptions;
     private final PayOpsProperties ops;
 
     public PaymentSweeper(
             PaymentOrderRepository orderRepository,
             ChannelRegistry registry,
             EntitlementNotifier notifier,
+            PaymentExceptionRecorder exceptions,
             PayOpsProperties ops) {
         this.orderRepository = orderRepository;
         this.registry = registry;
         this.notifier = notifier;
+        this.exceptions = exceptions;
         this.ops = ops;
     }
 
@@ -49,19 +57,29 @@ public class PaymentSweeper {
     }
 
     /**
-     * 过期订单：先查渠道，确已支付则补记；否则关闭。
+     * 过期订单：先查渠道，确已支付则补记；确认未支付且关单成功才关闭，其余一律保留等待重试。
      */
     private void closeExpiredOrders() {
         for (PaymentOrder order : orderRepository.findExpired(BATCH)) {
             try {
-                if (reconcile(order)) {
+                CloseDecision decision = reconcile(order);
+                if (decision == CloseDecision.PAID) {
+                    continue;
+                }
+                if (decision == CloseDecision.UNKNOWN) {
+                    handleUncertainClose(order);
                     continue;
                 }
                 PaymentChannel channel = registry.find(order.channel());
-                if (channel != null) {
-                    channel.close(order);
+                if (channel == null) {
+                    handleUncertainClose(order);
+                    continue;
                 }
-                orderRepository.markClosed(order.orderNo());
+                if (channel.close(order)) {
+                    orderRepository.markClosed(order.orderNo());
+                } else {
+                    handleUncertainClose(order);
+                }
             } catch (RuntimeException exception) {
                 log.warn("过期订单处理失败：orderNo={} reason={}", order.orderNo(), exception.getMessage());
             }
@@ -96,27 +114,78 @@ public class PaymentSweeper {
     }
 
     /**
-     * 查询渠道并对已支付订单就地补记；返回是否确认为已支付。
+     * 查询渠道并对已支付订单就地补记；返回调用方是否可以安全关闭本地订单。
      *
      * <p>不限制订单是否过期：过期订单在关闭前先对账，避免误关已支付订单。</p>
      */
-    private boolean reconcile(PaymentOrder order) {
+    private CloseDecision reconcile(PaymentOrder order) {
         if (order.status() != OrderStatus.CREATED) {
-            return false;
+            return CloseDecision.PAID;
         }
         PaymentChannel channel = registry.find(order.channel());
         if (channel == null || !channel.available()) {
-            return false;
+            return CloseDecision.UNKNOWN;
         }
-        PaymentChannel.ChannelOrderState state = channel.query(order);
+        PaymentChannel.ChannelOrderState state;
+        try {
+            state = channel.query(order);
+        } catch (RuntimeException exception) {
+            log.warn("渠道查单失败，保留待支付等待下轮：orderNo={} reason={}", order.orderNo(), exception.getMessage());
+            return CloseDecision.UNKNOWN;
+        }
         if (!state.paid()) {
-            return false;
+            return CloseDecision.UNPAID;
+        }
+        if (state.amountCents() != null && state.amountCents() != order.amountCents()) {
+            exceptions.record(
+                    order.orderNo(),
+                    order.userId(),
+                    PaymentExceptionKind.AMOUNT_MISMATCH,
+                    "渠道已支付但金额不符：渠道=" + state.amountCents() + " 订单=" + order.amountCents(),
+                    state.amountCents(),
+                    order.channel(),
+                    state.providerTxnId());
+            return CloseDecision.UNKNOWN;
         }
         boolean transitioned = orderRepository.markPaid(order.orderNo(), state.providerTxnId(), state.paidAt());
         if (transitioned) {
             log.info("订单对账补记已支付：orderNo={}", order.orderNo());
             orderRepository.findByOrderNo(order.orderNo()).ifPresent(notifier::notify);
         }
-        return true;
+        return CloseDecision.PAID;
+    }
+
+    /**
+     * 无法确认关单：宽限期内保留待支付继续重试，超过宽限期置 FAILED 并进入人工队列。
+     */
+    private void handleUncertainClose(PaymentOrder order) {
+        Instant graceEnd =
+                order.expiresAt() == null ? Instant.now() : order.expiresAt().plus(ops.getCloseGrace());
+        if (Instant.now().isBefore(graceEnd)) {
+            log.warn("渠道不可用或关单未确认，订单保留待支付等待下轮：orderNo={} channel={}", order.orderNo(), order.channel());
+            return;
+        }
+        if (orderRepository.markFailed(order.orderNo())) {
+            exceptions.record(
+                    order.orderNo(),
+                    order.userId(),
+                    PaymentExceptionKind.CLOSE_UNCERTAIN,
+                    "订单过期且超过宽限期仍无法确认渠道关单，已置 FAILED",
+                    order.amountCents(),
+                    order.channel(),
+                    order.providerTxnId());
+        }
+    }
+
+    /**
+     * 对账结论：只有在 CONFIRM_UNPAID 时调用方才可以关闭本地订单。
+     */
+    private enum CloseDecision {
+        /** 已支付（含本次补记），无需关闭。 */
+        PAID,
+        /** 渠道明确返回未支付，可以关单。 */
+        UNPAID,
+        /** 渠道不可用、查单失败或金额不符，禁止关闭。 */
+        UNKNOWN
     }
 }

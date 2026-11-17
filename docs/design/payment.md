@@ -47,7 +47,7 @@ CREATED ──支付成功(回调/对账)──▶ PAID ──退款──▶ RE
 
 - **CREATED**：已下单待支付，带二维码链接与过期时间。
 - **PAID**：渠道回调验签通过（或对账补记）后置位；同时置 `notify_status=PENDING` 触发额度发放。
-- **CLOSED**：过期或主动关闭；关单前会先查渠道确认未支付，避免误关已支付订单。
+- **CLOSED**：过期或主动关闭。只有「渠道明确返回未支付 **且** 关单被渠道确认」才会置 CLOSED；渠道不可用或关单未确认时保持 CREATED 继续重试，超过宽限期（默认 24h）仍无法确认则置 FAILED 并进入人工队列，避免用户事后支付成功但本地已关单。
 - **REFUNDED**：退款累计金额达到订单金额。
 
 ## 5. 关键时序
@@ -58,21 +58,39 @@ CREATED ──支付成功(回调/对账)──▶ PAID ──退款──▶ RE
 3. 返回订单视图（含二维码链接）给前端展示。
 
 **支付成功**
-1. 渠道 → `POST /pay/notify/{channel}`（验签 + 解密）→ `oc-pay` 幂等置 `PAID`（`WHERE status='CREATED'`）。
-2. `oc-pay` → `POST {oc-app}/internal/v1/payments/notify`（内部令牌）→ `oc-identity` 幂等发放套餐与额度（`payment_entitlement.order_no` 唯一）。
-3. 通知失败不回滚支付事实，置 `notify_status=FAILED`，由扫描任务重试。
+1. 渠道 → `POST /pay/notify/{channel}`（验签 + 解密 + 时间窗）→ `oc-pay` **交叉校验**：订单存在、渠道一致、金额一致、渠道流水号非空；全部通过才幂等置 `PAID`（`WHERE status='CREATED'`）。
+2. `oc-pay` → `POST {oc-app}/internal/v1/payments/notify`（内部令牌）→ `oc-identity` **回查 `payment_order`** 校验用户/套餐/金额/状态后，幂等发放套餐与额度（`payment_entitlement.order_no` 唯一）。
+3. 通知失败不回滚支付事实，置 `notify_status=FAILED` 由扫描任务重试；重试耗尽或被 4xx 永久拒绝时置 `DEAD` 并写 `payment_exception`。
 
 **退款**：`oc-pay` 在事务内锁定订单、落退款单并**原子预占**可退金额（条件更新，天然防并发超退）；**事务外**调用渠道退款，成功则记为已退、失败则归还预占金额。重试以同一 `out_refund_no` 幂等重发。
 
-**兜底扫描**（默认每 3 分钟）：关闭过期订单（关单前查渠道）、对账遗漏回调（主动查渠道补记）、重试未成功的额度发放通知。
+**兜底扫描**（默认每 3 分钟）：关闭过期订单（先查渠道、再确认关单）、对账遗漏回调（主动查渠道补记并校验金额）、重试未成功的额度发放通知。
+
+**异常巡检**（默认每 30 分钟）：存在 `payment_exception.status='OPEN'` 时输出 ERROR 日志，作为告警接入点。
 
 ## 6. 幂等与对账
 
 - 下单：`payment_order(user_id, idempotency_key)` 唯一；重复请求返回首次订单。
 - 支付：`markPaid` 仅在 `CREATED→PAID` 生效；重复回调与对账不产生重复发放。
-- 发放：`payment_entitlement.order_no` 主键唯一；`quota_ledger` 幂等键 `order-purchase:{orderNo}:{TYPE}`。
+- 发放：`payment_entitlement.order_no` 主键唯一；`quota_ledger` 幂等键 `order-purchase:{orderNo}:{TYPE}`；`notify_status=DEAD` 表示终态（重试耗尽或永久拒绝），不再自动重试。
 - 退款：`payment_refund(order_no, idempotency_key)` 唯一；行锁保证不超退。
 - 渠道交易号 `provider_txn_id` 建部分唯一索引，用于对账去重。
+
+### 6.1 异常与人工处理（payment_exception）
+
+资金已发生但无法自动收敛的场景一律写入 `payment_exception`（`UNIQUE(order_no, kind)`，重复命中不覆盖首次现场），状态为 `OPEN` 时由巡检任务输出 ERROR 日志：
+
+| kind | 含义 | 建议动作 |
+|---|---|---|
+| `PAID_ON_INACTIVE_ORDER` | 收到支付成功时本地订单已 CLOSED/FAILED | 人工核对：补发或退款 |
+| `AMOUNT_MISMATCH` | 回调/渠道金额与订单不一致 | 冻结处理，联系渠道 |
+| `CHANNEL_MISMATCH` | 回调渠道与订单渠道不一致 | 排查配置或伪造 |
+| `UNKNOWN_ORDER` | 回调订单号在本地不存在 | 排查跨环境回调 |
+| `CLOSE_UNCERTAIN` | 过期且超过宽限期仍无法确认关单 | 核对渠道终态后关闭或退款 |
+| `ENTITLEMENT_REJECTED` | 发放被 oc-app 4xx 永久拒绝 | 修复数据后重新触发 |
+| `ENTITLEMENT_DEAD` | 发放重试次数耗尽 | 核对订单后补发 |
+
+处理完成后由运维把对应行置为 `RESOLVED`/`IGNORED`（当前无管理端界面，直接操作数据库）。
 
 ## 7. 配置（环境变量）
 
