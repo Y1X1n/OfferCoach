@@ -3,6 +3,7 @@ package com.offercoach.identity.application.payment;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.application.port.PaymentEntitlementRepository;
+import com.offercoach.identity.application.port.PaymentOrderFactsPort;
 import com.offercoach.identity.application.port.QuotaRepository;
 import com.offercoach.identity.application.port.SubscriptionRepository;
 import com.offercoach.identity.application.quota.QuotaService;
@@ -26,6 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>由 oc-pay 内部通知触发；{@code payment_entitlement.order_no} 唯一约束保证同一订单只发放一次。
  * 首次发放会结束当前生效订阅、切换套餐并追加减面试 / 简历解析额度，全程同一事务。</p>
+ *
+ * <p>内部令牌只证明调用方是受信服务，不证明通知内容真实；因此发放前必须回查 {@code payment_order}，
+ * 校验订单已支付且用户、套餐、金额与通知完全一致，避免令牌泄漏或通知被篡改时凭空发放 PRO。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -35,10 +39,12 @@ public class PaymentEntitlementService {
     private static final String PURCHASE_REASON = "PLAN_PURCHASE";
     private static final String ORDER_REF_TYPE = "ORDER";
     private static final int DEFAULT_PERIOD_DAYS = 30;
+    private static final String ORDER_PAID = "PAID";
 
     private final QuotaRepository quotaRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final PaymentEntitlementRepository entitlementRepository;
+    private final PaymentOrderFactsPort orderFactsPort;
     private final QuotaService quotaService;
 
     @Transactional
@@ -46,6 +52,7 @@ public class PaymentEntitlementService {
         if (notice == null || notice.orderNo() == null || notice.orderNo().isBlank()) {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("field", "orderNo"));
         }
+        verifyOrderFacts(notice);
         boolean first = entitlementRepository.tryInsert(
                 notice.orderNo(), notice.userId(), notice.planCode(), notice.amountCents());
         if (!first) {
@@ -102,5 +109,35 @@ public class PaymentEntitlementService {
 
     private static int balanceOf(QuotaAccount quota, QuotaType type) {
         return type == QuotaType.INTERVIEW ? quota.interviewCredits() : quota.resumeCredits();
+    }
+
+    /**
+     * 回查订单事实：只有真实已支付、且用户/套餐/金额完全一致的订单才允许发放。
+     */
+    private void verifyOrderFacts(PayDtos.EntitlementNotice notice) {
+        PaymentOrderFactsPort.Facts facts =
+                orderFactsPort.find(notice.orderNo()).orElse(null);
+        if (facts == null) {
+            throw new BizException(
+                    ErrorCode.VALIDATION_FAILED, Map.of("orderNo", "订单不存在", "detail", "payment order not found"));
+        }
+        if (!ORDER_PAID.equals(facts.status())) {
+            throw new BizException(
+                    ErrorCode.VALIDATION_FAILED, Map.of("orderNo", "订单未支付", "detail", "status=" + facts.status()));
+        }
+        boolean sameUser = facts.userId() == notice.userId();
+        boolean samePlan = facts.planCode() != null && facts.planCode().equals(notice.planCode());
+        boolean sameAmount = facts.amountCents() == notice.amountCents();
+        if (!sameUser || !samePlan || !sameAmount) {
+            log.error(
+                    "支付发放请求与订单事实不一致，已拒绝：orderNo={} noticeUser={} orderUser={} noticePlan={} orderPlan={}",
+                    notice.orderNo(),
+                    notice.userId(),
+                    facts.userId(),
+                    notice.planCode(),
+                    facts.planCode());
+            throw new BizException(
+                    ErrorCode.VALIDATION_FAILED, Map.of("orderNo", "订单信息不一致", "detail", "order facts mismatch"));
+        }
     }
 }
