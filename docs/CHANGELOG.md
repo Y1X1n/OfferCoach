@@ -38,6 +38,12 @@
 
 ## 文档版本
 
+### v2.28（2026-11-18）——内部令牌校验防编码路径绕过
+
+- `InternalTokenFilter` 改为按容器**解码后**的 `servletPath` 判定 `/internal/**`，不再使用原始 `requestURI` 前缀；原始 URI 仍含 `%` 或 `;` 的内部请求直接返回 400。
+- 过滤器移入 Spring Security 链（`addFilterBefore(…, AuthorizationFilter)`），先过 `StrictHttpFirewall` 再判定；同时关闭 Boot 对它的独立 servlet filter 注册，避免重复执行。
+- 补 `InternalTokenFilterTest`（8 例：编码路径、路径参数、缺失/错误/正确令牌、未配置令牌 fail-closed、空 servletPath）。
+
 ### v2.27（2026-11-17）——JD AI 每日限额与调用记账
 
 - 新增 `JdAiGuard` 与配置 `oc.interview.jd.ai-daily-limit`（默认 20，0=不限）：按用户按天计数（Redis key `oc:quota:daily-jd-ai:{userId}:{date}`，TTL 2 天），覆盖「手工创建 JD 结构化 / JD 匹配 / 网页导入预览」三个真正触发模型的入口；确认预览结果不重复计数，Redis 故障时降级放行。

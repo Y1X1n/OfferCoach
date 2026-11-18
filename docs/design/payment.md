@@ -111,7 +111,8 @@ CREATED ──支付成功(回调/对账)──▶ PAID ──退款──▶ RE
 
 - 内部接口 fail-closed：令牌未配置时拒绝所有内部调用；常量时间比较。
 - 回调验签：微信平台证书验签 + AES-GCM 解密；支付宝 RSA2 验签；验签失败拒绝并留痕（`payment_notify_log`，不存原始报文）。
-- `oc-app` 侧安全链仅放行 `POST /internal/v1/payments/notify`，由 `InternalTokenFilter` 校验令牌；其余 `/internal/**` 仍 `denyAll`。
+- `oc-app` 侧安全链仅放行 `POST /internal/v1/payments/notify`，由安全链内的 `InternalTokenFilter` 校验令牌；其余 `/internal/**` 仍 `denyAll`。
+- 内部令牌过滤器按容器**解码后**的 `servletPath` 判定 `/internal/**`（不再用原始 `requestURI` 前缀），原始 URI 仍含 `%` 或 `;` 的内部请求直接 400，杜绝 `/%69nternal/...` 这类编码绕过。
 - MOCK 渠道只能确认 `channel=MOCK` 的订单，真实订单不受影响；生产禁用。
 
 ## 9. 本地联调
