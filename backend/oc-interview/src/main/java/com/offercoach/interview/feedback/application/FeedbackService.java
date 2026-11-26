@@ -163,10 +163,18 @@ public class FeedbackService {
         return scored.narrative();
     }
 
+    /**
+     * 是否 PRO 套餐；读取失败时按非 PRO 处理（少给能力而不是多给），但要留日志，
+     * 否则 PRO 用户被静默降级后无从排查。
+     */
     private boolean isPro(long userId) {
         try {
             return PRO_PLAN.equalsIgnoreCase(quotaService.snapshot(userId).planCode());
         } catch (RuntimeException exception) {
+            log.warn(
+                    "套餐读取失败，反馈按免费版处理：userId={} reason={}",
+                    userId,
+                    exception.getClass().getSimpleName());
             return false;
         }
     }

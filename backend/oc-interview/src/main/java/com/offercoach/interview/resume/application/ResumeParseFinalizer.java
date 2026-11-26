@@ -26,8 +26,14 @@ public class ResumeParseFinalizer {
                 resumeId, rawText, structured.json(), structured.summary(), structured.summaryHash(), pageCount);
     }
 
+    /**
+     * 只在仍处于解析中时置 FAILED。
+     *
+     * <p>用带状态谓词的 {@code failIfParsing}：解析任务超时后迟到的 worker 若直接写 FAILED，
+     * 会把已经 READY 的简历（用户已看到结构化结果）覆盖成失败态。</p>
+     */
     @Transactional
     public void markFailed(long resumeId, String parseError) {
-        resumeRepository.markFailed(resumeId, parseError);
+        resumeRepository.failIfParsing(resumeId, parseError);
     }
 }

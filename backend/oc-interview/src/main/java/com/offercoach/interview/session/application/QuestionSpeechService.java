@@ -1,6 +1,7 @@
 package com.offercoach.interview.session.application;
 
 import com.offercoach.ai.AiRuntimeConfigService;
+import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.common.cache.RedisKeys;
@@ -92,13 +93,31 @@ public class QuestionSpeechService {
             }
             log.warn("题目朗读失败：questionId={} kind={}", questionId, exception.kind());
             throw new BizException(
-                    ErrorCode.AI_UNAVAILABLE,
+                    mapErrorCode(exception.kind()),
                     Map.of(
                             "reason",
                             exception.kind().name(),
                             "retryable",
                             exception.kind().retryable()));
         }
+    }
+
+    /**
+     * 按上游错误分类映射到对外错误码。
+     *
+     * <p>全部归为 503 会把「内容被拒（422）」和「并发超限（429）」也报成服务不可用，
+     * 前端据此重试或提示都会跑偏。</p>
+     */
+    private static ErrorCode mapErrorCode(ToolErrorKind kind) {
+        return switch (kind) {
+            case CONTENT_REJECTED -> ErrorCode.CONTENT_REJECTED;
+            case TOO_LARGE -> ErrorCode.FILE_TOO_LARGE;
+            case UNSUPPORTED_FORMAT -> ErrorCode.UNSUPPORTED_FILE;
+            case INVALID_INPUT -> ErrorCode.VALIDATION_FAILED;
+            case BUSY, UPSTREAM_BUSY -> ErrorCode.RATE_LIMITED;
+            case UPSTREAM_TIMEOUT -> ErrorCode.AI_TIMEOUT;
+            default -> ErrorCode.AI_UNAVAILABLE;
+        };
     }
 
     /**

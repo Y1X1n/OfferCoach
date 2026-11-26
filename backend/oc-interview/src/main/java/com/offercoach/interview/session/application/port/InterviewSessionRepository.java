@@ -55,6 +55,13 @@ public interface InterviewSessionRepository {
     /** 追加追问后同步题量，保证进度与报告聚合口径一致。 */
     boolean incrementQuestionCount(long id);
 
+    /**
+     * 事务内锁定会话行（{@code SELECT … FOR UPDATE}）；返回会话是否存在。
+     *
+     * <p>追问上限检查与作答推进都依赖它串行化：无锁时并发请求会同时通过上限判断。</p>
+     */
+    boolean lockForUpdate(long id);
+
     boolean advanceAfterAnswer(long id);
 
     boolean advanceAfterSkip(long id);

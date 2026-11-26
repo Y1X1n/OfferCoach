@@ -106,8 +106,9 @@ public class FollowUpService {
                 aiAvailable ? "openai-compatible" : "heuristic",
                 aiAvailable ? "configured" : "rules-v1",
                 draft.degraded() ? "DEGRADED" : "SUCCESS",
-                0,
-                0,
+                // 真实 token 数：每日 token 预算按 ai_call_log 求和，写 0 等于让熔断永远不触发。
+                draft.tokensIn(),
+                draft.tokensOut(),
                 null,
                 (System.nanoTime() - startedAt) / 1_000_000,
                 null,
@@ -118,11 +119,16 @@ public class FollowUpService {
     }
 
     /**
-     * 短事务：重新校验上限后写入追问并同步题量，把并发窗口压到最小。
-     * 用 {@link TransactionTemplate} 而非同类内部调 {@code @Transactional}，避免自调用不走代理。
+     * 短事务：锁定会话行后重新校验上限并写入追问。
+     *
+     * <p>必须 {@code SELECT … FOR UPDATE}：仅靠事务内重查，两个并发请求都能读到
+     * {@code countFollowUps < 2}，随后各自取到不同 seq 都插入成功，上限就被绕过了。</p>
      */
     private FollowUpQuestion persist(long sessionId, InterviewQuestion parent, Draft draft) {
         return transactionTemplate.execute(status -> {
+            if (!sessionRepository.lockForUpdate(sessionId)) {
+                throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("sessionId", sessionId));
+            }
             if (questionRepository.countFollowUps(sessionId) >= MAX_FOLLOW_UPS) {
                 throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "本场追问次数已用完"));
             }
@@ -154,7 +160,7 @@ public class FollowUpService {
 
     private Draft generate(InterviewQuestion parent, InterviewAnswer answer) {
         if (!aiGateway.available()) {
-            return new Draft(FALLBACK_TEXT, FALLBACK_POINTS, "AI 不可用时的确定性追问", true);
+            return Draft.fallback(FALLBACK_TEXT, FALLBACK_POINTS, "AI 不可用时的确定性追问");
         }
         try {
             String prompt = "原题：" + parent.text()
@@ -164,21 +170,26 @@ public class FollowUpService {
             Optional<AiProvider.AiResult> result = aiGateway.complete(
                     AiScene.QUESTION_GEN, aiGateway.systemPrompt(AiScene.QUESTION_GEN, SYSTEM_PROMPT), prompt);
             if (result.isEmpty()) {
-                return new Draft(FALLBACK_TEXT, FALLBACK_POINTS, "AI 不可用时的确定性追问", true);
+                return Draft.fallback(FALLBACK_TEXT, FALLBACK_POINTS, "AI 不可用时的确定性追问");
             }
-            Map<String, Object> parsed =
-                    jsonCodec.readMap(jsonCodec.extractJsonObject(result.get().text()));
+            AiProvider.AiResult aiResult = result.get();
+            Map<String, Object> parsed = jsonCodec.readMap(jsonCodec.extractJsonObject(aiResult.text()));
             String text = textOf(parsed.get("text"));
             if (text == null) {
-                return new Draft(FALLBACK_TEXT, FALLBACK_POINTS, "AI 输出缺少题目文本", true);
+                return Draft.fallback(FALLBACK_TEXT, FALLBACK_POINTS, "AI 输出缺少题目文本");
             }
             List<String> points = pointsOf(parsed.get("referencePoints"));
             String why = textOf(parsed.get("whyThisQuestion"));
             return new Draft(
-                    text, points.isEmpty() ? FALLBACK_POINTS : points, why == null ? "针对上一题回答继续深挖" : why, false);
+                    text,
+                    points.isEmpty() ? FALLBACK_POINTS : points,
+                    why == null ? "针对上一题回答继续深挖" : why,
+                    false,
+                    aiResult.tokensIn(),
+                    aiResult.tokensOut());
         } catch (RuntimeException exception) {
             log.warn("追问 AI 输出非法，使用确定性追问：reason={}", exception.getClass().getSimpleName());
-            return new Draft(FALLBACK_TEXT, FALLBACK_POINTS, "AI 输出非法时的确定性追问", true);
+            return Draft.fallback(FALLBACK_TEXT, FALLBACK_POINTS, "AI 输出非法时的确定性追问");
         }
     }
 
@@ -206,7 +217,19 @@ public class FollowUpService {
         return value.length() <= max ? value : value.substring(0, max);
     }
 
-    private record Draft(String text, List<String> referencePoints, String whyThisQuestion, boolean degraded) {}
+    /** 追问草稿；降级路径 token 记 0。 */
+    private record Draft(
+            String text,
+            List<String> referencePoints,
+            String whyThisQuestion,
+            boolean degraded,
+            int tokensIn,
+            int tokensOut) {
+
+        private static Draft fallback(String text, List<String> points, String why) {
+            return new Draft(text, points, why, true, 0, 0);
+        }
+    }
 
     public record FollowUpQuestion(
             long id, int seq, String text, String dimension, String difficulty, List<String> referencePoints) {}

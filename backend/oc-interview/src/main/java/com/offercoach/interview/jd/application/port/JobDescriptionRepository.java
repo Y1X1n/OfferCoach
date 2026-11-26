@@ -19,6 +19,14 @@ public interface JobDescriptionRepository {
 
     long insert(JobDescription description);
 
+    /**
+     * 幂等插入：命中唯一键时返回 0（不抛异常），由调用方回查既有行。
+     *
+     * <p>事务内去重写入必须走这条路径——PostgreSQL 唯一约束冲突会把整个事务置为 aborted，
+     * 捕获异常后再回查会连带失败。</p>
+     */
+    long insertIfAbsent(JobDescription description);
+
     List<JobDescription> list(long userId, int offset, int limit);
 
     long count(long userId);

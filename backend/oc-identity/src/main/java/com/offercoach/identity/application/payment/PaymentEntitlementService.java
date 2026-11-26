@@ -7,8 +7,6 @@ import com.offercoach.identity.application.port.PaymentOrderFactsPort;
 import com.offercoach.identity.application.port.QuotaRepository;
 import com.offercoach.identity.application.port.SubscriptionRepository;
 import com.offercoach.identity.application.quota.QuotaService;
-import com.offercoach.identity.domain.quota.QuotaAccount;
-import com.offercoach.identity.domain.quota.QuotaLedgerEntry;
 import com.offercoach.identity.domain.quota.QuotaType;
 import com.offercoach.identity.domain.quota.SubscriptionPlan;
 import com.offercoach.pay.api.PayDtos;
@@ -88,27 +86,25 @@ public class PaymentEntitlementService {
         return new PayDtos.EntitlementAck(true, false);
     }
 
+    /**
+     * 发放额度并写流水。
+     *
+     * <p>必须走 {@link QuotaService#grant}：它先 {@code SELECT ... FOR UPDATE} 锁住额度行再增减，
+     * 因此记录的 {@code balance_after} 与真实余额一致。若在这里直接 {@code increase} 后再读，
+     * 与并发的扣减交错时会写出错误的余额快照，流水就失去对账价值。</p>
+     */
     private void grant(PayDtos.EntitlementNotice notice, QuotaType type, int credits) {
         if (credits <= 0) {
             return;
         }
-        quotaRepository.increase(notice.userId(), type, credits);
-        QuotaAccount after = quotaRepository.findQuota(notice.userId()).orElse(null);
-        int balance = after == null ? credits : balanceOf(after, type);
-        quotaRepository.insertLedgerIfAbsent(new QuotaLedgerEntry(
-                null,
+        quotaService.grant(
                 notice.userId(),
-                type.name(),
+                type,
                 credits,
-                balance,
                 PURCHASE_REASON,
                 ORDER_REF_TYPE,
                 null,
-                "order-purchase:" + notice.orderNo() + ":" + type.name()));
-    }
-
-    private static int balanceOf(QuotaAccount quota, QuotaType type) {
-        return type == QuotaType.INTERVIEW ? quota.interviewCredits() : quota.resumeCredits();
+                "order-purchase:" + notice.orderNo() + ":" + type.name());
     }
 
     /**

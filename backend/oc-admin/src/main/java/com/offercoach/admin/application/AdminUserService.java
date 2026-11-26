@@ -127,7 +127,8 @@ public class AdminUserService {
         if (normalized.equals(before.role())) {
             return before;
         }
-        if ("ADMIN".equals(before.role()) && !"ADMIN".equals(normalized) && userRepository.countAdmins() <= 1) {
+        // 用行锁版计数：普通 COUNT(*) 与随后的 UPDATE 之间有两个并发降级都能通过的窗口。
+        if ("ADMIN".equals(before.role()) && !"ADMIN".equals(normalized) && userRepository.lockAdminsAndCount() <= 1) {
             throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "至少保留一个管理员"));
         }
         if (userRepository.updateRole(userId, normalized) == 0) {

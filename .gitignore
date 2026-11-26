@@ -54,3 +54,6 @@ Thumbs.db
 
 # local tooling metadata
 *.qoder.site
+
+# TypeScript incremental build cache
+*.tsbuildinfo

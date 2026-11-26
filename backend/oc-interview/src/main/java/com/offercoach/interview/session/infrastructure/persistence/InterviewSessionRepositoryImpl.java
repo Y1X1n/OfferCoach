@@ -135,6 +135,11 @@ public class InterviewSessionRepositoryImpl implements InterviewSessionRepositor
     }
 
     @Override
+    public boolean lockForUpdate(long id) {
+        return sessionMapper.lockById(id) != null;
+    }
+
+    @Override
     public boolean advanceAfterAnswer(long id) {
         return sessionMapper.advanceAfterAnswer(id) > 0;
     }

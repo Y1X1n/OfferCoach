@@ -23,16 +23,16 @@ public class PaymentRefundRepositoryImpl implements PaymentRefundRepository {
     }
 
     @Override
-    public void insert(PaymentRefund refund) {
-        PaymentRefundDO row = new PaymentRefundDO();
-        row.setRefundNo(refund.refundNo());
-        row.setOrderNo(refund.orderNo());
-        row.setUserId(refund.userId());
-        row.setAmountCents(refund.amountCents());
-        row.setStatus(refund.status().name());
-        row.setReason(refund.reason());
-        row.setIdempotencyKey(refund.idempotencyKey());
-        mapper.insert(row);
+    public boolean insertIfAbsent(PaymentRefund refund) {
+        return mapper.insertIfAbsent(
+                        refund.refundNo(),
+                        refund.orderNo(),
+                        refund.userId(),
+                        refund.amountCents(),
+                        refund.status().name(),
+                        refund.reason(),
+                        refund.idempotencyKey())
+                > 0;
     }
 
     @Override

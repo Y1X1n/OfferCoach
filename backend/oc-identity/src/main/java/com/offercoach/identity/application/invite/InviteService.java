@@ -66,7 +66,9 @@ public class InviteService {
         }
 
         PlatformSettingsService.Snapshot settings = settingsService.snapshot();
-        lockInviter(inviter.id());
+        // 先按 id 升序拿双方 advisory lock，再触碰额度行：固定加锁顺序消除互邀死锁
+        // （A 邀 B 与 B 邀 A 并发时，旧实现是 advisory(A)→quota(A)→quota(B) 对 advisory(B)→quota(B)→quota(A)）。
+        lockUsers(inviter.id(), userId);
         long todayCount = countToday(inviter.id());
         long totalCount = countTotal(inviter.id());
         boolean rewarded = settings.inviteDailyCap() > 0
@@ -173,43 +175,64 @@ public class InviteService {
     }
 
     /**
-     * 事务级 advisory lock：同一邀请人的名额检查与奖励写入串行化，避免并发绕过每日/累计上限。
+     * 事务级 advisory lock：名额检查与奖励写入串行化，避免并发绕过每日/累计上限。
+     *
+     * <p>固定按 id 升序加锁：互邀（A→B 与 B→A 并发）时两个事务的加锁顺序一致，不会互相等待。
+     * 加锁后还会再锁各自的 {@code user_quota} 行，顺序同样由这里决定。</p>
      */
-    private void lockInviter(long inviterId) {
-        jdbcTemplate.query("SELECT pg_advisory_xact_lock(?)", resultSet -> null, inviterId);
+    private void lockUsers(long first, long second) {
+        long low = Math.min(first, second);
+        long high = Math.max(first, second);
+        lockUser(low);
+        if (high != low) {
+            lockUser(high);
+        }
+    }
+
+    private void lockUser(long userId) {
+        jdbcTemplate.query("SELECT pg_advisory_xact_lock(?)", resultSet -> null, userId);
     }
 
     /**
      * 生成个人邀请码；并发注册时以唯一索引兜底重试。
+     *
+     * <p>碰撞重试必须用 SAVEPOINT 回滚局部语句：PostgreSQL 在唯一约束冲突后会把整个事务置为
+     * aborted，直接 catch 再重试只会让后续语句全部失败，注册整体变成 500。</p>
      */
     private String ensureInviteCode(long userId) {
-        String existing = jdbcTemplate.query(
-                "SELECT invite_code FROM app_user WHERE id = ?",
-                resultSet -> resultSet.next() ? resultSet.getString(1) : null,
-                userId);
+        String existing = readInviteCode(userId);
         if (existing != null && !existing.isBlank()) {
             return existing;
         }
         for (int attempt = 0; attempt < MAX_GENERATE_ATTEMPTS; attempt++) {
             String candidate = generateCode();
+            jdbcTemplate.execute("SAVEPOINT invite_code_gen");
+            int updated;
             try {
-                int updated = jdbcTemplate.update(
+                updated = jdbcTemplate.update(
                         "UPDATE app_user SET invite_code = ? WHERE id = ? AND invite_code IS NULL", candidate, userId);
-                if (updated > 0) {
-                    return candidate;
-                }
-                String current = jdbcTemplate.query(
-                        "SELECT invite_code FROM app_user WHERE id = ?",
-                        resultSet -> resultSet.next() ? resultSet.getString(1) : null,
-                        userId);
-                if (current != null && !current.isBlank()) {
-                    return current;
-                }
             } catch (DuplicateKeyException exception) {
+                jdbcTemplate.execute("ROLLBACK TO SAVEPOINT invite_code_gen");
                 log.debug("邀请码碰撞，重试：attempt={}", attempt + 1);
+                continue;
+            }
+            jdbcTemplate.execute("RELEASE SAVEPOINT invite_code_gen");
+            if (updated > 0) {
+                return candidate;
+            }
+            String current = readInviteCode(userId);
+            if (current != null && !current.isBlank()) {
+                return current;
             }
         }
         throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", "INVITE_CODE_GENERATION_FAILED"));
+    }
+
+    private String readInviteCode(long userId) {
+        return jdbcTemplate.query(
+                "SELECT invite_code FROM app_user WHERE id = ?",
+                resultSet -> resultSet.next() ? resultSet.getString(1) : null,
+                userId);
     }
 
     private String generateCode() {

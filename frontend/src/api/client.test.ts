@@ -117,6 +117,26 @@ describe('request', () => {
     })
     expect(errorMessage(error)).toBe('额度不足')
   })
+
+  it('503 按业务错误码区分 AI 与支付', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ code: 'PAY_UNAVAILABLE' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    const payError = (await request('/orders/1').catch((cause: unknown) => cause)) as ApiError
+    expect(payError.message).toBe('支付服务暂不可用，请稍后重试')
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ code: 'AI_UNAVAILABLE' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    const aiError = (await request('/resumes/1/parse').catch((cause: unknown) => cause)) as ApiError
+    expect(aiError.message).toBe('AI 服务暂不可用')
+  })
 })
 
 describe('401 刷新', () => {

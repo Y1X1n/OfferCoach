@@ -5,6 +5,7 @@ import { ApiError, clearAccessToken, getAccessToken, setAccessToken } from '@/ap
 import * as authApi from '@/api/auth'
 import * as quotaApi from '@/api/quota'
 import * as usersApi from '@/api/users'
+import { setDisplayTimezone } from '@/utils/format'
 
 const EMPTY_QUOTA: Quota = {
   planCode: 'FREE',
@@ -37,6 +38,8 @@ export const useAppStore = defineStore('app', () => {
   const tokenPresent = ref(false)
   const restoreAttempted = ref(false)
   const booting = ref(false)
+  /** 会话恢复去重：并发调用共享同一请求，避免后到者读到「未登录」。 */
+  let restorePromise: Promise<void> | null = null
 
   const isAuthenticated = computed(() => tokenPresent.value && user.value !== null)
   const isPro = computed(() => quota.value.planCode === 'PRO')
@@ -53,6 +56,7 @@ export const useAppStore = defineStore('app', () => {
     quota.value = { ...EMPTY_QUOTA }
     quotaLoaded.value = false
     restoreAttempted.value = true
+    setDisplayTimezone(null)
     clearDrafts()
   }
 
@@ -71,6 +75,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       const me = await usersApi.getMe()
       user.value = me
+      setDisplayTimezone(me.timezone)
       return me
     } catch {
       return null
@@ -140,16 +145,26 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  /** 首次进入路由前执行一次；之后由 isAuthenticated 判定。 */
+  /**
+   * 首次进入路由前执行一次；之后由 isAuthenticated 判定。
+   *
+   * 并发调用共享同一个 Promise：仅用 restoreAttempted 提前置位时，第二个调用会立刻返回
+   * 而未登录，路由守卫可能据此把刚恢复成功的用户踢回登录页。这里让后来者等待同一结果。</p>
+   */
   async function ensureSession(): Promise<void> {
+    if (restorePromise) return restorePromise
     if (restoreAttempted.value) return
-    restoreAttempted.value = true
-    booting.value = true
-    try {
-      await refresh()
-    } finally {
-      booting.value = false
-    }
+    restorePromise = (async () => {
+      booting.value = true
+      try {
+        await refresh()
+      } finally {
+        restoreAttempted.value = true
+        booting.value = false
+        restorePromise = null
+      }
+    })()
+    return restorePromise
   }
 
   async function logout(): Promise<boolean> {
@@ -178,6 +193,8 @@ export const useAppStore = defineStore('app', () => {
       ...me,
       allowRawResumeToLlm: me.allowRawResumeToLlm ?? input.allowRawResumeToLlm,
     }
+    // 时区改动要立刻作用到时间格式化，否则设置页看起来「保存了但没效果」。
+    setDisplayTimezone(me.timezone)
   }
 
   function hasAccessToken(): boolean {

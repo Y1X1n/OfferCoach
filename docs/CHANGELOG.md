@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.20 ｜ 更新：2026-11-17
+> 状态：生效 ｜ 版本：v2.32 ｜ 更新：2026-11-27
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -37,6 +37,49 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.32（2026-11-27）——全维度复审修复
+
+> 后端正确性/并发与数据模型两轮独立复审，加上前端流程走查，共修 20 余项；含 3 个 P1。
+
+**P1（用户可见故障）**
+
+- **工作台每天 0 点后 500**：`DashboardService.load` 声明 `@Transactional(readOnly = true)`，但内部 `QuotaService.snapshot` 会写 `user_quota`（跨天重置、跨月续期、首次初始化）。pgjdbc 在只读事务下发 `SET TRANSACTION READ ONLY`，UPDATE 直接报 `cannot execute UPDATE in a read-only transaction`，且事务回滚导致状态一直修不好。改为读写事务，并补回归测试断言 `readOnly` 为 false。
+- **报告生成活锁**：`ReportGenerationWorker.run` 先 `claim`（覆盖 `generation_token`）再检查进程内 `running` 去重，旧任务仍在队列时其租约被作废，结果被静默丢弃，报告永久停在 GENERATING。改为「先占位再 claim」。
+- **会话失败退款可能永久丢失**：`markGenerationFailed` / `abandon` 的状态迁移与退款分两个事务，中间抖动会导致会话已 FAILED 而额度未退，且没有任务重试。改为同事务，失败整体回滚由看门狗再次触发。
+- **创建页被每日上限锁死**：`sessionsLimit = 0` 在后端语义是「不限」，前端 `0 >= 0` 判定为已满，所有用户无法创建面试。前后端同口径判断，看板同步显示「不限」。
+
+**P2（安全 / 数据一致性）**
+
+- **抓取 URL 校验**：补齐 `169.254.169.254` 云元数据、RFC1918 全段、CGNAT、文档段、IPv6 环回/链路本地/唯一本地，以及 `::ffff:127.0.0.1` 这类 IPv4 映射绕过。
+- **actuator 越权**：`/actuator/metrics|loggers` 由 `permitAll` 改为 `hasRole('ADMIN')`——`loggers` 可被 POST 改写，等于远程改运行行为。
+- **客户端 IP 可伪造**：未配置 `oc.auth.proxy-secret` 时不再采信任何代理头（fail-closed），并每分钟告警一次；生产由 `ProductionSafetyValidator` 强制要求该密钥。
+- **AI Key 外泄**：管理员更换 `baseUrl` 主机名时必须重新提交 Key，避免把已存密钥指向自控域名后触发探测外发。
+- **PG 冲突后事务已 aborted**：退款单、JD 去重、邀请码生成原为「捕获 `DuplicateKeyException` → 同事务回查」，实际必然失败（并发退款变 500、并发 JD 让建会话整体失败）。改为 `ON CONFLICT DO NOTHING` 与 `SAVEPOINT`。
+- **额度流水 `balance_after` 失真**：支付发放改为走带 `SELECT … FOR UPDATE` 的 `QuotaService.grant`，与扣减串行化，流水可对账。
+- **互邀死锁**：`InviteService` 按 id 升序取双方 advisory lock，固定加锁顺序。
+- **最后管理员 TOCTOU**：`lockAdminsAndCount` 用 `FOR UPDATE` 锁住管理员行再判断。
+- **注销残留**：清空 `signup_ip` / `signup_device_hash` / `invite_code`。
+- **简历文件泄漏**：软删简历时同步删除对象存储文件。
+- **缺额度行导致注册回滚**：`applyDelta` 在额度行缺失时按 FREE 补齐，不再以 404 打断调用方事务。
+- **索引**：新增 `ai_call_log(user_id, created_at DESC)` 与 `answer_feedback(user_id)`（迁移 `V202611270001`）。
+- **保留策略**：`payment_notify_log` 纳入每日清理（默认 180 天，`RETENTION_PAYMENT_NOTIFY_DAYS`）。
+- **调度线程池**：`spring.task.scheduling.pool.size` 由默认 1 调到 4，避免清理任务把报告 worker 与状态看门狗一起饿死。
+- **终态会话**：FAILED/ABANDONED 会话不再返回题目，防止「已退款却白拿整套题」。
+- **Redis 计数**：每日解析计数改用 Lua 原子 `INCR`+`PEXPIRE`，避免进程中断留下永不过期的键。
+- **异常映射**：`TaskRejectedException` → 429、`DataIntegrityViolationException` → 409，不再一律 500。
+- **token 计量**：出题、追问、反馈三处 `ai_call_log` 写入真实 token 数，日预算熔断才有意义。
+- **`reloadStatus` 返回 null** 导致 `Map.of` NPE（500 而非 409），改为 `UNKNOWN`。
+- **`findLatestOpen` 漏掉 `PREPARING`**，与 `countActive`/唯一索引口径不一致。
+
+**前端**
+
+- 401 刷新增加 token 代次判断：旧 Token 的迟到 401 直接重放，不再额外消耗一次 Refresh 轮换。
+- `ensureSession` 并发调用共享同一 Promise，避免后到者读到「未登录」被踢回登录页。
+- TTS 增加播放代次与缓存上限（20 条 + 音色入键），停止后旧请求不再抢播，对象 URL 不会无限堆积。
+- 报告列表改为分页加载（每页 20 + 「加载更早的报告」），筛选不再只看首页 50 条。
+- 下单幂等键按「套餐:渠道」复用，响应丢失后点重试拿回同一笔订单，不会付两笔。
+- 时区设置真正生效：`formatDate` 跟随账号时区，登录/改设置/登出时同步。
 
 ### v2.31（2026-11-26）——补齐审查遗留四项
 

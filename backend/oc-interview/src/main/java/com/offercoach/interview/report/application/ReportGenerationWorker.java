@@ -51,10 +51,7 @@ public class ReportGenerationWorker {
         try (JobTrace ignored = JobTrace.open("report-worker")) {
             List<Long> pending = reportRepository.findStaleGenerating(STALE_SECONDS, BATCH_SIZE);
             for (Long reportId : pending) {
-                String token = UUID.randomUUID().toString();
-                if (reportRepository.claim(reportId, STALE_SECONDS, token)) {
-                    submit(reportId, token);
-                }
+                claimAndSubmit(reportId, STALE_SECONDS);
             }
         }
     }
@@ -64,14 +61,8 @@ public class ReportGenerationWorker {
      * 触发失败只记录日志：会话/报告状态已提交，5 秒轮询会兜底，不应把接口变成 500。
      */
     public void kick(long reportId) {
-        if (running.contains(reportId)) {
-            return;
-        }
         try {
-            String token = UUID.randomUUID().toString();
-            if (reportRepository.claim(reportId, 0, token)) {
-                submit(reportId, token);
-            }
+            claimAndSubmit(reportId, 0);
         } catch (RuntimeException exception) {
             log.warn(
                     "报告即时触发失败，等待轮询：reportId={} reason={}",
@@ -90,11 +81,24 @@ public class ReportGenerationWorker {
                 .ifPresent(report -> kick(report.id()));
     }
 
-    private void submit(long reportId, String token) {
+    /**
+     * 先占进程内名额再 claim，二者顺序不能反。
+     *
+     * <p>{@code claim} 会覆盖 {@code generation_token}；若在 claim 之后才发现本进程已有任务在跑
+     * （旧任务的 token 已被覆盖），旧任务完成时 {@code ReportService.generate} 会因租约不匹配
+     * 静默丢弃结果，报告就永久停在 GENERATING，并被下一轮再次 claim——活锁。</p>
+     */
+    private void claimAndSubmit(long reportId, int staleSeconds) {
         if (!running.add(reportId)) {
             return;
         }
         try {
+            String token = UUID.randomUUID().toString();
+            if (!reportRepository.claim(reportId, staleSeconds, token)) {
+                // 未抢到租约（别的实例在处理或报告已结束）：立刻释放占位。
+                running.remove(reportId);
+                return;
+            }
             aiExecutor.execute(() -> {
                 try {
                     generate(reportId, token);
@@ -103,6 +107,8 @@ public class ReportGenerationWorker {
                 }
             });
         } catch (RuntimeException exception) {
+            // claim 成功但提交失败（线程池满）时，占位必须释放，否则本进程再也不会处理该报告；
+            // 数据库里的租约会在 staleSeconds 后被下一轮重新 claim。
             running.remove(reportId);
             log.warn(
                     "报告任务提交失败：reportId={} reason={}",

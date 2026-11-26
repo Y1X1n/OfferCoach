@@ -323,7 +323,9 @@ onMounted(() => {
                 <div class="flex items-baseline justify-between text-xs">
                   <span class="text-text-muted">今日面试用量</span>
                   <span class="figure text-sm text-text">
-                    {{ quota?.daily.sessionsUsed ?? 0 }}/{{ quota?.daily.sessionsLimit ?? 0 }}
+                    {{ quota?.daily.sessionsUsed ?? 0 }}/{{
+                      (quota?.daily.sessionsLimit ?? 0) > 0 ? quota?.daily.sessionsLimit : '不限'
+                    }}
                   </span>
                 </div>
                 <Progress

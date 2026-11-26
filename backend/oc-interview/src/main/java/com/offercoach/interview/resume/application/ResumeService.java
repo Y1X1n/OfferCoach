@@ -292,15 +292,31 @@ public class ResumeService {
 
     /**
      * 软删；存在进行中会话引用时拒绝。
+     *
+     * <p>同时清掉对象存储里的原文件：软删只标记 {@code deleted_at}，若不删文件，
+     * 每个用户删除的简历都会永久留在 {@code resumes/} 下，既是存储泄漏也是个人信息残留。</p>
      */
     @Transactional
     public void delete(long userId, long resumeId) {
-        loadOwned(userId, resumeId);
+        Resume resume = loadOwned(userId, resumeId);
         long activeSessions = resumeRepository.countActiveSessions(userId, resumeId);
         if (activeSessions > 0) {
             throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("activeSessions", activeSessions));
         }
         resumeRepository.markDeleted(userId, resumeId);
+        deleteStoredFile(resume.fileKey());
+    }
+
+    private void deleteStoredFile(String fileKey) {
+        if (fileKey == null || fileKey.isBlank()) {
+            return;
+        }
+        try {
+            fileStorage.delete(fileKey);
+        } catch (RuntimeException exception) {
+            // 文件删除失败不阻断软删：行已不可见，残留对象由存储侧清理任务兜底。
+            log.warn("简历文件删除失败：key={} reason={}", fileKey, exception.getClass().getSimpleName());
+        }
     }
 
     /**

@@ -10,7 +10,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 客户端 IP 解析：仅当直连来源是回环/私网时才考虑代理头；配置代理密钥时要求密钥匹配。
+ * 客户端 IP 解析：仅当直连来源是回环/私网、且请求携带匹配的代理密钥时才采信代理头。
+ *
+ * <p>未配置 {@code oc.auth.proxy-secret} 时一律回退直连地址（fail-closed）：没有密钥就无法区分
+ * 「Nginx 覆写的 X-Real-IP」和「客户端自带的 X-Real-IP/X-Forwarded-For」，采信任何一个都等于让
+ * 调用方自选 IP，可绕过按 IP 的登录/注册限流并污染审计。生产 profile 由
+ * {@code ProductionSafetyValidator} 强制要求该密钥。</p>
  */
 @Component
 public class ClientIpResolver {
@@ -18,12 +23,12 @@ public class ClientIpResolver {
     public static final String PROXY_SECRET_HEADER = "X-Proxy-Secret";
     private static final Logger log = LoggerFactory.getLogger(ClientIpResolver.class);
     private static final long WARN_INTERVAL_MILLIS = 60_000L;
-    private static final String X_FORWARDED_FOR = "X-Forwarded-For";
     private static final String X_REAL_IP = "X-Real-IP";
     private static final String UNKNOWN_IP = "unknown";
 
     private final AuthProperties properties;
     private final AtomicLong lastSecretWarnAt = new AtomicLong(0L);
+    private final AtomicLong lastMissingConfigWarnAt = new AtomicLong(0L);
 
     public ClientIpResolver(AuthProperties properties) {
         this.properties = properties;
@@ -38,25 +43,29 @@ public class ClientIpResolver {
             return remoteAddress;
         }
         String proxySecret = properties.getProxySecret();
-        if (proxySecret != null && !proxySecret.isBlank()) {
-            String provided = request.getHeader(PROXY_SECRET_HEADER);
-            if (!secretMatches(proxySecret, provided)) {
-                warnMissingSecret();
-                return remoteAddress;
-            }
-            String realIp = request.getHeader(X_REAL_IP);
-            return isIpLiteral(realIp == null ? "" : realIp.trim()) ? realIp.trim() : remoteAddress;
-        }
-        String realIp = request.getHeader(X_REAL_IP);
-        if (realIp != null && isIpLiteral(realIp.trim())) {
-            return realIp.trim();
-        }
-        String forwardedFor = request.getHeader(X_FORWARDED_FOR);
-        if (forwardedFor == null || forwardedFor.isBlank()) {
+        if (proxySecret == null || proxySecret.isBlank()) {
+            warnMissingConfig();
             return remoteAddress;
         }
-        String first = forwardedFor.split(",")[0].trim();
-        return isIpLiteral(first) ? first : remoteAddress;
+        String provided = request.getHeader(PROXY_SECRET_HEADER);
+        if (!secretMatches(proxySecret, provided)) {
+            warnMissingSecret();
+            return remoteAddress;
+        }
+        String realIp = request.getHeader(X_REAL_IP);
+        return isIpLiteral(realIp == null ? "" : realIp.trim()) ? realIp.trim() : remoteAddress;
+    }
+
+    /**
+     * 未配置代理密钥时每分钟告警一次：本地开发可忽略，非本地环境属于漏配。
+     */
+    private void warnMissingConfig() {
+        long now = System.currentTimeMillis();
+        long previous = lastMissingConfigWarnAt.get();
+        if (now - previous < WARN_INTERVAL_MILLIS || !lastMissingConfigWarnAt.compareAndSet(previous, now)) {
+            return;
+        }
+        log.warn("未配置 oc.auth.proxy-secret，已忽略全部代理头并按直连地址识别客户端");
     }
 
     /**

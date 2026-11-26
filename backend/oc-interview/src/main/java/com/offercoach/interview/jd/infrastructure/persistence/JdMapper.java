@@ -38,6 +38,25 @@ public interface JdMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(JobDescriptionDO row);
 
+    /**
+     * 幂等插入：命中 {@code uq_jd_user_content_hash} 时静默跳过并返回 0。
+     *
+     * <p>不能用「INSERT 抛 DuplicateKeyException → 捕获后回查」的写法：PostgreSQL 唯一约束冲突后会把
+     * 事务置为 aborted，回查必然失败；预览令牌落库发生在建会话事务内，一次并发重复 JD 就会让建会话整体失败。</p>
+     */
+    @Insert(
+            """
+            INSERT INTO job_description
+                (user_id, title, company, raw_text, structured_json, content_hash, source_type, source_url,
+                 created_at, updated_at)
+            VALUES
+                (#{userId}, #{title}, #{company}, #{rawText}, CAST(#{structuredJson,jdbcType=VARCHAR} AS jsonb),
+                 #{contentHash}, #{sourceType}, #{sourceUrl}, now(), now())
+            ON CONFLICT DO NOTHING
+            """)
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
+    int insertIfAbsent(JobDescriptionDO row);
+
     @Select(
             """
             SELECT id, user_id, title, company, structured_json::text AS structured_json, match_score, created_at

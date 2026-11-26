@@ -28,6 +28,7 @@ public enum ErrorCode {
     QUESTION_GEN_FAILED(502, "QUESTION_GEN_FAILED", "出题失败，请重新创建"),
     ASR_FAILED(502, "ASR_FAILED", "语音转写失败"),
     AI_UNAVAILABLE(503, "AI_UNAVAILABLE", "AI 服务暂不可用"),
+    PAY_UNAVAILABLE(503, "PAY_UNAVAILABLE", "支付服务暂不可用，请稍后重试"),
     AI_TIMEOUT(504, "AI_TIMEOUT", "AI 服务超时");
 
     private final int httpStatus;

@@ -52,16 +52,44 @@ public class JsonCodec {
 
     /**
      * 从模型输出中提取 JSON 对象；容忍 ```json 代码块与前后说明文字。
+     *
+     * <p>按大括号配对扫描取第一个完整对象：旧实现用 indexOf('{') + lastIndexOf('}')，
+     * 当模型先给示例再给答案（输出多个对象）时会跨对象截取，得到非法 JSON 并整体降级。</p>
      */
     public String extractJsonObject(String text) {
         if (text == null) {
             throw new IllegalArgumentException("模型输出为空");
         }
         int start = text.indexOf('{');
-        int end = text.lastIndexOf('}');
-        if (start < 0 || end <= start) {
+        if (start < 0) {
             throw new IllegalArgumentException("模型输出不含 JSON 对象");
         }
-        return text.substring(start, end + 1);
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int index = start; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (current == '\\') {
+                    escaped = true;
+                } else if (current == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (current == '"') {
+                inString = true;
+            } else if (current == '{') {
+                depth++;
+            } else if (current == '}') {
+                depth--;
+                if (depth == 0) {
+                    return text.substring(start, index + 1);
+                }
+            }
+        }
+        throw new IllegalArgumentException("模型输出 JSON 对象未闭合");
     }
 }

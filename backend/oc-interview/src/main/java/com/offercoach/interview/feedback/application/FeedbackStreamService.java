@@ -43,19 +43,29 @@ public class FeedbackStreamService {
     }
 
     /**
-     * 校验短期令牌；返回 true 表示允许建立评分流。
+     * 校验短期令牌；区分「令牌无效」与「存储不可用」。
+     *
+     * <p>Redis 抖动时返回 {@link TokenCheck#UNAVAILABLE}，让调用方回 503 而不是 403——
+     * 把基础设施故障报成「无权执行该操作」会让用户以为账号出问题，也让排障方向跑偏。</p>
      */
-    public boolean validToken(long userId, long answerId, String token) {
+    public TokenCheck checkToken(long userId, long answerId, String token) {
         if (token == null || token.isBlank()) {
-            return false;
+            return TokenCheck.INVALID;
         }
         try {
             String stored = redisTemplate.opsForValue().get(RedisKeys.aiStreamToken(token));
-            return (userId + ":" + answerId).equals(stored);
+            return (userId + ":" + answerId).equals(stored) ? TokenCheck.VALID : TokenCheck.INVALID;
         } catch (RuntimeException exception) {
             log.warn("评分流令牌校验失败：reason={}", exception.getClass().getSimpleName());
-            return false;
+            return TokenCheck.UNAVAILABLE;
         }
+    }
+
+    /** 令牌校验结果。 */
+    public enum TokenCheck {
+        VALID,
+        INVALID,
+        UNAVAILABLE
     }
 
     /**
@@ -106,11 +116,11 @@ public class FeedbackStreamService {
         return "题目：" + prepared.question().text()
                 + "\n评分参考点：" + String.join("、", prepared.question().referencePoints())
                 + "\n候选人回答：" + truncate(prepared.answer().answerText(), 3500)
-                + "\n确定性评分：内容 " + feedback.dimensions().get("content")
-                + "，结构 " + feedback.dimensions().get("structure")
-                + "，深度 " + feedback.dimensions().get("depth")
-                + "，匹配 " + feedback.dimensions().get("fit")
-                + "，语言 " + feedback.dimensions().get("language")
+                + "\n确定性评分：内容 " + dimensionText(feedback, "content")
+                + "，结构 " + dimensionText(feedback, "structure")
+                + "，深度 " + dimensionText(feedback, "depth")
+                + "，匹配 " + dimensionText(feedback, "fit")
+                + "，语言 " + dimensionText(feedback, "language")
                 + "。请围绕这些分数解释原因并给出可执行建议。";
     }
 
@@ -118,15 +128,15 @@ public class FeedbackStreamService {
         BigDecimal overall = feedback.overallScore();
         StringBuilder builder = new StringBuilder("本题得分 " + overall.toPlainString() + " / 10。\n\n");
         builder.append("五维表现：内容 ")
-                .append(feedback.dimensions().get("content"))
+                .append(dimensionText(feedback, "content"))
                 .append("，结构 ")
-                .append(feedback.dimensions().get("structure"))
+                .append(dimensionText(feedback, "structure"))
                 .append("，深度 ")
-                .append(feedback.dimensions().get("depth"))
+                .append(dimensionText(feedback, "depth"))
                 .append("，匹配 ")
-                .append(feedback.dimensions().get("fit"))
+                .append(dimensionText(feedback, "fit"))
                 .append("，语言 ")
-                .append(feedback.dimensions().get("language"))
+                .append(dimensionText(feedback, "language"))
                 .append("。\n\n优点\n");
         for (int index = 0; index < feedback.strengths().size(); index++) {
             builder.append(index + 1)
@@ -205,6 +215,17 @@ public class FeedbackStreamService {
             return "";
         }
         return value.length() <= max ? value : value.substring(0, max);
+    }
+
+    /**
+     * 取维度分数；缺失时返回 {@code —} 而不是让 {@code null} 直接拼进用户可见文本。
+     *
+     * <p>历史反馈可能没有某一维度（评分版本升级前的数据），直接 append 会把字面量
+     * {@code null} 输出到叙事里。{@code ReportService} 对同一张 map 已有同样的保护。</p>
+     */
+    private static String dimensionText(AnswerFeedback feedback, String dimension) {
+        BigDecimal value = feedback.dimensions().get(dimension);
+        return value == null ? "—" : value.toPlainString();
     }
 
     private static final class ClientGoneException extends RuntimeException {

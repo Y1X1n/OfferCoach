@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.task.TaskRejectedException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -80,6 +82,26 @@ public class GlobalExceptionHandler {
                         Map.of(),
                         TraceContext.requestId(),
                         TraceContext.traceId()));
+    }
+
+    /**
+     * 线程池拒绝与唯一键冲突不是"服务出错"，按可重试/可冲突语义返回，
+     * 否则前端会把 500 当成后端故障并展示请求编号，掩盖真实原因。
+     */
+    @ExceptionHandler(TaskRejectedException.class)
+    public ResponseEntity<ApiError> handleTaskRejected(TaskRejectedException exception) {
+        log.warn("线程池已满，拒绝任务：type={}", exception.getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.RATE_LIMITED.httpStatus())
+                .body(ApiError.of(
+                        ErrorCode.RATE_LIMITED, null, Map.of(), TraceContext.requestId(), TraceContext.traceId()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException exception) {
+        log.warn("数据唯一性或约束冲突：type={}", exception.getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.STATE_CONFLICT.httpStatus())
+                .body(ApiError.of(
+                        ErrorCode.STATE_CONFLICT, null, Map.of(), TraceContext.requestId(), TraceContext.traceId()));
     }
 
     @ExceptionHandler(Exception.class)

@@ -52,6 +52,13 @@ public final class FeedbackScorer {
     private static final List<String> PERFORMANCE_MARKERS = List.of("性能", "优化", "延迟", "并发", "吞吐", "慢查询", "压测");
     private static final List<String> DESIGN_MARKERS = List.of("设计", "架构", "方案", "选型", "拆分", "扩展性");
     private static final List<String> PRINCIPLE_MARKERS = List.of("原理", "为什么", "机制", "底层", "如何工作", "实现原理");
+    /** 题干无法抽出任何关键词时的哨兵值：表示「无法判断相关性」，不等同于跑题。 */
+    private static final double UNKNOWN_RELEVANCE = -1.0;
+    /** 中文高频虚词组合，作为题干关键词时没有区分度。 */
+    private static final Set<String> CHINESE_STOP_BIGRAMS = Set.of(
+            "什么", "如何", "怎么", "为何", "哪些", "是否", "可以", "需要", "我们", "你们", "他们", "这个", "那个", "一个", "一下", "以及", "并且", "或者",
+            "但是", "因为", "所以", "如果", "就是", "这样", "那样", "的话", "时候", "问题", "情况", "进行", "通过", "对于", "关于");
+
     private static final Map<String, Double> WEIGHTS = Map.of(
             "content", 0.25,
             "structure", 0.20,
@@ -104,6 +111,8 @@ public final class FeedbackScorer {
             fit = Math.min(fit, 5.0);
             language = Math.min(language, 5.0);
         }
+        // 只有「题干可判断相关性、但关键词零命中、且参考答案要点也零命中」才判跑题；
+        // relevance 为 UNKNOWN_RELEVANCE（题干抽不出关键词）时不判跑题，避免纯中文题被系统性误杀。
         boolean offTopic = analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0 && relevance == 0.0;
 
         Map<String, BigDecimal> dimensions = new LinkedHashMap<>();
@@ -337,7 +346,10 @@ public final class FeedbackScorer {
         } else {
             score += 2.0;
         }
-        score += 1.6 * relevance;
+        // UNKNOWN_RELEVANCE 表示题干抽不出关键词：既不加分也不扣分，按中性处理。
+        if (relevance >= 0.0) {
+            score += 1.6 * relevance;
+        }
         score += Math.min(1.1, analysis.skills().size() * 0.22 + domainTerms.size() * 0.12);
         score += Math.min(1.0, metrics * 0.4);
         int length = text.length();
@@ -352,6 +364,7 @@ public final class FeedbackScorer {
             score -= 0.3;
         }
         score -= duplicateSentenceRatio(analysis.sentences()) * 1.5;
+        // 与 offTopic 同口径：只有能确认关键词零命中时才封顶，UNKNOWN_RELEVANCE 不封顶。
         if (analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0 && relevance == 0.0) {
             score = Math.min(score, 3.0);
         }
@@ -474,9 +487,18 @@ public final class FeedbackScorer {
         return clamp(Math.min(score, 9.2));
     }
 
+    private static final Pattern LATIN_TERM = Pattern.compile("[A-Za-z][A-Za-z0-9+#.]{1,}");
+
+    /**
+     * 题干关键词与回答的重合度。
+     *
+     * <p>纯中文题干不含拉丁术语时，旧实现会得到 0.0，进而被 offTopic 规则误判为跑题并封顶分数。
+     * 因此这里额外抽取中文双字词（去停用词）作为兜底；两者都抽不到时返回 {@link #UNKNOWN_RELEVANCE}，
+     * 由调用方按「无法判断」处理，而不是当作跑题。</p>
+     */
     private static double questionRelevance(String questionText, String answerLower) {
         if (questionText == null || questionText.isBlank()) {
-            return 0.0;
+            return UNKNOWN_RELEVANCE;
         }
         Set<String> terms = new LinkedHashSet<>();
         for (String skill : SkillDictionary.findSkills(questionText)) {
@@ -485,16 +507,49 @@ public final class FeedbackScorer {
         for (String term : SkillDictionary.findDomainTerms(questionText)) {
             terms.add(term.toLowerCase(Locale.ROOT));
         }
-        Matcher matcher = Pattern.compile("[A-Za-z][A-Za-z0-9+#.]{1,}").matcher(questionText);
+        Matcher matcher = LATIN_TERM.matcher(questionText);
         while (matcher.find()) {
             terms.add(matcher.group().toLowerCase(Locale.ROOT));
         }
         terms.removeIf(term -> term.length() < 2);
         if (terms.isEmpty()) {
-            return 0.0;
+            terms.addAll(chineseBigrams(questionText));
+        }
+        if (terms.isEmpty()) {
+            return UNKNOWN_RELEVANCE;
         }
         long matched = terms.stream().filter(answerLower::contains).count();
         return matched / (double) terms.size();
+    }
+
+    /**
+     * 抽取中文双字词作为题干关键词；去掉高频虚词，避免「什么」「如何」这类词造成虚假匹配。
+     */
+    private static Set<String> chineseBigrams(String text) {
+        Set<String> bigrams = new LinkedHashSet<>();
+        StringBuilder han = new StringBuilder();
+        for (int index = 0; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (Character.UnicodeScript.of(current) == Character.UnicodeScript.HAN) {
+                han.append(current);
+            } else if (han.length() > 0) {
+                addBigrams(bigrams, han.toString());
+                han.setLength(0);
+            }
+        }
+        if (han.length() > 0) {
+            addBigrams(bigrams, han.toString());
+        }
+        return bigrams;
+    }
+
+    private static void addBigrams(Set<String> target, String run) {
+        for (int index = 0; index + 2 <= run.length(); index++) {
+            String bigram = run.substring(index, index + 2);
+            if (!CHINESE_STOP_BIGRAMS.contains(bigram)) {
+                target.add(bigram);
+            }
+        }
     }
 
     private static int distinctKeywordCount(List<String> values) {

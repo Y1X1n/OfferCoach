@@ -47,6 +47,23 @@ public class DataRetentionCleaner {
              )
             """;
 
+    /**
+     * 支付回调日志：只留排障窗口，账务事实在 payment_order/refund/quota_ledger 中保留。
+     *
+     * <p>该表没有 created_at 单列索引（只有 (order_no, created_at)），所以子查询不排序，
+     * 让规划器走顺序扫描 + LIMIT，避免每批都做一次全表排序。</p>
+     */
+    private static final String PURGE_PAYMENT_NOTIFY_SQL =
+            """
+            DELETE FROM payment_notify_log
+             WHERE id IN (
+                 SELECT id
+                   FROM payment_notify_log
+                  WHERE created_at < now() - make_interval(days => ?)
+                  LIMIT ?
+             )
+            """;
+
     private final JdbcTemplate jdbcTemplate;
     private final RetentionProperties properties;
     private final TransactionTemplate transactionTemplate;
@@ -62,6 +79,7 @@ public class DataRetentionCleaner {
     public void run() {
         purge("ai_call_log", PURGE_AI_CALL_SQL, properties.getAiCallDays());
         purgeAudit(properties.getAuditDays());
+        purge("payment_notify_log", PURGE_PAYMENT_NOTIFY_SQL, properties.getPaymentNotifyDays());
     }
 
     private void purge(String table, String sql, int days) {

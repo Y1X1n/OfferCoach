@@ -112,9 +112,15 @@ function clearPreview(): void {
 
 const credits = computed(() => store.quota.interviewCredits)
 const quotaBlocked = computed(() => credits.value <= 0)
-const dailyBlocked = computed(
-  () => store.quota.daily.sessionsUsed >= store.quota.daily.sessionsLimit,
-)
+/**
+ * 每日上限 0 表示「不限制」（后端 QuotaService 用 cap <= 0 直接放行）。
+ * 这里必须同口径判断，否则 0 >= 0 会让所有用户被永久挡在创建页。
+ */
+const dailyBlocked = computed(() => {
+  const daily = store.quota.daily
+  if (!daily || daily.sessionsLimit <= 0) return false
+  return daily.sessionsUsed >= daily.sessionsLimit
+})
 const estimatedMinutes = computed(() => Math.max(5, Math.ceil(config.value.questionCount * 1.25)))
 
 const missing = computed<string[]>(() => {

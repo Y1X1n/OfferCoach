@@ -18,8 +18,15 @@ import { formatDate, formatRelative, formatScore, mean, round1, scoreTone } from
 
 type RangeOption = 'all' | '30d'
 
+/** 每页条数；后端上限 100，这里取 20 保证首屏快、翻页粒度合适。 */
+const PAGE_SIZE = 20
+/** 后端 size 上限（ReportService.MAX_PAGE_SIZE）。 */
+const MAX_PAGE_SIZE = 100
+
 const { toast } = useToast()
 const keyword = ref('')
+const page = ref(1)
+const loadingMore = ref(false)
 const range = ref<RangeOption>('all')
 const reports = ref<ReportSummary[]>([])
 const total = ref(0)
@@ -78,13 +85,19 @@ const filteredReports = computed(() => {
 })
 const hasFilters = computed(() => keyword.value.trim().length > 0 || range.value !== 'all')
 const libraryEmpty = computed(() => !loading.value && reports.value.length === 0)
+/** 还有未加载的报告；筛选态下隐藏「加载更多」，避免与筛选结果混淆。 */
+const hasMore = computed(() => !hasFilters.value && reports.value.length < total.value)
 
 const poller = usePolling(
   async () => {
     try {
-      const page = await reportsApi.listReports({ page: 1, size: 50 })
-      reports.value = page.items
-      total.value = page.total
+      // 轮询只刷新已加载的窗口，不能把分页加载出来的历史报告冲掉。
+      const window = Math.min(Math.max(reports.value.length, PAGE_SIZE), MAX_PAGE_SIZE)
+      const result = await reportsApi.listReports({ page: 1, size: window })
+      const fetched = new Set(result.items.map((report) => report.id))
+      const tail = reports.value.filter((report) => !fetched.has(report.id))
+      reports.value = [...result.items, ...tail]
+      total.value = result.total
     } catch {
       return false
     }
@@ -99,16 +112,41 @@ const poller = usePolling(
 async function loadReports(): Promise<void> {
   loading.value = true
   loadError.value = null
+  page.value = 1
   try {
-    const page = await reportsApi.listReports({ page: 1, size: 50 })
-    reports.value = page.items
-    total.value = page.total
-    if (page.items.some((report) => report.status === 'GENERATING')) poller.start()
+    const result = await reportsApi.listReports({ page: 1, size: PAGE_SIZE })
+    reports.value = result.items
+    total.value = result.total
+    if (result.items.some((report) => report.status === 'GENERATING')) poller.start()
     else void loadLatestRadar()
   } catch (cause) {
     loadError.value = errorMessage(cause, '报告列表加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+/**
+ * 追加下一页。
+ *
+ * 列表支持关键词与时间筛选，但筛选只在已加载的数据上做——只取首页 50 条时，
+ * 更早的报告既搜不到也不会出现，用户会以为报告丢了。
+ */
+async function loadMore(): Promise<void> {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const next = page.value + 1
+    const result = await reportsApi.listReports({ page: next, size: PAGE_SIZE })
+    const seen = new Set(reports.value.map((report) => report.id))
+    reports.value = [...reports.value, ...result.items.filter((report) => !seen.has(report.id))]
+    total.value = result.total
+    page.value = next
+    if (result.items.some((report) => report.status === 'GENERATING')) poller.start()
+  } catch (cause) {
+    toast('加载更多失败', 'error', errorMessage(cause))
+  } finally {
+    loadingMore.value = false
   }
 }
 
@@ -296,7 +334,7 @@ onBeforeUnmount(() => {
 
       <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
         <p class="tabular text-xs text-text-muted">
-          共 {{ filteredReports.length }} 份报告 · 按时间倒序
+          共 {{ hasFilters ? filteredReports.length : total }} 份报告 · 按时间倒序
         </p>
         <button
           v-if="hasFilters"
@@ -383,7 +421,13 @@ onBeforeUnmount(() => {
         </li>
       </ul>
 
-      <div v-else class="mt-3">
+      <div v-if="hasMore" class="mt-4 flex justify-center">
+        <Button variant="outline" :loading="loadingMore" @click="loadMore">
+          {{ loadingMore ? '加载中…' : '加载更早的报告' }}
+        </Button>
+      </div>
+
+      <div v-else-if="!filteredReports.length" class="mt-3">
         <EmptyState
           :icon="Search"
           title="没有匹配的报告"

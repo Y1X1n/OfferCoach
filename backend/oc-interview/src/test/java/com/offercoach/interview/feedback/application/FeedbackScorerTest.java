@@ -213,6 +213,37 @@ class FeedbackScorerTest {
         assertThat(firstImprovements).hasSizeGreaterThanOrEqualTo(3);
     }
 
+    @Test
+    void pureChineseQuestionDoesNotGetOffTopicPenalty() {
+        // 题干没有拉丁术语，旧实现 relevance 恒为 0，会把切题回答误判为跑题并封顶 4.0。
+        String answer = "Spring Bean 的生命周期包括创建实例、注入依赖、初始化及后处理、使用和销毁回调。"
+                + "创建阶段通过构造方法或工厂方法实例化，注入阶段处理字段与 Setter 依赖。"
+                + "初始化阶段先执行 Aware 回调，再运行前置处理链，然后执行 @PostConstruct 与 afterPropertiesSet，"
+                + "最后运行后置处理链。使用阶段暴露代理对象，单例会被缓存复用，容器关闭时执行销毁回调。";
+
+        FeedbackScorer.Result result = raw(
+                answer,
+                "Spring Bean 的生命周期是什么？",
+                List.of("创建实例", "注入依赖", "初始化及后处理", "销毁回调"),
+                List.of("Spring"),
+                "DEPTH");
+
+        assertThat(result.overallScore().doubleValue()).isGreaterThan(4.0);
+        assertThat(result.dimensions().get("content").doubleValue()).isGreaterThan(3.0);
+    }
+
+    @Test
+    void pureChineseQuestionStillPenalizesUnrelatedAnswer() {
+        String offTopic = "今天天气不错，我沿着河边走了很久。中午和同事吃了牛肉面，味道比上周那家更好。"
+                + "下午把房间收拾了一遍，扔掉不少旧纸箱。晚上打算看一部纪录片，十一点前睡觉。"
+                + "周末准备去郊区爬山，顺便拍些照片，再买点水果带回来。";
+
+        FeedbackScorer.Result result =
+                raw(offTopic, "Spring Bean 的生命周期是什么？", List.of("创建实例", "销毁回调"), List.of("Spring"), "DEPTH");
+
+        assertThat(result.overallScore().doubleValue()).isLessThanOrEqualTo(4.0);
+    }
+
     private static FeedbackScorer.Result raw(
             String answer, String question, List<String> references, List<String> jdKeywords, String dimension) {
         return FeedbackScorer.score(

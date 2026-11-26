@@ -3,6 +3,7 @@ package com.offercoach.pay.service.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -19,6 +20,8 @@ import com.offercoach.pay.service.config.PayOpsProperties;
 import com.offercoach.pay.service.domain.ChannelCode;
 import com.offercoach.pay.service.domain.OrderStatus;
 import com.offercoach.pay.service.domain.PaymentOrder;
+import com.offercoach.pay.service.domain.PaymentRefund;
+import com.offercoach.pay.service.domain.RefundStatus;
 import com.offercoach.pay.service.error.PayException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -101,6 +104,7 @@ class OrderServiceTest {
         PaymentOrder paid = order(OrderStatus.PAID, 1000, "WX-1");
         when(orderRepository.lockByOrderNo("OC-TEST")).thenReturn(Optional.of(paid));
         when(refundRepository.findByOrderIdempotency("OC-TEST", "r1")).thenReturn(Optional.empty());
+        when(refundRepository.insertIfAbsent(any())).thenReturn(true);
         // 原子预占失败：剩余可退 2900，申请 3000。
         when(orderRepository.reserveRefundAmount("OC-TEST", 3000)).thenReturn(false);
 
@@ -115,14 +119,45 @@ class OrderServiceTest {
         PaymentOrder paid = order(OrderStatus.PAID, 1000, "WX-1");
         when(orderRepository.lockByOrderNo("OC-TEST")).thenReturn(Optional.of(paid));
         when(refundRepository.findByOrderIdempotency("OC-TEST", "r2")).thenReturn(Optional.empty());
+        when(refundRepository.insertIfAbsent(any())).thenReturn(true);
         when(orderRepository.reserveRefundAmount("OC-TEST", 2000)).thenReturn(true);
 
         PaymentReservationService.Reservation reservation =
                 reservationService.reserveRefund(1L, "OC-TEST", new PayDtos.RefundRequest(2000, "部分退款", "r2"));
 
         assertThat(reservation.created()).isTrue();
-        verify(refundRepository).insert(any());
+        verify(refundRepository).insertIfAbsent(any());
         verify(orderRepository).reserveRefundAmount("OC-TEST", 2000);
+    }
+
+    @Test
+    void refundReturnsExistingWhenIdempotencyKeyRaces() {
+        PaymentOrder paid = order(OrderStatus.PAID, 1000, "WX-1");
+        PaymentRefund existing = new PaymentRefund(
+                7L,
+                "RF-EXIST",
+                "OC-TEST",
+                1L,
+                2000,
+                RefundStatus.CREATED,
+                null,
+                "部分退款",
+                "r3",
+                Instant.now(),
+                Instant.now());
+        when(orderRepository.lockByOrderNo("OC-TEST")).thenReturn(Optional.of(paid));
+        when(refundRepository.findByOrderIdempotency("OC-TEST", "r3"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(existing));
+        // 并发请求已先插入同一幂等键：insertIfAbsent 返回 false 而不是抛异常。
+        when(refundRepository.insertIfAbsent(any())).thenReturn(false);
+
+        PaymentReservationService.Reservation reservation =
+                reservationService.reserveRefund(1L, "OC-TEST", new PayDtos.RefundRequest(2000, "部分退款", "r3"));
+
+        assertThat(reservation.created()).isFalse();
+        assertThat(reservation.refund().refundNo()).isEqualTo("RF-EXIST");
+        verify(orderRepository, never()).reserveRefundAmount(anyString(), anyInt());
     }
 
     @Test
