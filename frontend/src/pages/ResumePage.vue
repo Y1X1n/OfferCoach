@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { FileText, LayoutTemplate, Pencil, RefreshCw, ShieldCheck, Star, Trash2, Upload } from 'lucide-vue-next'
+import {
+  FileText,
+  LayoutTemplate,
+  Pencil,
+  RefreshCw,
+  ShieldCheck,
+  Star,
+  Trash2,
+  Upload,
+} from 'lucide-vue-next'
 import type { Resume, ResumeLayout, ResumeSummary, ResumeStructured } from '@/types'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
@@ -375,12 +384,22 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="space-y-6">
-    <PageHeader title="简历管理" description="上传、解析与修正简历；结构化结果会用于出题与岗位匹配。">
+    <PageHeader
+      title="简历管理"
+      description="上传、解析与修正简历；结构化结果会用于出题与岗位匹配。"
+    >
       <template #actions>
         <Badge variant="neutral" class="hidden sm:inline-flex">
-          已保存 {{ list.length }} 份<template v-if="parsingCount"> · {{ parsingCount }} 份解析中</template>
+          已保存 {{ list.length }} 份<template v-if="parsingCount">
+            · {{ parsingCount }} 份解析中</template
+          >
         </Badge>
-        <ExportMenu :disabled="!selectedReady" @markdown="handleExport('markdown')" @json="handleExport('json')" @pdf="handleExport('pdf')" />
+        <ExportMenu
+          :disabled="!selectedReady"
+          @markdown="handleExport('markdown')"
+          @json="handleExport('json')"
+          @pdf="handleExport('pdf')"
+        />
         <Button variant="outline" :disabled="!selectedReady" @click="layoutOpen = true">
           <LayoutTemplate class="h-4 w-4" aria-hidden="true" />
           选择版式
@@ -402,7 +421,8 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="text-base font-semibold text-text">上传并解析简历</h2>
             <p class="mt-1 text-xs text-text-muted">
-              支持 PDF / DOCX / 图片（PNG、JPG 等）/ PPT，单文件不超过 10MB；图片与扫描件自动 OCR 识别。
+              支持 PDF / DOCX / 图片（PNG、JPG 等）/ PPT，单文件不超过 10MB；图片与扫描件自动 OCR
+              识别。
             </p>
           </div>
           <Badge v-if="uploading" variant="brand" dot>处理中</Badge>
@@ -459,7 +479,9 @@ onBeforeUnmount(() => {
       </template>
 
       <div class="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <aside class="scrollbar-thin lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+        <aside
+          class="scrollbar-thin lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
+        >
           <ResumeListPanel
             :resumes="list"
             :selected-id="selectedId"
@@ -469,56 +491,62 @@ onBeforeUnmount(() => {
         </aside>
 
         <section class="min-w-0">
-          <AsyncState :loading="detailLoading" :error="detailError" error-title="简历详情加载失败" :loading-lines="6" @retry="retryDetail">
-            <ResumeParseState v-if="detail && detail.status === 'PARSING'" :resume="detail" />
-            <Card v-else-if="detail && detail.status === 'FAILED'" padding="lg">
-              <Alert
-                variant="danger"
-                title="这份简历解析失败"
-                description="可能是文件损坏或版式无法识别。可以重新解析，或手动编辑结构化内容。"
+          <AsyncState
+            :loading="detailLoading"
+            :error="detailError"
+            error-title="简历详情加载失败"
+            :loading-lines="6"
+            @retry="retryDetail"
+          >
+            <div :key="detail?.id ?? 'empty'" class="animate-fade-in">
+              <ResumeParseState v-if="detail && detail.status === 'PARSING'" :resume="detail" />
+              <Card v-else-if="detail && detail.status === 'FAILED'" padding="lg">
+                <Alert
+                  variant="danger"
+                  title="这份简历解析失败"
+                  description="可能是文件损坏或版式无法识别。可以重新解析，或手动编辑结构化内容。"
+                />
+                <div class="mt-4 flex flex-wrap justify-end gap-2">
+                  <Button variant="outline" @click="openEditor">
+                    <Pencil class="h-4 w-4" aria-hidden="true" />
+                    手动编辑
+                  </Button>
+                  <Button variant="outline" @click="reparse">
+                    <RefreshCw class="h-4 w-4" aria-hidden="true" />
+                    重新解析
+                  </Button>
+                  <Button variant="danger" @click="askDeleteSelected">
+                    <Trash2 class="h-4 w-4" aria-hidden="true" />
+                    删除
+                  </Button>
+                </div>
+              </Card>
+              <template v-else-if="detail">
+                <div class="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <Badge v-if="detail.isDefault" variant="brand" dot> 默认简历 </Badge>
+                  <Button v-if="!detail.isDefault" variant="ghost" size="sm" @click="setDefault">
+                    <Star class="h-3.5 w-3.5" aria-hidden="true" />
+                    设为默认
+                  </Button>
+                  <Button variant="outline" size="sm" @click="reparse">
+                    <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
+                    重新解析
+                  </Button>
+                </div>
+                <ResumeDetailPanel
+                  :resume="detail"
+                  :layout="layout"
+                  @edit="openEditor"
+                  @change-layout="layoutOpen = true"
+                />
+              </template>
+              <EmptyState
+                v-else
+                :icon="FileText"
+                title="选择一份简历查看解析结果"
+                description="左侧列表展示全部简历，点击任意一份即可查看结构化信息与字段置信度。"
               />
-              <div class="mt-4 flex flex-wrap justify-end gap-2">
-                <Button variant="outline" @click="openEditor">
-                  <Pencil class="h-4 w-4" aria-hidden="true" />
-                  手动编辑
-                </Button>
-                <Button variant="outline" @click="reparse">
-                  <RefreshCw class="h-4 w-4" aria-hidden="true" />
-                  重新解析
-                </Button>
-                <Button variant="danger" @click="askDeleteSelected">
-                  <Trash2 class="h-4 w-4" aria-hidden="true" />
-                  删除
-                </Button>
-              </div>
-            </Card>
-            <template v-else-if="detail">
-              <div class="mb-3 flex flex-wrap items-center justify-end gap-2">
-                <Badge v-if="detail.isDefault" variant="brand" dot>
-                  默认简历
-                </Badge>
-                <Button v-if="!detail.isDefault" variant="ghost" size="sm" @click="setDefault">
-                  <Star class="h-3.5 w-3.5" aria-hidden="true" />
-                  设为默认
-                </Button>
-                <Button variant="outline" size="sm" @click="reparse">
-                  <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
-                  重新解析
-                </Button>
-              </div>
-              <ResumeDetailPanel
-                :resume="detail"
-                :layout="layout"
-                @edit="openEditor"
-                @change-layout="layoutOpen = true"
-              />
-            </template>
-            <EmptyState
-              v-else
-              :icon="FileText"
-              title="选择一份简历查看解析结果"
-              description="左侧列表展示全部简历，点击任意一份即可查看结构化信息与字段置信度。"
-            />
+            </div>
           </AsyncState>
         </section>
       </div>
