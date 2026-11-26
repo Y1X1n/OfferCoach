@@ -46,6 +46,7 @@ public class AdminUserService {
      * 拆成常量拼接只为避免静态扫描把该字面量误判为硬编码凭据。
      */
     private static final String ACTION_AUTH_RESET = "USER_" + "PASSWORD" + "_RESET";
+
     private static final String ACTION_QUOTA = "USER_QUOTA_ADJUST";
     private static final String TARGET_USER = "USER";
     private static final String PLAN_FREE = "FREE";
