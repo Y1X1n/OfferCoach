@@ -56,9 +56,9 @@ public final class FeedbackScorer {
     private static final double UNKNOWN_RELEVANCE = -1.0;
     /** 中文高频虚词组合，作为题干关键词时没有区分度。 */
     private static final Set<String> CHINESE_STOP_BIGRAMS = Set.of(
-            "什么", "如何", "怎么", "为何", "哪些", "是否", "可以", "需要", "我们", "你们", "他们",
-            "这个", "那个", "一个", "一下", "以及", "并且", "或者", "但是", "因为", "所以", "如果",
-            "就是", "这样", "那样", "的话", "时候", "问题", "情况", "进行", "通过", "对于", "关于");
+            "什么", "如何", "怎么", "为何", "哪些", "是否", "可以", "需要", "我们", "你们", "他们", "这个", "那个", "一个", "一下", "以及", "并且", "或者",
+            "但是", "因为", "所以", "如果", "就是", "这样", "那样", "的话", "时候", "问题", "情况", "进行", "通过", "对于", "关于");
+
     private static final Map<String, Double> WEIGHTS = Map.of(
             "content", 0.25,
             "structure", 0.20,
@@ -113,9 +113,7 @@ public final class FeedbackScorer {
         }
         // 只有「题干可判断相关性、但关键词零命中、且参考答案要点也零命中」才判跑题；
         // relevance 为 UNKNOWN_RELEVANCE（题干抽不出关键词）时不判跑题，避免纯中文题被系统性误杀。
-        boolean offTopic = analysis.referenceTotal() > 0
-                && analysis.referenceCovered() == 0
-                && relevance == 0.0;
+        boolean offTopic = analysis.referenceTotal() > 0 && analysis.referenceCovered() == 0 && relevance == 0.0;
 
         Map<String, BigDecimal> dimensions = new LinkedHashMap<>();
         dimensions.put("content", round(content));
