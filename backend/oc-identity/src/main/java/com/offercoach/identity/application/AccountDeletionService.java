@@ -16,8 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 用户自助注销：校验密码 → 软删并清空联系方式 → 吊销 Refresh 家族与 Access 版本。
  *
- * <p>额度流水、审计与支付订单保留主键关联，便于对账与法务留存；简历/回答等业务数据
- * 由保留策略任务按用户级联清理。</p>
+ * <p>额度流水、审计与支付订单保留主键关联，便于对账与法务留存；简历/回答/报告等业务数据
+ * 当前不在本接口删除，由后续用户级联保留策略处理。</p>
  */
 @Service
 public class AccountDeletionService {

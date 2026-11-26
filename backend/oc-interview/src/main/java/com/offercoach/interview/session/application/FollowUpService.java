@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -90,15 +91,20 @@ public class FollowUpService {
         long startedAt = System.nanoTime();
         Draft draft = generate(parent, answer);
         int seq = questionRepository.maxSeq(sessionId) + 1;
-        long id = questionRepository.insertFollowUp(
-                sessionId,
-                seq,
-                parent.dimension(),
-                parent.difficulty(),
-                draft.text(),
-                draft.referencePoints(),
-                draft.whyThisQuestion(),
-                parent.id());
+        long id;
+        try {
+            id = questionRepository.insertFollowUp(
+                    sessionId,
+                    seq,
+                    parent.dimension(),
+                    parent.difficulty(),
+                    draft.text(),
+                    draft.referencePoints(),
+                    draft.whyThisQuestion(),
+                    parent.id());
+        } catch (DataIntegrityViolationException exception) {
+            throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "FOLLOW_UP_CONFLICT"));
+        }
         if (id == 0) {
             throw new BizException(ErrorCode.INTERNAL_ERROR);
         }

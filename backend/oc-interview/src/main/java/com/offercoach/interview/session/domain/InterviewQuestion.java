@@ -18,4 +18,18 @@ public record InterviewQuestion(
         String whyThisQuestion,
         String retrievalJson,
         String contextJson,
-        String status) {}
+        String status) {
+
+    private static final String SOURCE_FOLLOW_UP = "FOLLOW_UP";
+
+    public boolean isFollowUp() {
+        return SOURCE_FOLLOW_UP.equals(source);
+    }
+
+    /**
+     * 追问追加在题尾，但用户是在当前原题后立即回答，不能受 currentSeq 顺序门禁限制。
+     */
+    public boolean isAnswerableAt(int currentSeq) {
+        return seq <= currentSeq || isFollowUp();
+    }
+}

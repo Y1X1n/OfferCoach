@@ -132,8 +132,18 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const canAdvance = computed(
     () => isAnswered.value && (streamState.value === 'done' || streamState.value === 'error'),
   )
+  /**
+   * 追问只在本场已无未答原题时开放：追问 seq 在题尾，
+   * 原题未答完时服务端会按顺序门禁拒绝，前端不再引导用户走进该路径。
+   */
   const canFollowUp = computed(
-    () => isAnswered.value && streamState.value === 'done' && !followUpLoading.value,
+    () =>
+      isAnswered.value &&
+      streamState.value === 'done' &&
+      !followUpLoading.value &&
+      questions.value.every(
+        (question) => question.status === 'ANSWERED' || question.status === 'SKIPPED',
+      ),
   )
   const timerVisible = computed(
     () =>
