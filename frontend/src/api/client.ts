@@ -119,8 +119,18 @@ const DEFAULT_MESSAGES: Record<number, string> = {
   429: '请求过于频繁，请稍后重试',
   500: '服务暂时不可用，请稍后重试',
   502: 'AI 服务返回异常，请重试',
-  503: 'AI 服务暂不可用',
-  504: 'AI 服务超时，请重试',
+  503: '服务暂不可用，请稍后重试',
+  504: '服务响应超时，请重试',
+}
+
+/**
+ * 按业务错误码覆盖状态码文案：503 既可能是 AI 也可能是支付服务，
+ * 只按状态码兜底会把支付故障误报成「AI 服务暂不可用」。
+ */
+const CODE_MESSAGES: Record<string, string> = {
+  AI_UNAVAILABLE: 'AI 服务暂不可用',
+  AI_TIMEOUT: 'AI 服务超时，请重试',
+  PAY_UNAVAILABLE: '支付服务暂不可用，请稍后重试',
 }
 
 function statusCodeToCode(status: number): string {
@@ -168,7 +178,7 @@ export async function toApiError(res: Response): Promise<ApiError> {
   const message =
     typeof body.message === 'string' && body.message.trim()
       ? body.message
-      : (DEFAULT_MESSAGES[res.status] ?? `请求失败（${res.status}）`)
+      : (CODE_MESSAGES[code] ?? DEFAULT_MESSAGES[res.status] ?? `请求失败（${res.status}）`)
   const details =
     body.details && typeof body.details === 'object'
       ? (body.details as Record<string, unknown>)

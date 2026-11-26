@@ -63,7 +63,7 @@ public class PaymentOrderService {
             return OrderResponse.from(payGateway.createOrder(request));
         } catch (PayClientException exception) {
             log.warn("下单失败：userId={} planCode={} reason={}", userId, plan.code(), exception.getMessage());
-            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
+            throw new BizException(ErrorCode.PAY_UNAVAILABLE, Map.of("reason", exception.getMessage()));
         }
     }
 
@@ -75,7 +75,7 @@ public class PaymentOrderService {
                 throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("orderNo", orderNo));
             }
             log.warn("订单查询失败：orderNo={} reason={}", orderNo, exception.getMessage());
-            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
+            throw new BizException(ErrorCode.PAY_UNAVAILABLE, Map.of("reason", exception.getMessage()));
         }
     }
 
@@ -93,7 +93,7 @@ public class PaymentOrderService {
                 throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("orderNo", orderNo));
             }
             log.warn("取消前查询订单失败：orderNo={} reason={}", orderNo, exception.getMessage());
-            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
+            throw new BizException(ErrorCode.PAY_UNAVAILABLE, Map.of("reason", exception.getMessage()));
         }
         if (!STATUS_CREATED.equals(current.status())) {
             return OrderResponse.from(current);
@@ -110,7 +110,7 @@ public class PaymentOrderService {
                 throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", exception.getMessage()));
             }
             log.warn("订单关闭失败：orderNo={} reason={}", orderNo, exception.getMessage());
-            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
+            throw new BizException(ErrorCode.PAY_UNAVAILABLE, Map.of("reason", exception.getMessage()));
         }
     }
 
@@ -124,7 +124,7 @@ public class PaymentOrderService {
                     .toList();
         } catch (PayClientException exception) {
             log.warn("支付渠道查询失败：reason={}", exception.getMessage());
-            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", exception.getMessage()));
+            throw new BizException(ErrorCode.PAY_UNAVAILABLE, Map.of("reason", exception.getMessage()));
         }
     }
 }
