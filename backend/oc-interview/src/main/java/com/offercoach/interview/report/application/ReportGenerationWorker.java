@@ -92,30 +92,28 @@ public class ReportGenerationWorker {
         if (!running.add(reportId)) {
             return;
         }
-        boolean claimed = false;
         try {
             String token = UUID.randomUUID().toString();
-            claimed = reportRepository.claim(reportId, staleSeconds, token);
-            if (!claimed) {
+            if (!reportRepository.claim(reportId, staleSeconds, token)) {
+                // 未抢到租约（别的实例在处理或报告已结束）：立刻释放占位。
+                running.remove(reportId);
                 return;
             }
-            String submitted = token;
             aiExecutor.execute(() -> {
                 try {
-                    generate(reportId, submitted);
+                    generate(reportId, token);
                 } finally {
                     running.remove(reportId);
                 }
             });
         } catch (RuntimeException exception) {
+            // claim 成功但提交失败（线程池满）时，占位必须释放，否则本进程再也不会处理该报告；
+            // 数据库里的租约会在 staleSeconds 后被下一轮重新 claim。
+            running.remove(reportId);
             log.warn(
                     "报告任务提交失败：reportId={} reason={}",
                     reportId,
                     exception.getClass().getSimpleName());
-        } finally {
-            if (!claimed) {
-                running.remove(reportId);
-            }
         }
     }
 

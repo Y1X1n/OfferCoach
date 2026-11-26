@@ -105,7 +105,16 @@ public class QuestionGenerationWorker {
                     "出题失败：sessionId={} reason={}",
                     sessionId,
                     exception.getClass().getSimpleName());
-            sessionService.markGenerationFailed(session.userId(), sessionId, FAILURE_REASON);
+            try {
+                sessionService.markGenerationFailed(session.userId(), sessionId, FAILURE_REASON);
+            } catch (RuntimeException failure) {
+                // 置失败与退款同事务，失败即整体回滚、会话仍是 PREPARING；
+                // 这里只告警，由看门狗在超时后重新处理，不要让异常逃出任务线程。
+                log.warn(
+                        "会话置失败未完成，等待看门狗重试：sessionId={} reason={}",
+                        sessionId,
+                        failure.getClass().getSimpleName());
+            }
         }
     }
 
