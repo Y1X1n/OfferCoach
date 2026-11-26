@@ -39,7 +39,10 @@ export default {
         'danger-solid': 'hsl(var(--danger-solid) / <alpha-value>)',
       },
       fontFamily: {
+        // 拉丁字符与数字优先 Inter（自托管 latin 子集），中文回退系统字体。
         sans: [
+          '"Inter Variable"',
+          'Inter',
           'system-ui',
           '-apple-system',
           '"Segoe UI"',
