@@ -8,6 +8,7 @@ import {
   Gauge,
   Library,
   SlidersHorizontal,
+  Stethoscope,
   Users,
 } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -15,6 +16,7 @@ import OverviewPanel from '@/components/admin/OverviewPanel.vue'
 import QuestionBankPanel from '@/components/admin/QuestionBankPanel.vue'
 import UserPanel from '@/components/admin/UserPanel.vue'
 import AiCallPanel from '@/components/admin/AiCallPanel.vue'
+import DiagnosticsPanel from '@/components/admin/DiagnosticsPanel.vue'
 import PromptPanel from '@/components/admin/PromptPanel.vue'
 import AuditLogPanel from '@/components/admin/AuditLogPanel.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -34,7 +36,15 @@ const SettingsPanel = defineAsyncComponent({
 })
 
 type AdminTab =
-  'overview' | 'questions' | 'users' | 'ai-calls' | 'prompts' | 'ai-config' | 'settings' | 'audit'
+  | 'overview'
+  | 'questions'
+  | 'users'
+  | 'ai-calls'
+  | 'diagnostics'
+  | 'prompts'
+  | 'ai-config'
+  | 'settings'
+  | 'audit'
 
 interface AdminTabItem {
   key: AdminTab
@@ -48,6 +58,7 @@ const panels: Record<AdminTab, Component> = {
   questions: QuestionBankPanel,
   users: UserPanel,
   'ai-calls': AiCallPanel,
+  diagnostics: DiagnosticsPanel,
   prompts: PromptPanel,
   'ai-config': AiConfigPanel,
   settings: SettingsPanel,
@@ -59,6 +70,7 @@ const tabs: AdminTabItem[] = [
   { key: 'questions', label: '题库', icon: Library },
   { key: 'users', label: '用户', icon: Users },
   { key: 'ai-calls', label: 'AI 日志', icon: Cpu },
+  { key: 'diagnostics', label: '运行诊断', icon: Stethoscope },
   { key: 'prompts', label: 'Prompt', icon: FileText },
   { key: 'ai-config', label: 'AI 配置', icon: Bot },
   { key: 'settings', label: '平台策略', icon: SlidersHorizontal },

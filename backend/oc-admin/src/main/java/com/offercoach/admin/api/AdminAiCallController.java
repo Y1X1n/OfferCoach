@@ -31,8 +31,11 @@ public class AdminAiCallController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             @RequestParam(value = "scene", required = false) String scene,
             @RequestParam(value = "status", required = false) String status,
-            @RequestParam(value = "userId", required = false) String userId) {
-        Paged<AiCall> result = aiCallService.list(page, size, scene, status, userId);
+            @RequestParam(value = "userId", required = false) String userId,
+            @RequestParam(value = "sessionId", required = false) String sessionId,
+            @RequestParam(value = "model", required = false) String model,
+            @RequestParam(value = "requestId", required = false) String requestId) {
+        Paged<AiCall> result = aiCallService.list(page, size, scene, status, userId, sessionId, model, requestId);
         return PageResponse.of(
                 result.items().stream().map(AdminAiCallController::toResponse).toList(),
                 result.total(),
@@ -53,6 +56,10 @@ public class AdminAiCallController {
                 call.firstTokenMs(),
                 call.latencyMs(),
                 call.errorCode(),
+                AdminWebSupport.id(call.sessionId()),
+                call.requestId(),
+                call.traceId(),
+                call.promptVersion(),
                 AdminWebSupport.timestamp(call.createdAt()));
     }
 }

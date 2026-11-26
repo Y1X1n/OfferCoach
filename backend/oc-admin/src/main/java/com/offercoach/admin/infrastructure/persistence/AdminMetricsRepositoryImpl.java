@@ -1,8 +1,12 @@
 package com.offercoach.admin.infrastructure.persistence;
 
+import com.offercoach.admin.application.model.AdminModels.AiUsage;
 import com.offercoach.admin.application.model.AdminModels.Metrics;
+import com.offercoach.admin.application.model.AdminModels.ModelTokens;
 import com.offercoach.admin.application.port.AdminMetricsRepository;
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -73,7 +77,43 @@ public class AdminMetricsRepositoryImpl implements AdminMetricsRepository {
                 averageScore == null ? BigDecimal.ZERO : averageScore,
                 aiCalls,
                 aiFailures,
+                0,
+                0,
+                0,
+                null,
                 activeUsersToday);
+    }
+
+    @Override
+    public AiUsage aiUsage(int rangeDays) {
+        Map<String, ModelTokens> byModel = new LinkedHashMap<>();
+        long[] totals = new long[2];
+        jdbcTemplate.query(
+                """
+                SELECT model,
+                       COALESCE(SUM(tokens_in), 0)::bigint AS tokens_in,
+                       COALESCE(SUM(tokens_out), 0)::bigint AS tokens_out
+                FROM ai_call_log
+                WHERE created_at >= now() - make_interval(days => ?)
+                GROUP BY model
+                """,
+                rs -> {
+                    long tokensIn = rs.getLong("tokens_in");
+                    long tokensOut = rs.getLong("tokens_out");
+                    byModel.put(rs.getString("model"), new ModelTokens(tokensIn, tokensOut));
+                    totals[0] += tokensIn;
+                    totals[1] += tokensOut;
+                },
+                rangeDays);
+        Integer ttftP95 = jdbcTemplate.queryForObject(
+                """
+                SELECT ROUND(COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY first_token_ms), 0))::int
+                FROM ai_call_log
+                WHERE first_token_ms IS NOT NULL AND created_at >= now() - make_interval(days => ?)
+                """,
+                Integer.class,
+                rangeDays);
+        return new AiUsage(totals[0], totals[1], ttftP95 == null ? null : ttftP95, byModel);
     }
 
     private long queryLong(String sql, Object... args) {

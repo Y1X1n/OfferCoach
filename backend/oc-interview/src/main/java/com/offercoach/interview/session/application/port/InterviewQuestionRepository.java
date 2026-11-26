@@ -26,4 +26,23 @@ public interface InterviewQuestionRepository {
     boolean markAnswered(long questionId);
 
     boolean markSkipped(long questionId);
+
+    /** 会话内已有的追问数量；追问上限为 2。 */
+    long countFollowUps(long sessionId);
+
+    /** 当前最大 seq；新追问使用 maxSeq + 1。 */
+    int maxSeq(long sessionId);
+
+    /**
+     * 追加一道追问；parentQuestionId 指向被追问的原题，source 固定 FOLLOW_UP。
+     */
+    long insertFollowUp(
+            long sessionId,
+            int seq,
+            String dimension,
+            String difficulty,
+            String text,
+            List<String> referencePoints,
+            String whyThisQuestion,
+            long parentQuestionId);
 }

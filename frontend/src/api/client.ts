@@ -68,6 +68,7 @@ export class ApiError extends Error {
   readonly status: number
   readonly details: Record<string, unknown>
   readonly requestId: string | null
+  readonly traceId: string | null
   readonly retryable: boolean
 
   constructor(init: {
@@ -76,6 +77,7 @@ export class ApiError extends Error {
     status: number
     details?: Record<string, unknown> | undefined
     requestId?: string | null | undefined
+    traceId?: string | null | undefined
     retryable?: boolean | undefined
   }) {
     super(init.message)
@@ -84,6 +86,7 @@ export class ApiError extends Error {
     this.status = init.status
     this.details = init.details ?? {}
     this.requestId = init.requestId ?? null
+    this.traceId = init.traceId ?? null
     this.retryable = init.retryable ?? (init.status >= 500 || init.status === 429)
   }
 }
@@ -92,9 +95,15 @@ export function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError
 }
 
+/**
+ * 面向用户的错误文案；服务端/网络错误追加请求编号，便于用户反馈时直接定位日志。
+ */
 export function errorMessage(value: unknown, fallback = '请求失败，请稍后重试'): string {
-  if (value instanceof Error && value.message) return value.message
-  return fallback
+  if (!(value instanceof Error) || !value.message) return fallback
+  if (value instanceof ApiError && value.requestId && (value.status === 0 || value.status >= 500)) {
+    return `${value.message}（请求编号 ${value.requestId}）`
+  }
+  return value.message
 }
 
 const DEFAULT_MESSAGES: Record<number, string> = {
@@ -164,13 +173,13 @@ export async function toApiError(res: Response): Promise<ApiError> {
     body.details && typeof body.details === 'object'
       ? (body.details as Record<string, unknown>)
       : {}
-  const requestId =
-    typeof body.requestId === 'string'
-      ? body.requestId
-      : typeof body.traceId === 'string'
-        ? body.traceId
-        : null
-  return new ApiError({ code, message, status: res.status, details, requestId })
+  const requestId = textOrNull(body.requestId) ?? textOrNull(res.headers.get('X-Request-Id'))
+  const traceId = textOrNull(body.traceId) ?? textOrNull(res.headers.get('X-Trace-Id'))
+  return new ApiError({ code, message, status: res.status, details, requestId, traceId })
+}
+
+function textOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null
 }
 
 export type QueryValue = string | number | boolean | null | undefined

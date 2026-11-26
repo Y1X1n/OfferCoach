@@ -6,6 +6,7 @@ import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.common.trace.TraceContext;
 import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
@@ -81,6 +82,7 @@ public class QuestionSpeechService {
         }
         String counterKey = RedisKeys.ttsPerQuestion(userId, questionId);
         boolean counted = enforceQuestionLimit(counterKey);
+        TraceContext.putSessionId(sessionId);
         try {
             AiToolGateway.AudioResult audio = toolGateway.speak(userId, text, voiceId, "wav");
             return new Speech(audio.audio(), audio.contentType());

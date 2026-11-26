@@ -174,6 +174,16 @@ public interface InterviewSessionMapper {
     @Update(
             """
             UPDATE interview_session
+            SET question_count = question_count + 1,
+                last_active_at = now(),
+                updated_at = now()
+            WHERE id = #{id} AND status = 'IN_PROGRESS'
+            """)
+    int incrementQuestionCount(@Param("id") long id);
+
+    @Update(
+            """
+            UPDATE interview_session
             SET answered_count = answered_count + 1,
                 current_seq = LEAST(current_seq + 1, question_count + 1),
                 last_active_at = now(),

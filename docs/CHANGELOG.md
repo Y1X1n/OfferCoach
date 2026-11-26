@@ -43,6 +43,17 @@
 - `InternalTokenFilter` 改为按容器**解码后**的 `servletPath` 判定 `/internal/**`，不再使用原始 `requestURI` 前缀；原始 URI 仍含 `%` 或 `;` 的内部请求直接返回 400。
 - 过滤器移入 Spring Security 链（`addFilterBefore(…, AuthorizationFilter)`），先过 `StrictHttpFirewall` 再判定；同时关闭 Boot 对它的独立 servlet filter 注册，避免重复执行。
 - 补 `InternalTokenFilterTest`（8 例：编码路径、路径参数、缺失/错误/正确令牌、未配置令牌 fail-closed、空 servletPath）。
+### v2.29（2026-11-26）——可观测性、运行诊断与账号自助
+
+- **日志/链路**：认证后写入 `userId` MDC；异步线程池增加 `MdcTaskDecorator`，报告 worker/看门狗使用 `JobTrace` 生成任务级 requestId；AI 工具服务与支付服务读取 `X-OC-Request-Id`/`X-OC-User-Id` 写入 MDC，跨服务日志可按请求串联；500 日志补 method/path。
+- **AI 调用关联**：`ai_call_log` 新增 `session_id/request_id/trace_id/prompt_version` 与索引；管理端 AI 日志支持按会话、模型、请求编号筛选，并展示关联字段。
+- **业务指标**：新增 `oc.ai.calls`、`oc.ai.latency`、`oc.report.generation` 计数器/计时器与 P95 直方图；报告、出题、评分与工具调用统一打点。
+- **管理端运行诊断**：新增只读端点与「运行诊断」页签，展示报告积压/最老等待/24h 失败/卡住会话/卡住评分，并支持按会话 ID 查看题目、回答、报告 attempts/last_error 与关联 AI 调用。
+- **成本看板与预算**：管理端概览新增 AI Token、估算成本与首字 P95；单价由 `oc.ai.pricing` 配置，未配置模型回退默认单价；新增每日全局 token 预算熔断 `oc.ai.daily-token-budget`（默认 0=不限），超限后业务自动走模板/启发式降级。
+- **前端诊断**：顶层 `onErrorCaptured` 兜底页 + 全局 `errorHandler`/`unhandledrejection`；5xx/网络错误文案追加请求编号，响应头 `X-Request-Id`/`X-Trace-Id` 作为兜底；报告轮询改为指数退避 + 页面隐藏暂停 + 慢任务提示，并支持浏览器完成提醒。
+- **账号自助**：新增 `POST /api/v1/users/me/delete`（密码确认、软删、清空联系方式、吊销全部登录态）与 `GET /api/v1/users/me/export`（资料、额度流水、简历/JD、会话、回答与报告 JSON）。
+- **产品能力**：新增单题追问（每场最多 2 次，计入题量、不额外扣额度，AI 不可用时确定性降级）；报告页新增分数趋势与弱项专项练习入口；平台降级时顶部提示 AI/工具能力状态。
+- 补 `TraceMdcFilterTest`、`UserMdcFilterTest`、`MdcTaskDecoratorTest`、`AccountDeletionServiceTest`、`FollowUpServiceTest`。
 
 ### v2.27（2026-11-17）——JD AI 每日限额与调用记账
 

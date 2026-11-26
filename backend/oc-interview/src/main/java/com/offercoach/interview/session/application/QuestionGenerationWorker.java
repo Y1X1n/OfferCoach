@@ -150,6 +150,8 @@ public class QuestionGenerationWorker {
                 0,
                 null,
                 (System.nanoTime() - startedAt) / 1_000_000,
+                null,
+                session.id(),
                 null);
         log.info(
                 "出题完成：sessionId={} count={} bank={} generated={}",

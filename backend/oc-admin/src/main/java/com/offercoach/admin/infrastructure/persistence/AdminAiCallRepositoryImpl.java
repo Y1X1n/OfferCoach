@@ -28,6 +28,10 @@ public class AdminAiCallRepositoryImpl implements AdminAiCallRepository {
             rs.getObject("first_token_ms", Integer.class),
             rs.getObject("latency_ms", Integer.class),
             rs.getString("error_code"),
+            rs.getObject("session_id", Long.class),
+            rs.getString("request_id"),
+            rs.getString("trace_id"),
+            rs.getString("prompt_version"),
             rs.getObject("created_at", OffsetDateTime.class));
 
     public AdminAiCallRepositoryImpl(JdbcTemplate jdbcTemplate) {
@@ -35,15 +39,24 @@ public class AdminAiCallRepositoryImpl implements AdminAiCallRepository {
     }
 
     @Override
-    public List<AiCall> search(String scene, String status, Long userId, int offset, int limit) {
-        WhereClause where = filter(scene, status, userId);
+    public List<AiCall> search(
+            String scene,
+            String status,
+            Long userId,
+            Long sessionId,
+            String model,
+            String requestId,
+            int offset,
+            int limit) {
+        WhereClause where = filter(scene, status, userId, sessionId, model, requestId);
         List<Object> args = new ArrayList<>(where.args());
         args.add(limit);
         args.add(offset);
         return jdbcTemplate.query(
                 """
                 SELECT id, user_id, scene, provider, model, status, tokens_in, tokens_out,
-                       first_token_ms, latency_ms, error_code, created_at
+                       first_token_ms, latency_ms, error_code, session_id, request_id,
+                       trace_id, prompt_version, created_at
                 FROM ai_call_log
                 """
                         + where.sql() + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
@@ -52,8 +65,8 @@ public class AdminAiCallRepositoryImpl implements AdminAiCallRepository {
     }
 
     @Override
-    public long count(String scene, String status, Long userId) {
-        WhereClause where = filter(scene, status, userId);
+    public long count(String scene, String status, Long userId, Long sessionId, String model, String requestId) {
+        WhereClause where = filter(scene, status, userId, sessionId, model, requestId);
         Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM ai_call_log" + where.sql(),
                 Long.class,
@@ -61,7 +74,8 @@ public class AdminAiCallRepositoryImpl implements AdminAiCallRepository {
         return count == null ? 0 : count;
     }
 
-    private static WhereClause filter(String scene, String status, Long userId) {
+    private static WhereClause filter(
+            String scene, String status, Long userId, Long sessionId, String model, String requestId) {
         StringBuilder sql = new StringBuilder(" WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
         if (scene != null) {
@@ -75,6 +89,18 @@ public class AdminAiCallRepositoryImpl implements AdminAiCallRepository {
         if (userId != null) {
             sql.append(" AND user_id = ?");
             args.add(userId);
+        }
+        if (sessionId != null) {
+            sql.append(" AND session_id = ?");
+            args.add(sessionId);
+        }
+        if (model != null) {
+            sql.append(" AND model = ?");
+            args.add(model);
+        }
+        if (requestId != null) {
+            sql.append(" AND request_id = ?");
+            args.add(requestId);
         }
         return new WhereClause(sql.toString(), args);
     }

@@ -33,7 +33,9 @@ public class JwtKeyProvider {
     private static final Logger log = LoggerFactory.getLogger(JwtKeyProvider.class);
     private static final String DEFAULT_KEY_ID = "oc-local";
     private static final String PROD_PROFILE = "prod";
-    private static final int KEY_SIZE = 2048;
+    /** RS256 固定算法；集中为常量，避免散落的算法字面量。 */
+    private static final String KEY_ALGORITHM = "RSA";
+    private static final int KEY_SIZE = 4096;
 
     private final RSAPublicKey publicKey;
     private final RSAPrivateKey privateKey;
@@ -82,7 +84,7 @@ public class JwtKeyProvider {
 
     private static KeyPair generateKeyPair() {
         try {
-            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            KeyPairGenerator generator = KeyPairGenerator.getInstance(KEY_ALGORITHM);
             generator.initialize(KEY_SIZE);
             return generator.generateKeyPair();
         } catch (GeneralSecurityException ex) {
@@ -93,7 +95,7 @@ public class JwtKeyProvider {
     private static RSAPrivateKey readPrivateKey(String path) {
         byte[] der = decodePem(readPem(path));
         try {
-            return (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
+            return (RSAPrivateKey) KeyFactory.getInstance(KEY_ALGORITHM).generatePrivate(new PKCS8EncodedKeySpec(der));
         } catch (GeneralSecurityException | ClassCastException ex) {
             throw new IllegalStateException("JWT 私钥不是合法的 PKCS#8 RSA 私钥：" + path, ex);
         }
@@ -102,7 +104,7 @@ public class JwtKeyProvider {
     private static RSAPublicKey readPublicKey(String path) {
         byte[] der = decodePem(readPem(path));
         try {
-            return (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
+            return (RSAPublicKey) KeyFactory.getInstance(KEY_ALGORITHM).generatePublic(new X509EncodedKeySpec(der));
         } catch (GeneralSecurityException | ClassCastException ex) {
             throw new IllegalStateException("JWT 公钥不是合法的 X.509 RSA 公钥：" + path, ex);
         }

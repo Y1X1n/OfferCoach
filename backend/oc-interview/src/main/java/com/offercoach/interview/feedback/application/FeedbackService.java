@@ -138,6 +138,8 @@ public class FeedbackService {
                     0,
                     null,
                     (System.nanoTime() - startedAt) / 1_000_000,
+                    null,
+                    session.id(),
                     null);
         }
         log.info("评分已落库：answerId={} overall={}", answerId, saved.overallScore());

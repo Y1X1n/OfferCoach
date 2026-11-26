@@ -126,6 +126,7 @@ describe('AI 配置', () => {
 
 describe('用户管理操作', () => {
   it('按契约路径提交角色、解锁与重置密码', async () => {
+    const resetSecret = `Pw-${crypto.randomUUID()}`
     fetchMock
       .mockResolvedValueOnce(jsonResponse({}))
       .mockResolvedValueOnce(jsonResponse({}))
@@ -133,7 +134,7 @@ describe('用户管理操作', () => {
 
     await adminApi.updateUserRole('u 1', 'SUPPORT')
     await adminApi.unlockUser('u 1')
-    await adminApi.resetUserPassword('u 1', 'Passw0rd!')
+    await adminApi.resetUserPassword('u 1', resetSecret)
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/admin/users/u%201/role')
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('PATCH')
@@ -145,7 +146,7 @@ describe('用户管理操作', () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/v1/admin/users/u%201/reset-password')
     expect(fetchMock.mock.calls[2]?.[1]?.method).toBe('POST')
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
-      password: 'Passw0rd!',
+      password: resetSecret,
     })
   })
 })

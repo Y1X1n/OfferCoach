@@ -130,6 +130,11 @@ public class InterviewSessionRepositoryImpl implements InterviewSessionRepositor
     }
 
     @Override
+    public boolean incrementQuestionCount(long id) {
+        return sessionMapper.incrementQuestionCount(id) > 0;
+    }
+
+    @Override
     public boolean advanceAfterAnswer(long id) {
         return sessionMapper.advanceAfterAnswer(id) > 0;
     }

@@ -38,9 +38,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
         try {
             chain.doFilter(request, response);
         } finally {
-            MDC.remove(TraceContext.REQUEST_ID);
-            MDC.remove(TraceContext.TRACE_ID);
-            MDC.remove(TraceContext.USER_ID);
+            TraceContext.clear();
         }
     }
 

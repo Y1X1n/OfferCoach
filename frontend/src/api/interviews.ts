@@ -184,6 +184,25 @@ export async function getQuestions(interviewId: string): Promise<Question[]> {
   return toPage<QuestionDto>(raw).items.map(mapQuestion)
 }
 
+export interface FollowUpQuestion {
+  id: string
+  seq: number
+  text: string
+  dimension: QuestionDimension
+  difficulty: Difficulty
+  referencePoints: string[]
+}
+
+export async function requestFollowUp(
+  interviewId: string,
+  questionId: string,
+): Promise<FollowUpQuestion> {
+  return request<FollowUpQuestion>(
+    `/interviews/${encodeURIComponent(interviewId)}/questions/${encodeURIComponent(questionId)}/follow-up`,
+    { method: 'POST' },
+  )
+}
+
 export async function skipQuestion(interviewId: string, questionId: string): Promise<void> {
   await request<void>(
     `/interviews/${encodeURIComponent(interviewId)}/questions/${encodeURIComponent(questionId)}/skip`,
@@ -298,10 +317,7 @@ function mapFeedback(res: FeedbackDto, answerId: string): Feedback {
   }
 }
 
-export async function getAnswerFeedback(
-  interviewId: string,
-  answerId: string,
-): Promise<Feedback> {
+export async function getAnswerFeedback(interviewId: string, answerId: string): Promise<Feedback> {
   const res = await request<FeedbackDto>(
     `/interviews/${encodeURIComponent(interviewId)}/answers/${encodeURIComponent(answerId)}/feedback`,
   )

@@ -237,11 +237,16 @@ public class AiToolGateway {
         } catch (IllegalArgumentException exception) {
             throw new ToolException(ToolErrorKind.NOT_CONFIGURED, "AI 工具服务地址不合法：" + path, exception);
         }
-        return HttpRequest.newBuilder()
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(uri)
                 .header(properties.getInternalHeader(), properties.getInternalToken())
                 .header(properties.getUserIdHeader(), Long.toString(userId))
                 .header(properties.getRequestIdHeader(), currentRequestId());
+        String sessionId = TraceContext.sessionId();
+        if (sessionId != null && !sessionId.isBlank()) {
+            builder.header(properties.getSessionIdHeader(), sessionId);
+        }
+        return builder;
     }
 
     /**

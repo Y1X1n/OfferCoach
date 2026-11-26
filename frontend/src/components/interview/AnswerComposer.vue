@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ArrowRight, FileText, Send, SkipForward, Timer } from 'lucide-vue-next'
+import {
+  ArrowRight,
+  FileText,
+  MessageCircleQuestion,
+  Send,
+  SkipForward,
+  Timer,
+} from 'lucide-vue-next'
 import type { QuestionStatus } from '@/types'
 import Button from '@/components/ui/Button.vue'
 import Textarea from '@/components/ui/Textarea.vue'
@@ -15,6 +22,8 @@ defineProps<{
   currentStatus: QuestionStatus
   isLastQuestion: boolean
   canAdvance: boolean
+  canFollowUp?: boolean
+  followUpLoading?: boolean
   streamState: 'idle' | 'connecting' | 'streaming' | 'done' | 'error'
   hasReport: boolean
   voiceTranscribing?: boolean
@@ -25,6 +34,7 @@ const emit = defineEmits<{
   submit: []
   skip: []
   next: []
+  'follow-up': []
   'open-report': []
   'voice-recorded': [audio: Blob, durationMs: number]
   'voice-error': [message: string]
@@ -114,7 +124,17 @@ function onVoiceError(message: string): void {
             <Send class="h-4 w-4" aria-hidden="true" />
             提交回答
           </Button>
-          <Button v-else :disabled="!canAdvance" @click="emit('next')">
+          <Button
+            v-if="isAnswered && canFollowUp"
+            variant="outline"
+            size="sm"
+            :loading="followUpLoading ?? false"
+            @click="emit('follow-up')"
+          >
+            <MessageCircleQuestion class="h-3.5 w-3.5" aria-hidden="true" />
+            追问
+          </Button>
+          <Button v-if="isAnswered" :disabled="!canAdvance" @click="emit('next')">
             {{ isLastQuestion ? '生成报告' : '下一题' }}
             <ArrowRight class="h-4 w-4" aria-hidden="true" />
           </Button>

@@ -52,8 +52,13 @@ oc:
     allow-private-hosts: ${AI_ALLOW_PRIVATE_HOSTS:false}
     tools:
       internal-token: ${OC_AI_INTERNAL_TOKEN:}
+      trace-mdc: true
       search-timeout: ${AI_SEARCH_TIMEOUT:60s}
       search-max-concurrency: ${AI_SEARCH_MAX_CONCURRENCY:20}
       search-max-count: ${AI_SEARCH_MAX_COUNT:10}
       # 日志由工具服务写入，oc-app 侧关闭。
       call-log-enabled: true
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId:-}] [%X{userId:-}] [%X{sessionId:-}] %logger{36} - %msg%n"

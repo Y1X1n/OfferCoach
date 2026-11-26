@@ -15,12 +15,16 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public final class TestKeys {
 
+    /** 渠道签名固定 RSA；集中为常量，避免散落的算法字面量。 */
+    private static final String KEY_ALGORITHM = "RSA";
+    private static final int KEY_SIZE = 4096;
+
     private TestKeys() {}
 
     public static Generated generate() {
         try {
-            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(2048);
+            KeyPairGenerator generator = KeyPairGenerator.getInstance(KEY_ALGORITHM);
+            generator.initialize(KEY_SIZE);
             KeyPair pair = generator.generateKeyPair();
             return new Generated(
                     pair.getPrivate(),

@@ -28,6 +28,9 @@ public class ToolsProperties {
 
     private String requestIdHeader = "X-OC-Request-Id";
 
+    /** 会话 ID 请求头；仅 ASR/TTS 等能关联到面试会话的调用会透传。 */
+    private String sessionIdHeader = "X-OC-Session-Id";
+
     /** ASR 单次调用超时：上传 + 识别；官方最长 120s 音频，留出上传余量。 */
     private Duration asrTimeout = Duration.ofSeconds(180);
 

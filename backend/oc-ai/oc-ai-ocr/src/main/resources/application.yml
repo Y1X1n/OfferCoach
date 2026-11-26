@@ -51,6 +51,11 @@ oc:
     allow-private-hosts: ${AI_ALLOW_PRIVATE_HOSTS:false}
     tools:
       internal-token: ${OC_AI_INTERNAL_TOKEN:}
+      trace-mdc: true
       ocr-timeout: ${AI_OCR_TIMEOUT:200s}
       ocr-max-concurrency: ${AI_OCR_MAX_CONCURRENCY:8}
       call-log-enabled: true
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId:-}] [%X{userId:-}] [%X{sessionId:-}] %logger{36} - %msg%n"

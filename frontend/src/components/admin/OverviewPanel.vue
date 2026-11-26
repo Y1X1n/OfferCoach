@@ -5,10 +5,12 @@ import {
   BarChart3,
   CircleAlert,
   ClipboardCheck,
+  Coins,
   FileText,
   MessagesSquare,
   RefreshCw,
   Sparkles,
+  Timer,
   UserPlus,
   Users,
 } from 'lucide-vue-next'
@@ -54,6 +56,12 @@ const errorRate = computed(() => {
   return `${((data.aiErrors / data.aiCalls) * 100).toFixed(1)}%`
 })
 
+function compactTokens(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
+  return String(value)
+}
+
 const metrics = computed<OverviewMetric[]>(() => {
   const data = overview.value
   if (!data) return []
@@ -85,6 +93,18 @@ const metrics = computed<OverviewMetric[]>(() => {
       value: String(data.aiErrors),
       hint: `错误率 ${errorRate.value}`,
       icon: CircleAlert,
+    },
+    {
+      label: 'AI 成本',
+      value: `¥${(data.aiCostMicros / 1_000_000).toFixed(2)}`,
+      hint: `Token ${compactTokens(data.aiTokensIn)} / ${compactTokens(data.aiTokensOut)}`,
+      icon: Coins,
+    },
+    {
+      label: '首字 P95',
+      value: data.aiTtftP95Ms === null ? '—' : `${data.aiTtftP95Ms}ms`,
+      hint: '区间内模型首字延迟',
+      icon: Timer,
     },
     {
       label: '今日活跃',

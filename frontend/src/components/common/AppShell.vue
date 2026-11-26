@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { ChevronLeft, LogOut, Menu, Moon, Settings, Sun, X } from 'lucide-vue-next'
+import { ChevronLeft, LogOut, Menu, Moon, Settings, Sun, TriangleAlert, X } from 'lucide-vue-next'
 import {
   DialogClose,
   DialogContent,
@@ -14,6 +14,7 @@ import {
 import SidebarContent from '@/components/common/SidebarContent.vue'
 import QuotaBadge from '@/components/common/QuotaBadge.vue'
 import { adminNavItem, navItems, bottomNavItems } from '@/components/common/navigation'
+import { getPlatformStatus, type PlatformStatus, type PlatformToolStatus } from '@/api/platform'
 import { useAppStore } from '@/stores/app'
 import { useTheme } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
@@ -27,6 +28,37 @@ const { toast } = useToast()
 const mobileOpen = ref(false)
 const userMenuOpen = ref(false)
 const userMenuRef = ref<HTMLElement | null>(null)
+const platformStatus = ref<PlatformStatus | null>(null)
+const statusDismissed = ref(false)
+
+const toolLabels: Array<[keyof PlatformToolStatus, string]> = [
+  ['asrEnabled', '语音转写'],
+  ['ttsEnabled', '题目朗读'],
+  ['ocrEnabled', '图片识别'],
+  ['searchEnabled', '岗位搜索'],
+  ['fetchEnabled', '链接抓取'],
+]
+
+const degradedMessage = computed(() => {
+  const status = platformStatus.value
+  if (!status?.degraded || statusDismissed.value) return ''
+  if (!status.aiEnabled) {
+    return 'AI 能力当前已关闭：解析、出题与评分将使用模板或启发式结果。'
+  }
+  const disabled = toolLabels.filter(([key]) => !status.tools[key]).map(([, label]) => label)
+  if (disabled.length > 0) {
+    return `未配置模型密钥，且以下能力已关闭：${disabled.join('、')}。`
+  }
+  return '未配置模型密钥：解析、出题与评分将使用模板或启发式结果，结果仍可正常保存。'
+})
+
+async function loadPlatformStatus(): Promise<void> {
+  try {
+    platformStatus.value = await getPlatformStatus()
+  } catch {
+    // 状态接口失败不阻塞主流程，也不弹错。
+  }
+}
 
 const pageTitle = computed(() => {
   const metaTitle = route.meta.title
@@ -68,6 +100,7 @@ function onDocumentKeydown(event: KeyboardEvent) {
 onMounted(() => {
   document.addEventListener('mousedown', onDocumentClick)
   document.addEventListener('keydown', onDocumentKeydown)
+  void loadPlatformStatus()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocumentClick)
@@ -177,6 +210,23 @@ watch(
             </div>
           </div>
         </header>
+
+        <div
+          v-if="degradedMessage"
+          class="flex items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-xs text-warning-strong print:hidden"
+          role="status"
+        >
+          <TriangleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <p class="min-w-0 flex-1">{{ degradedMessage }}</p>
+          <button
+            type="button"
+            class="-m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded text-warning-strong hover:bg-warning/20"
+            aria-label="关闭降级提示"
+            @click="statusDismissed = true"
+          >
+            <X class="h-3.5 w-3.5" />
+          </button>
+        </div>
 
         <main
           :class="[

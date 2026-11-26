@@ -50,6 +50,8 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const submitKeys = new Map<string, string>()
   const durations = reactive<Record<string, number>>({})
   const voiceTranscribing = ref(false)
+  const followUpLoading = ref(false)
+  const followUpError = ref('')
 
   let timerId: number | null = null
   let draftTimer: number | null = null
@@ -75,12 +77,8 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     () => session.value?.status ?? 'MISSING',
   )
   const isPaused = computed(() => status.value === 'PAUSED')
-  const isPreparing = computed(
-    () => status.value === 'CREATED' || status.value === 'PREPARING',
-  )
-  const isSessionActive = computed(
-    () => status.value === 'IN_PROGRESS' || status.value === 'READY',
-  )
+  const isPreparing = computed(() => status.value === 'CREATED' || status.value === 'PREPARING')
+  const isSessionActive = computed(() => status.value === 'IN_PROGRESS' || status.value === 'READY')
   const isFinished = computed(
     () =>
       status.value === 'FINISHED' ||
@@ -94,9 +92,9 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const completedReportId = computed(() => session.value?.reportId ?? null)
 
   const totalQuestions = computed(() => {
-  const configured = session.value?.config.questionCount ?? 0
-  return configured > 0 ? configured : questions.value.length
-})
+    const configured = session.value?.config.questionCount ?? 0
+    return configured > 0 ? configured : questions.value.length
+  })
   const answeredCount = computed(
     () => questions.value.filter((question) => question.status === 'ANSWERED').length,
   )
@@ -118,9 +116,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   const currentQuestionId = computed(() => currentQuestion.value?.id ?? '')
   const currentStatus = computed<QuestionStatus>(() => currentQuestion.value?.status ?? 'PENDING')
   const isAnswered = computed(() => currentStatus.value === 'ANSWERED')
-  const isLastQuestion = computed(
-  () => (currentQuestion.value?.seq ?? 0) >= totalQuestions.value,
-)
+  const isLastQuestion = computed(() => (currentQuestion.value?.seq ?? 0) >= totalQuestions.value)
   const answerDurationText = computed(() => {
     const questionId = currentQuestionId.value
     const duration = questionId ? durations[questionId] : undefined
@@ -135,6 +131,9 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   )
   const canAdvance = computed(
     () => isAnswered.value && (streamState.value === 'done' || streamState.value === 'error'),
+  )
+  const canFollowUp = computed(
+    () => isAnswered.value && streamState.value === 'done' && !followUpLoading.value,
   )
   const timerVisible = computed(
     () =>
@@ -156,12 +155,19 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     return toValue(sessionId)
   }
 
-  const { speaking, speechError, speechVoice, toggleSpeech, stopSpeech, maybeAutoRead, disposeSpeech } =
-    useInterviewSpeech({
-      currentQuestion: () => currentQuestion.value,
-      sessionKey,
-      canAutoRead: () => isSessionActive.value && !isAnswered.value,
-    })
+  const {
+    speaking,
+    speechError,
+    speechVoice,
+    toggleSpeech,
+    stopSpeech,
+    maybeAutoRead,
+    disposeSpeech,
+  } = useInterviewSpeech({
+    currentQuestion: () => currentQuestion.value,
+    sessionKey,
+    canAutoRead: () => isSessionActive.value && !isAnswered.value,
+  })
 
   function draftKey(questionId: string): string {
     return `${DRAFT_PREFIX}${sessionKey()}_${questionId}`
@@ -481,17 +487,19 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       toast('回答至少 10 个字才能提交', 'warning')
       return
     }
-    await persistAnswer(question, () =>
-      interviewsApi.submitAnswer(
-        sessionKey(),
-        {
-          questionId: question.id,
-          answerText: text,
-          durationMs: Math.max(0, Date.now() - questionStartedAt.value),
-          inputMode: 'TEXT',
-        },
-        submitKeyOf(question.id),
-      ),
+    await persistAnswer(
+      question,
+      () =>
+        interviewsApi.submitAnswer(
+          sessionKey(),
+          {
+            questionId: question.id,
+            answerText: text,
+            durationMs: Math.max(0, Date.now() - questionStartedAt.value),
+            inputMode: 'TEXT',
+          },
+          submitKeyOf(question.id),
+        ),
       Math.max(0, Date.now() - questionStartedAt.value),
     )
   }
@@ -628,6 +636,45 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     if (index < 0) return
     flushDraft()
     currentIndex.value = index
+  }
+
+  /**
+   * 对当前已完成的回答发起追问；追问追加到题尾并计入本场题量，不额外扣额度。
+   */
+  async function requestFollowUp(): Promise<void> {
+    const question = currentQuestion.value
+    if (!question || followUpLoading.value) return
+    if (!isAnswered.value || streamState.value !== 'done') {
+      toast('请等待本题反馈完成后再追问', 'warning')
+      return
+    }
+    followUpLoading.value = true
+    followUpError.value = ''
+    try {
+      const followUp = await interviewsApi.requestFollowUp(sessionKey(), question.id)
+      questions.value.push({
+        id: followUp.id,
+        seq: followUp.seq,
+        text: followUp.text,
+        dimension: followUp.dimension,
+        difficulty: followUp.difficulty,
+        referencePoints: followUp.referencePoints,
+        whyThisQuestion: '',
+        status: 'PENDING',
+        source: 'FOLLOW_UP',
+      })
+      if (session.value) {
+        session.value.config.questionCount += 1
+        session.value.questionCount = (session.value.questionCount ?? 0) + 1
+      }
+      currentIndex.value = questions.value.length - 1
+      toast('已生成追问', 'success', '追问计入本场题量，不额外扣额度')
+    } catch (cause) {
+      followUpError.value = errorMessage(cause, '追问生成失败')
+      toast('追问生成失败', 'error', followUpError.value)
+    } finally {
+      followUpLoading.value = false
+    }
   }
 
   function nextQuestion(): void {
@@ -814,6 +861,10 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     feedbackRef,
     canSubmit,
     canAdvance,
+    canFollowUp,
+    followUpLoading,
+    followUpError,
+    requestFollowUp,
     timerVisible,
     reload,
     submitAnswer,

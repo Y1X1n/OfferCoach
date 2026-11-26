@@ -8,7 +8,15 @@ import java.util.List;
  */
 public interface AdminAiCallRepository {
 
-    List<AiCall> search(String scene, String status, Long userId, int offset, int limit);
+    List<AiCall> search(
+            String scene,
+            String status,
+            Long userId,
+            Long sessionId,
+            String model,
+            String requestId,
+            int offset,
+            int limit);
 
-    long count(String scene, String status, Long userId);
+    long count(String scene, String status, Long userId, Long sessionId, String model, String requestId);
 }

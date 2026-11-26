@@ -71,6 +71,43 @@ public class InterviewQuestionRepositoryImpl implements InterviewQuestionReposit
     }
 
     @Override
+    public long countFollowUps(long sessionId) {
+        return questionMapper.countFollowUps(sessionId);
+    }
+
+    @Override
+    public int maxSeq(long sessionId) {
+        return questionMapper.maxSeq(sessionId);
+    }
+
+    @Override
+    public long insertFollowUp(
+            long sessionId,
+            int seq,
+            String dimension,
+            String difficulty,
+            String text,
+            List<String> referencePoints,
+            String whyThisQuestion,
+            long parentQuestionId) {
+        InterviewQuestionDO row = new InterviewQuestionDO();
+        row.setSessionId(sessionId);
+        row.setSeq(seq);
+        row.setDimension(dimension);
+        row.setDifficulty(difficulty);
+        row.setQuestionText(text);
+        row.setSource("FOLLOW_UP");
+        row.setParentQuestionId(parentQuestionId);
+        row.setReferencePointsJson(jsonCodec.write(referencePoints));
+        row.setContextJson("{}");
+        row.setWhyThisQuestion(whyThisQuestion);
+        row.setRetrievalJson("{}");
+        row.setStatus("PENDING");
+        questionMapper.insert(row);
+        return row.getId() == null ? 0 : row.getId();
+    }
+
+    @Override
     public boolean markAsked(long sessionId, int seq) {
         return questionMapper.markAsked(sessionId, seq) > 0;
     }

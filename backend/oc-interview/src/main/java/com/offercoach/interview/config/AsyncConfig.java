@@ -27,6 +27,7 @@ public class AsyncConfig {
         executor.setMaxPoolSize(8);
         executor.setQueueCapacity(64);
         executor.setThreadNamePrefix("oc-sse-");
+        executor.setTaskDecorator(new MdcTaskDecorator());
         executor.initialize();
         return executor;
     }
@@ -41,6 +42,7 @@ public class AsyncConfig {
         executor.setMaxPoolSize(12);
         executor.setQueueCapacity(128);
         executor.setThreadNamePrefix("oc-ai-");
+        executor.setTaskDecorator(new MdcTaskDecorator());
         executor.initialize();
         return executor;
     }

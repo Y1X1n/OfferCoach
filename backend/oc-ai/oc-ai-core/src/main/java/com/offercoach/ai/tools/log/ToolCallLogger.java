@@ -1,7 +1,11 @@
 package com.offercoach.ai.tools.log;
 
+import com.offercoach.common.trace.TraceContext;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -19,9 +23,16 @@ public class ToolCallLogger {
     private static final Logger log = LoggerFactory.getLogger(ToolCallLogger.class);
 
     private final JdbcTemplate jdbcTemplate;
+    private final MeterRegistry registry;
 
     public ToolCallLogger(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, null);
+    }
+
+    @Autowired
+    public ToolCallLogger(JdbcTemplate jdbcTemplate, MeterRegistry registry) {
         this.jdbcTemplate = jdbcTemplate;
+        this.registry = registry;
     }
 
     public void success(Long userId, String scene, String model, long latencyMs, Integer tokensIn, Integer tokensOut) {
@@ -45,13 +56,15 @@ public class ToolCallLogger {
             Integer tokensOut,
             long latencyMs,
             String errorCode) {
+        recordMetrics(scene, status, latencyMs);
         try {
             jdbcTemplate.update(
                     """
                     INSERT INTO ai_call_log
                         (user_id, scene, provider, model, status, tokens_in, tokens_out,
-                         first_token_ms, latency_ms, error_code, created_at)
-                    VALUES (?, ?, 'deepseek-tools', ?, ?, ?, ?, NULL, ?, ?, now())
+                         first_token_ms, latency_ms, error_code, request_id, trace_id,
+                         session_id, created_at)
+                    VALUES (?, ?, 'deepseek-tools', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, now())
                     """,
                     userId == null || userId <= 0 ? null : userId,
                     scene,
@@ -60,10 +73,37 @@ public class ToolCallLogger {
                     tokensIn,
                     tokensOut,
                     Math.toIntExact(Math.min(Integer.MAX_VALUE, Math.max(0, latencyMs))),
-                    errorCode);
+                    errorCode,
+                    TraceContext.requestId(),
+                    TraceContext.traceId(),
+                    sessionId());
         } catch (RuntimeException exception) {
             log.warn(
                     "工具调用日志写入失败：scene={} reason={}", scene, exception.getClass().getSimpleName());
+        }
+    }
+
+    private void recordMetrics(String scene, String status, long latencyMs) {
+        if (registry == null) {
+            return;
+        }
+        String safeScene = scene == null || scene.isBlank() ? "unknown" : scene;
+        String safeStatus = status == null || status.isBlank() ? "unknown" : status;
+        registry.counter("oc.ai.calls", "provider", "deepseek-tools", "scene", safeScene, "status", safeStatus)
+                .increment();
+        registry.timer("oc.ai.latency", "provider", "deepseek-tools", "scene", safeScene, "status", safeStatus)
+                .record(Duration.ofMillis(Math.max(0, latencyMs)));
+    }
+
+    private static Long sessionId() {
+        String value = TraceContext.sessionId();
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException exception) {
+            return null;
         }
     }
 }

@@ -1,0 +1,6 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        # 本地排障额外开放 metrics/loggers；生产只走 application.yml 的 health,info,prometheus。
+        include: health,info,prometheus,metrics,loggers

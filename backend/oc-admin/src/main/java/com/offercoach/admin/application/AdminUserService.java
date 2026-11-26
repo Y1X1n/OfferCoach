@@ -41,7 +41,7 @@ public class AdminUserService {
     private static final String ACTION_STATUS = "USER_STATUS_UPDATE";
     private static final String ACTION_ROLE = "USER_ROLE_UPDATE";
     private static final String ACTION_UNLOCK = "USER_UNLOCK";
-    private static final String ACTION_PASSWORD = "USER_PASSWORD_RESET";
+    private static final String ACTION_AUTH_RESET = "USER_AUTH_RESET";
     private static final String ACTION_QUOTA = "USER_QUOTA_ADJUST";
     private static final String TARGET_USER = "USER";
     private static final String PLAN_FREE = "FREE";
@@ -179,7 +179,7 @@ public class AdminUserService {
         userRepository.unlock(userId);
         clearLoginFailures(before.email());
         revokeSessions(userId);
-        auditLogger.log(actorId, ACTION_PASSWORD, TARGET_USER, Long.toString(userId), null, null);
+        auditLogger.log(actorId, ACTION_AUTH_RESET, TARGET_USER, Long.toString(userId), null, null);
     }
 
     private void clearLoginFailures(String email) {

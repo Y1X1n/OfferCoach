@@ -52,6 +52,9 @@ public interface InterviewSessionRepository {
 
     void touch(long id);
 
+    /** 追加追问后同步题量，保证进度与报告聚合口径一致。 */
+    boolean incrementQuestionCount(long id);
+
     boolean advanceAfterAnswer(long id);
 
     boolean advanceAfterSkip(long id);

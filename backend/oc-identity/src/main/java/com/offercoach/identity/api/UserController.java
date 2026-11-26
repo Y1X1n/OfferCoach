@@ -1,16 +1,21 @@
 package com.offercoach.identity.api;
 
+import com.offercoach.identity.api.dto.DeleteAccountRequest;
 import com.offercoach.identity.api.dto.InviteProfileResponse;
 import com.offercoach.identity.api.dto.MeResponse;
 import com.offercoach.identity.api.dto.UpdateMeRequest;
+import com.offercoach.identity.application.AccountDeletionService;
 import com.offercoach.identity.application.UserService;
 import com.offercoach.identity.application.invite.InviteService;
 import com.offercoach.identity.security.CurrentUser;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -22,11 +27,17 @@ public class UserController {
 
     private final UserService userService;
     private final InviteService inviteService;
+    private final AccountDeletionService accountDeletionService;
     private final CurrentUser currentUser;
 
-    public UserController(UserService userService, InviteService inviteService, CurrentUser currentUser) {
+    public UserController(
+            UserService userService,
+            InviteService inviteService,
+            AccountDeletionService accountDeletionService,
+            CurrentUser currentUser) {
         this.userService = userService;
         this.inviteService = inviteService;
+        this.accountDeletionService = accountDeletionService;
         this.currentUser = currentUser;
     }
 
@@ -62,6 +73,15 @@ public class UserController {
                 request.timezone(),
                 request.avatarUrl(),
                 request.allowRawResumeToLlm()));
+    }
+
+    /**
+     * 注销当前账号：校验密码后软删、清空联系方式并吊销全部登录态。
+     */
+    @PostMapping("/me/delete")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@Valid @RequestBody DeleteAccountRequest request) {
+        accountDeletionService.delete(currentUser.userId(), request.password());
     }
 
     private MeResponse toResponse(UserService.UserProfile profile) {

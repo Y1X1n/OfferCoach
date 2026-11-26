@@ -1,24 +1,38 @@
 #!/usr/bin/env python3
 """生产冒烟：邀请注册、验证码、奖励与运行时策略。只读取服务器 600 权限凭据文件。"""
+import http.client
 import json
 import os
-import random
 import re
 import secrets
 import string
 import sys
 import time
-import urllib.error
-import urllib.request
+from pathlib import Path
+from urllib.parse import urlparse
 
-BASE = os.environ.get("BASE_URL", "http://127.0.0.1:8081").rstrip("/") + "/api/v1"
+BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:8081").rstrip("/")
+parsed_base = urlparse(BASE_URL)
+if parsed_base.scheme not in {"http", "https"} or not parsed_base.hostname:
+    raise SystemExit("BASE_URL 必须是 http(s) 且包含主机名")
+allowed_hosts = {
+    item.strip().lower()
+    for item in os.environ.get("SMOKE_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+    if item.strip()
+}
+if parsed_base.hostname.lower() not in allowed_hosts:
+    raise SystemExit("BASE_URL 主机不在 SMOKE_ALLOWED_HOSTS 白名单内")
+BASE_PATH = (parsed_base.path.rstrip("/") if parsed_base.path else "") + "/api/v1"
 PASSWORD = os.environ.get("SMOKE_PASSWORD") or f"Smoke#{secrets.token_hex(4)}a1"
 
 
-def credentials(path):
+def read_credentials(path):
+    resolved = Path(path).expanduser().resolve(strict=True)
+    if not resolved.is_file():
+        raise SystemExit("凭据路径必须是普通文件")
     values = {}
     pattern = re.compile(r"^\s*([A-Za-z0-9_]+)\s*[:=]\s*(.*)$")
-    with open(path, encoding="utf-8") as handle:
+    with resolved.open(encoding="utf-8") as handle:
         for line in handle:
             match = pattern.match(line)
             if match:
@@ -28,22 +42,26 @@ def credentials(path):
 
 def call(method, path, body=None, token=None, device=None):
     data = json.dumps(body).encode() if body is not None else None
-    request = urllib.request.Request(BASE + path, data=data, method=method)
-    request.add_header("Content-Type", "application/json")
+    headers = {"Content-Type": "application/json"}
     if token:
-        request.add_header("Authorization", "Bearer " + token)
+        headers["Authorization"] = "Bearer " + token
     if device:
-        request.add_header("X-Device-Id", device)
+        headers["X-Device-Id"] = device
+    connection_cls = (
+        http.client.HTTPSConnection if parsed_base.scheme == "https" else http.client.HTTPConnection
+    )
+    connection = connection_cls(parsed_base.hostname, parsed_base.port, timeout=25)
     try:
-        with urllib.request.urlopen(request, timeout=25) as response:
-            text = response.read().decode()
-            return response.status, json.loads(text) if text else None
-    except urllib.error.HTTPError as error:
-        text = error.read().decode()
+        connection.request(method, BASE_PATH + path, body=data, headers=headers)
+        response = connection.getresponse()
+        text = response.read().decode()
         try:
-            return error.code, json.loads(text)
+            payload = json.loads(text) if text else None
         except json.JSONDecodeError:
-            return error.code, {"raw": text[:200]}
+            payload = {"raw": text[:200]} if text else None
+        return response.status, payload
+    finally:
+        connection.close()
 
 
 def login(email, password):
@@ -82,7 +100,7 @@ def pause():
 
 
 def random_email(tag):
-    suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    suffix = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(8))
     return f"smoke-{tag}-{suffix}@offercoach.dev"
 
 
@@ -113,7 +131,7 @@ def main():
             failures.append(name)
             print(f"FAIL {name} {detail}")
 
-    admin = credentials(os.environ["ADMIN_CREDENTIALS_FILE"])
+    admin = read_credentials(os.environ["ADMIN_CREDENTIALS_FILE"])
     admin_token = login(admin["email"], admin["password"])
 
     status, policy = call("GET", "/auth/registration-policy")
@@ -198,7 +216,7 @@ def main():
     check("registration reopened", status == 200 and policy_open["registrationOpen"] is True, str(policy_open))
 
     try:
-        demo = credentials(os.environ["DEMO_CREDENTIALS_FILE"])
+        demo = read_credentials(os.environ["DEMO_CREDENTIALS_FILE"])
         demo_token = login(demo["email"], demo["password"])
         status, reports = call("GET", "/reports?page=1&size=5", token=demo_token)
         items = reports.get("items", []) if isinstance(reports, dict) else []

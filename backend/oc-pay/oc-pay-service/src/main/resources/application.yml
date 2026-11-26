@@ -96,3 +96,5 @@ logging:
   level:
     root: INFO
     com.offercoach: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId:-}] [%X{userId:-}] %logger{36} - %msg%n"

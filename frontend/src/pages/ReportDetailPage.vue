@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { ArrowLeft, FileText, Loader2, Printer, RotateCcw } from 'lucide-vue-next'
+import { ArrowLeft, Bell, FileText, Loader2, Printer, RotateCcw } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
 import RadarChart from '@/components/charts/RadarChart.vue'
@@ -35,19 +35,47 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const notFound = ref(false)
 const retrying = ref(false)
+const notificationsSupported = typeof Notification !== 'undefined'
+const notificationsGranted = ref(notificationsSupported && Notification.permission === 'granted')
 
-const poller = usePolling(async () => {
-  try {
-    const next = await reportsApi.getReport(reportId.value)
-    report.value = next
-    if (next.status === 'GENERATING') return true
-    if (next.status === 'READY') toast('报告已生成', 'success')
-    return false
-  } catch (cause) {
-    // 404 说明报告不存在；其他瞬时错误继续轮询，避免一次断网就永久停在“生成中”。
-    return !(cause instanceof ApiError && cause.status === 404)
-  }
-}, 2000)
+const poller = usePolling(
+  async () => {
+    try {
+      const next = await reportsApi.getReport(reportId.value)
+      report.value = next
+      if (next.status === 'GENERATING') return true
+      if (next.status === 'READY') {
+        toast('报告已生成', 'success')
+        if (
+          document.hidden &&
+          typeof Notification !== 'undefined' &&
+          Notification.permission === 'granted'
+        ) {
+          new Notification('面试报告已生成', { body: '可以回到 OfferCoach 查看逐题反馈与改进计划' })
+        }
+      }
+      return false
+    } catch (cause) {
+      // 404 说明报告不存在；其他瞬时错误继续轮询，避免一次断网就永久停在“生成中”。
+      return !(cause instanceof ApiError && cause.status === 404)
+    }
+  },
+  {
+    intervalMs: 2000,
+    maxIntervalMs: 15000,
+    factor: 1.5,
+    slowAfterMs: 60_000,
+    pauseWhenHidden: true,
+  },
+)
+const reportSlow = poller.slow
+
+async function enableNotifications(): Promise<void> {
+  if (typeof Notification === 'undefined') return
+  const permission = await Notification.requestPermission()
+  notificationsGranted.value = permission === 'granted'
+  if (permission === 'granted') toast('完成提醒已开启', 'success', '报告生成后会发送浏览器通知')
+}
 
 const scoreVerdict = computed(() => {
   const score = report.value?.overallScore ?? 0
@@ -129,7 +157,12 @@ onBeforeUnmount(() => {
   <div class="animate-fade-up">
     <PageHeader title="面试报告" description="逐题证据、五维能力与下一步改进计划，都可以带走复盘">
       <template #actions>
-        <Button v-if="report?.status === 'READY'" variant="secondary" class="print:hidden" @click="onPrintReport">
+        <Button
+          v-if="report?.status === 'READY'"
+          variant="secondary"
+          class="print:hidden"
+          @click="onPrintReport"
+        >
           <Printer class="h-4 w-4" aria-hidden="true" />
           打印 / 存为 PDF
         </Button>
@@ -153,7 +186,9 @@ onBeforeUnmount(() => {
     >
       <Card v-if="notFound" padding="lg" class="mt-1">
         <div class="flex flex-col items-center py-6 text-center">
-          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-muted">
+          <span
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-muted"
+          >
             <FileText class="h-5 w-5" aria-hidden="true" />
           </span>
           <h2 class="mt-4 text-sm font-semibold text-text">没有找到这份报告</h2>
@@ -176,7 +211,9 @@ onBeforeUnmount(() => {
 
       <Card v-else-if="report.status === 'GENERATING'" padding="lg" class="mt-1">
         <div class="flex flex-col items-center py-10 text-center">
-          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-2">
+          <span
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-2"
+          >
             <Loader2 class="h-5 w-5 animate-spin" aria-hidden="true" />
           </span>
           <h2 class="mt-4 text-base font-semibold text-text">报告生成中</h2>
@@ -184,6 +221,23 @@ onBeforeUnmount(() => {
             正在汇总逐题评分与改进计划，通常需要 20 秒左右；完成后会自动展示。
           </p>
           <Spinner class="mt-4" size="sm" label="生成中" />
+          <Alert
+            v-if="reportSlow"
+            variant="info"
+            class="mt-4 max-w-md text-left"
+            title="生成时间比平时更长"
+            description="可以先去忙别的，稍后回来刷新；报告不会因为离开页面而丢失。"
+          />
+          <Button
+            v-if="!notificationsGranted && notificationsSupported"
+            variant="outline"
+            size="sm"
+            class="mt-4"
+            @click="enableNotifications"
+          >
+            <Bell class="h-3.5 w-3.5" aria-hidden="true" />
+            开启完成提醒
+          </Button>
         </div>
       </Card>
 
@@ -194,7 +248,13 @@ onBeforeUnmount(() => {
           description="重试不会重复扣额度，失败后可由你手动重新发起生成。"
           class="mt-1"
         >
-          <Button variant="outline" size="sm" class="mt-3" :loading="retrying" @click="retryGenerate">
+          <Button
+            variant="outline"
+            size="sm"
+            class="mt-3"
+            :loading="retrying"
+            @click="retryGenerate"
+          >
             <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
             重试生成
           </Button>
@@ -202,7 +262,10 @@ onBeforeUnmount(() => {
       </template>
 
       <template v-else>
-        <Card padding="none" class="mt-5 overflow-hidden print:mt-2 print:border-0 print:shadow-none">
+        <Card
+          padding="none"
+          class="mt-5 overflow-hidden print:mt-2 print:border-0 print:shadow-none"
+        >
           <div class="p-6 lg:p-8">
             <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
               <div class="flex justify-center lg:block">
@@ -223,9 +286,7 @@ onBeforeUnmount(() => {
                   <span>报告 #{{ report.id }}</span>
                 </p>
 
-                <h2 class="mt-2 text-xl font-medium tracking-tight text-text">
-                  本场面试总评
-                </h2>
+                <h2 class="mt-2 text-xl font-medium tracking-tight text-text">本场面试总评</h2>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-text-2">{{ report.summary }}</p>
 
                 <dl class="mt-6 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-4">
@@ -280,9 +341,7 @@ onBeforeUnmount(() => {
         <section class="mt-4 print:mt-2" aria-labelledby="report-breakdown-title">
           <Card class="print:border-0 print:shadow-none">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="report-breakdown-title" class="text-base font-medium text-text">
-                逐题拆解
-              </h2>
+              <h2 id="report-breakdown-title" class="text-base font-medium text-text">逐题拆解</h2>
               <div class="flex items-baseline gap-2 text-xs text-text-muted">
                 <span class="figure">{{ report.breakdown.length }} 题</span>
                 <span>展开查看回答、证据与建议</span>
