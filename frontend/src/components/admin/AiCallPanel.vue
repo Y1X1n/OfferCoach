@@ -35,10 +35,20 @@ const loadError = ref<string | null>(null)
 
 const sceneFilter = ref('')
 const statusFilter = ref('')
+const modelFilter = ref('')
+const sessionFilter = ref('')
+const requestFilter = ref('')
 
 let loadSeq = 0
 
-const hasFilters = computed(() => sceneFilter.value !== '' || statusFilter.value !== '')
+const hasFilters = computed(
+  () =>
+    sceneFilter.value !== '' ||
+    statusFilter.value !== '' ||
+    modelFilter.value.trim() !== '' ||
+    sessionFilter.value.trim() !== '' ||
+    requestFilter.value.trim() !== '',
+)
 const isEmpty = computed(() => !loading.value && !loadError.value && calls.value.length === 0)
 
 async function load(): Promise<void> {
@@ -51,6 +61,9 @@ async function load(): Promise<void> {
       size: PAGE_SIZE,
       ...(sceneFilter.value ? { scene: sceneFilter.value } : {}),
       ...(statusFilter.value ? { status: statusFilter.value as AdminAiCallStatus } : {}),
+      ...(modelFilter.value.trim() ? { model: modelFilter.value.trim() } : {}),
+      ...(sessionFilter.value.trim() ? { sessionId: sessionFilter.value.trim() } : {}),
+      ...(requestFilter.value.trim() ? { requestId: requestFilter.value.trim() } : {}),
     })
     if (seq !== loadSeq) return
     calls.value = result.items
@@ -71,6 +84,9 @@ function applyFilters(): void {
 function resetFilters(): void {
   sceneFilter.value = ''
   statusFilter.value = ''
+  modelFilter.value = ''
+  sessionFilter.value = ''
+  requestFilter.value = ''
   applyFilters()
 }
 
@@ -105,7 +121,7 @@ onMounted(() => {
 
     <Card padding="sm" class="mt-3">
       <form
-        class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
         role="search"
         aria-label="筛选 AI 调用日志"
         @submit.prevent="applyFilters"
@@ -138,7 +154,41 @@ onMounted(() => {
           </select>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2 sm:col-span-2">
+        <div>
+          <label for="ai-model" class="sr-only">模型</label>
+          <input
+            id="ai-model"
+            v-model="modelFilter"
+            type="search"
+            placeholder="模型，如 deepseek-chat"
+            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:h-9"
+          />
+        </div>
+
+        <div>
+          <label for="ai-session" class="sr-only">会话 ID</label>
+          <input
+            id="ai-session"
+            v-model="sessionFilter"
+            inputmode="numeric"
+            type="search"
+            placeholder="会话 ID"
+            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:h-9"
+          />
+        </div>
+
+        <div>
+          <label for="ai-request" class="sr-only">请求编号</label>
+          <input
+            id="ai-request"
+            v-model="requestFilter"
+            type="search"
+            placeholder="请求编号 req_..."
+            class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors focus:border-accent/60 sm:h-9"
+          />
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-3">
           <Button type="submit" size="sm">
             <Search class="h-3.5 w-3.5" aria-hidden="true" />
             查询
@@ -162,17 +212,20 @@ onMounted(() => {
       error-title="AI 调用日志加载失败"
       :empty="isEmpty"
       empty-title="暂无 AI 调用记录"
-      :empty-description="hasFilters ? '调整场景或状态筛选后重试。' : '模型产生调用后这里会自动记录。'"
+      :empty-description="
+        hasFilters ? '调整场景或状态筛选后重试。' : '模型产生调用后这里会自动记录。'
+      "
       :empty-icon="Search"
       :loading-lines="5"
       @retry="load"
     >
       <div class="overflow-x-auto rounded-lg border border-border">
-        <table class="w-full min-w-[1060px] border-collapse text-sm">
+        <table class="w-full min-w-[1240px] border-collapse text-sm">
           <thead class="bg-surface-2 text-left text-xs text-text-muted">
             <tr>
               <th scope="col" class="px-3 py-2.5 font-medium">ID</th>
               <th scope="col" class="px-3 py-2.5 font-medium">用户</th>
+              <th scope="col" class="px-3 py-2.5 font-medium">会话 / 请求</th>
               <th scope="col" class="px-3 py-2.5 font-medium">场景</th>
               <th scope="col" class="px-3 py-2.5 font-medium">模型</th>
               <th scope="col" class="px-3 py-2.5 font-medium">状态</th>
@@ -184,14 +237,23 @@ onMounted(() => {
           </thead>
           <tbody class="divide-y divide-border bg-surface">
             <tr v-for="call in calls" :key="call.id">
-              <td class="whitespace-nowrap px-3 py-3 tabular text-xs text-text-muted">
+              <td class="tabular whitespace-nowrap px-3 py-3 text-xs text-text-muted">
                 #{{ call.id || '—' }}
               </td>
               <td class="px-3 py-3 text-xs text-text-muted">{{ call.userId || '—' }}</td>
+              <td class="max-w-44 px-3 py-3 text-xs text-text-muted">
+                <p class="truncate">{{ call.sessionId ? `#${call.sessionId}` : '—' }}</p>
+                <p class="truncate font-mono text-2xs" :title="call.requestId">
+                  {{ call.requestId || '—' }}
+                </p>
+              </td>
               <td class="whitespace-nowrap px-3 py-3 text-text">{{ sceneLabel(call.scene) }}</td>
               <td class="max-w-56 px-3 py-3 text-xs text-text-muted">
                 <p class="truncate" :title="call.provider">{{ call.provider || '—' }}</p>
                 <p class="truncate" :title="call.model">{{ call.model || '—' }}</p>
+                <p v-if="call.promptVersion" class="truncate text-2xs" :title="call.promptVersion">
+                  prompt {{ call.promptVersion }}
+                </p>
               </td>
               <td class="px-3 py-3">
                 <Badge :variant="aiStatusMeta(call.status).variant" dot>

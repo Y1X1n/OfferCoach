@@ -14,7 +14,7 @@ import InviteSettingsCard from '@/components/settings/InviteSettingsCard.vue'
 import PrivacySettingsCard from '@/components/settings/PrivacySettingsCard.vue'
 import SpeechSettingsCard from '@/components/settings/SpeechSettingsCard.vue'
 import { errorMessage } from '@/api/client'
-import { getInviteProfile, type InviteProfile } from '@/api/users'
+import { deleteMyAccount, exportMyData, getInviteProfile, type InviteProfile } from '@/api/users'
 import { useToast } from '@/composables/useToast'
 import { useAppStore } from '@/stores/app'
 import { formatDate } from '@/utils/format'
@@ -54,7 +54,9 @@ const timezoneOptions: { value: string; label: string }[] = [
 
 const planName = computed(() => store.quota.planName)
 const isPro = computed(() => store.quota.planCode === 'PRO')
-const registeredAt = computed(() => (store.user?.createdAt ? formatDate(store.user.createdAt) : '—'))
+const registeredAt = computed(() =>
+  store.user?.createdAt ? formatDate(store.user.createdAt) : '—',
+)
 
 async function saveProfile(): Promise<void> {
   if (nicknameError.value) return
@@ -87,6 +89,12 @@ const invite = ref<InviteProfile | null>(null)
 const inviteLoading = ref(false)
 const inviteError = ref('')
 const inviteCopied = ref(false)
+
+const deleteOpen = ref(false)
+const deletePassword = ref('')
+const deleteError = ref('')
+const deleting = ref(false)
+const exporting = ref(false)
 
 const inviteLink = computed(() => {
   if (!invite.value) return ''
@@ -132,6 +140,51 @@ async function confirmLogout(): Promise<void> {
   await router.push('/login')
 }
 
+async function exportData(): Promise<void> {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const blob = await exportMyData()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `offercoach-export-${store.user?.id ?? 'me'}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    toast('数据已开始下载', 'success', '导出文件包含资料、简历、JD、会话、回答与报告。')
+  } catch (cause) {
+    toast('导出失败', 'error', errorMessage(cause, '请稍后重试'))
+  } finally {
+    exporting.value = false
+  }
+}
+
+function openDeleteAccount(): void {
+  deletePassword.value = ''
+  deleteError.value = ''
+  deleteOpen.value = true
+}
+
+async function confirmDeleteAccount(): Promise<void> {
+  if (!deletePassword.value) {
+    deleteError.value = '请输入当前密码'
+    return
+  }
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await deleteMyAccount(deletePassword.value)
+    deleteOpen.value = false
+    toast('账号已注销', 'success', '联系邮箱与昵称已清空，全部登录态已吊销。')
+    store.clearSession()
+    await router.push('/login')
+  } catch (cause) {
+    deleteError.value = errorMessage(cause, '注销失败，请稍后重试')
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(async () => {
   if (!store.user) await store.loadMe()
   nickname.value = store.user?.nickname ?? ''
@@ -144,13 +197,18 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="设置" description="管理个人资料、外观与隐私偏好；账号与偏好均保存在服务端。" />
+    <PageHeader
+      title="设置"
+      description="管理个人资料、外观与隐私偏好；账号与偏好均保存在服务端。"
+    />
 
     <div class="mt-6 grid gap-5 lg:grid-cols-2 lg:items-start">
       <div class="space-y-5">
         <Card>
           <div class="flex items-center gap-2">
-            <span class="flex h-8 w-8 items-center justify-center rounded-md bg-surface-2 text-text-muted">
+            <span
+              class="flex h-8 w-8 items-center justify-center rounded-md bg-surface-2 text-text-muted"
+            >
               <User class="h-4 w-4" aria-hidden="true" />
             </span>
             <div>
@@ -193,7 +251,9 @@ onMounted(async () => {
 
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-xs text-text-muted">保存后立即同步到服务端。</p>
-              <Button type="submit" :loading="saving" :disabled="!isDirty || !!nicknameError">保存资料</Button>
+              <Button type="submit" :loading="saving" :disabled="!isDirty || !!nicknameError"
+                >保存资料</Button
+              >
             </div>
           </form>
         </Card>
@@ -211,6 +271,8 @@ onMounted(async () => {
           :plan-name="planName"
           :is-pro="isPro"
           @logout="logoutOpen = true"
+          @export-data="exportData"
+          @delete-account="openDeleteAccount"
         />
         <InviteSettingsCard
           :invite="invite"
@@ -233,6 +295,38 @@ onMounted(async () => {
       <template #footer>
         <Button variant="outline" @click="logoutOpen = false">取消</Button>
         <Button variant="danger" @click="confirmLogout">退出登录</Button>
+      </template>
+    </Dialog>
+
+    <Dialog
+      :open="deleteOpen"
+      title="注销账号？"
+      description="注销后无法恢复，当前邮箱可重新注册；额度流水与审计记录按合规要求保留。"
+      size="sm"
+      @update:open="deleteOpen = $event"
+    >
+      <div class="space-y-3">
+        <Alert
+          variant="danger"
+          title="请确认已导出需要保留的数据"
+          description="注销会清空邮箱、昵称与头像，并立即吊销全部登录态。"
+        />
+        <div>
+          <label for="delete-password" class="text-xs font-medium text-text-2">当前密码</label>
+          <Input
+            id="delete-password"
+            v-model="deletePassword"
+            type="password"
+            autocomplete="current-password"
+            placeholder="输入当前密码以确认"
+            class="mt-1"
+          />
+        </div>
+        <p v-if="deleteError" class="text-xs text-danger-strong">{{ deleteError }}</p>
+      </div>
+      <template #footer>
+        <Button variant="outline" :disabled="deleting" @click="deleteOpen = false">取消</Button>
+        <Button variant="danger" :loading="deleting" @click="confirmDeleteAccount">确认注销</Button>
       </template>
     </Dialog>
   </div>

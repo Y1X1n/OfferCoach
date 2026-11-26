@@ -94,6 +94,10 @@ export interface AdminOverview {
   avgScore: number | null
   aiCalls: number
   aiErrors: number
+  aiTokensIn: number
+  aiTokensOut: number
+  aiCostMicros: number
+  aiTtftP95Ms: number | null
   activeToday: number
 }
 
@@ -109,6 +113,10 @@ export async function getOverview(range: AdminRange): Promise<AdminOverview> {
     avgScore: asNullableNumber(dto.avgScore ?? dto.averageScore),
     aiCalls: asNumber(dto.aiCalls),
     aiErrors: asNumber(dto.aiErrors, asNumber(dto.aiFailures)),
+    aiTokensIn: asNumber(dto.aiTokensIn),
+    aiTokensOut: asNumber(dto.aiTokensOut),
+    aiCostMicros: asNumber(dto.aiCostMicros),
+    aiTtftP95Ms: asNullableNumber(dto.aiTtftP95Ms),
     activeToday: asNumber(
       dto.activeToday,
       asNumber(dto.activeUsersToday, asNumber(dto.activeUsers)),
@@ -495,12 +503,19 @@ export interface AdminAiCall {
   firstTokenMs: number | null
   latencyMs: number | null
   errorCode: string
+  sessionId: string
+  requestId: string
+  traceId: string
+  promptVersion: string
   createdAt: string
 }
 
 export interface AdminAiCallQuery extends PageQuery {
   scene?: string | undefined
   status?: AdminAiCallStatus | undefined
+  sessionId?: string | undefined
+  model?: string | undefined
+  requestId?: string | undefined
 }
 
 function aiStatusOf(value: unknown): AdminAiCallStatus {
@@ -522,14 +537,214 @@ function mapAiCall(raw: unknown): AdminAiCall {
     firstTokenMs: asNullableNumber(dto.firstTokenMs),
     latencyMs: asNullableNumber(dto.latencyMs),
     errorCode: asString(dto.errorCode),
+    sessionId: idOf(dto.sessionId),
+    requestId: asString(dto.requestId),
+    traceId: asString(dto.traceId),
+    promptVersion: asString(dto.promptVersion),
     createdAt: asString(dto.createdAt),
   }
 }
 
 export function listAiCalls(query: AdminAiCallQuery = {}): Promise<Page<AdminAiCall>> {
   return request<unknown>('/admin/ai-calls', {
-    query: { ...pageQuery(query), scene: query.scene, status: query.status },
+    query: {
+      ...pageQuery(query),
+      scene: query.scene,
+      status: query.status,
+      sessionId: query.sessionId,
+      model: query.model,
+      requestId: query.requestId,
+    },
   }).then((raw) => mapPage(raw, mapAiCall))
+}
+
+// ---------------------------------------------------------------------------
+// 运行诊断
+// ---------------------------------------------------------------------------
+
+export interface AdminDiagnosticsStats {
+  pendingReports: number
+  oldestPendingSeconds: number
+  failedReports24h: number
+  stuckSessions: number
+  staleAnswers: number
+  aiFailures24h: number
+}
+
+export interface AdminReportTask {
+  id: string
+  sessionId: string
+  userId: string
+  attempts: number
+  lastError: string
+  ageSeconds: number
+  updatedAt: string
+}
+
+export interface AdminDiagnosticsReports {
+  stats: AdminDiagnosticsStats
+  pending: AdminReportTask[]
+  failed: AdminReportTask[]
+}
+
+export interface AdminSessionSnapshot {
+  id: string
+  userId: string
+  status: string
+  questionCount: number
+  answeredCount: number
+  currentSeq: number
+  totalScore: number | null
+  failureReason: string
+  resumeTitle: string
+  jdTitle: string
+  createdAt: string
+  lastActiveAt: string
+}
+
+export interface AdminQuestionSnapshot {
+  id: string
+  seq: number
+  dimension: string
+  difficulty: string
+  source: string
+  status: string
+}
+
+export interface AdminAnswerSnapshot {
+  id: string
+  questionId: string
+  status: string
+  inputMode: string
+  submittedAt: string
+}
+
+export interface AdminDiagnosticsAiCall {
+  id: string
+  scene: string
+  provider: string
+  model: string
+  status: AdminAiCallStatus
+  latencyMs: number | null
+  tokensIn: number | null
+  tokensOut: number | null
+  errorCode: string
+  requestId: string
+  promptVersion: string
+  createdAt: string
+}
+
+export interface AdminDiagnosticsSession {
+  session: AdminSessionSnapshot
+  questions: AdminQuestionSnapshot[]
+  answers: AdminAnswerSnapshot[]
+  report: AdminReportTask | null
+  aiCalls: AdminDiagnosticsAiCall[]
+}
+
+function mapReportTask(raw: unknown): AdminReportTask {
+  const dto = asRecord(raw)
+  return {
+    id: idOf(dto.id),
+    sessionId: idOf(dto.sessionId),
+    userId: idOf(dto.userId),
+    attempts: asNumber(dto.attempts),
+    lastError: asString(dto.lastError),
+    ageSeconds: asNumber(dto.ageSeconds),
+    updatedAt: asString(dto.updatedAt),
+  }
+}
+
+export function getDiagnosticsReports(limit = 20): Promise<AdminDiagnosticsReports> {
+  return request<unknown>('/admin/diagnostics/reports', { query: { limit } }).then((raw) => {
+    const dto = asRecord(raw)
+    const stats = asRecord(dto.stats)
+    return {
+      stats: {
+        pendingReports: asNumber(stats.pendingReports),
+        oldestPendingSeconds: asNumber(stats.oldestPendingSeconds),
+        failedReports24h: asNumber(stats.failedReports24h),
+        stuckSessions: asNumber(stats.stuckSessions),
+        staleAnswers: asNumber(stats.staleAnswers),
+        aiFailures24h: asNumber(stats.aiFailures24h),
+      },
+      pending: Array.isArray(dto.pending) ? dto.pending.map(mapReportTask) : [],
+      failed: Array.isArray(dto.failed) ? dto.failed.map(mapReportTask) : [],
+    }
+  })
+}
+
+export function getDiagnosticsSession(
+  sessionId: string,
+  aiCallLimit = 20,
+): Promise<AdminDiagnosticsSession> {
+  return request<unknown>(`/admin/diagnostics/sessions/${encodeURIComponent(sessionId)}`, {
+    query: { aiCallLimit },
+  }).then((raw) => {
+    const dto = asRecord(raw)
+    const session = asRecord(dto.session)
+    return {
+      session: {
+        id: idOf(session.id),
+        userId: idOf(session.userId),
+        status: asString(session.status),
+        questionCount: asNumber(session.questionCount),
+        answeredCount: asNumber(session.answeredCount),
+        currentSeq: asNumber(session.currentSeq),
+        totalScore: asNullableNumber(session.totalScore),
+        failureReason: asString(session.failureReason),
+        resumeTitle: asString(session.resumeTitle),
+        jdTitle: asString(session.jdTitle),
+        createdAt: asString(session.createdAt),
+        lastActiveAt: asString(session.lastActiveAt),
+      },
+      questions: Array.isArray(dto.questions)
+        ? dto.questions.map((item) => {
+            const question = asRecord(item)
+            return {
+              id: idOf(question.id),
+              seq: asNumber(question.seq),
+              dimension: asString(question.dimension),
+              difficulty: asString(question.difficulty),
+              source: asString(question.source),
+              status: asString(question.status),
+            }
+          })
+        : [],
+      answers: Array.isArray(dto.answers)
+        ? dto.answers.map((item) => {
+            const answer = asRecord(item)
+            return {
+              id: idOf(answer.id),
+              questionId: idOf(answer.questionId),
+              status: asString(answer.status),
+              inputMode: asString(answer.inputMode),
+              submittedAt: asString(answer.submittedAt),
+            }
+          })
+        : [],
+      report: dto.report ? mapReportTask(dto.report) : null,
+      aiCalls: Array.isArray(dto.aiCalls)
+        ? dto.aiCalls.map((item) => {
+            const call = asRecord(item)
+            return {
+              id: idOf(call.id),
+              scene: asString(call.scene),
+              provider: asString(call.provider),
+              model: asString(call.model),
+              status: aiStatusOf(call.status),
+              latencyMs: asNullableNumber(call.latencyMs),
+              tokensIn: asNullableNumber(call.tokensIn),
+              tokensOut: asNullableNumber(call.tokensOut),
+              errorCode: asString(call.errorCode),
+              requestId: asString(call.requestId),
+              promptVersion: asString(call.promptVersion),
+              createdAt: asString(call.createdAt),
+            }
+          })
+        : [],
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -608,9 +823,7 @@ export async function listPrompts(): Promise<AdminPromptTemplate[]> {
 }
 
 export async function listPromptVersions(code: string): Promise<AdminPromptVersion[]> {
-  const raw = await request<unknown>(
-    `/admin/prompts/${encodeURIComponent(code)}/versions`,
-  )
+  const raw = await request<unknown>(`/admin/prompts/${encodeURIComponent(code)}/versions`)
   return extractList(raw, ['versions']).map(mapPromptVersion)
 }
 

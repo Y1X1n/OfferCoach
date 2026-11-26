@@ -1,5 +1,6 @@
 package com.offercoach.interview.session.application;
 
+import com.offercoach.common.trace.JobTrace;
 import com.offercoach.interview.resume.application.port.ResumeRepository;
 import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
 import com.offercoach.interview.session.application.port.InterviewSessionRepository;
@@ -44,10 +45,12 @@ public class StaleStateWatchdog {
 
     @Scheduled(fixedDelay = 60_000L)
     public void run() {
-        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(STALE_MINUTES);
-        recoverSessions(cutoff);
-        recoverResumes(cutoff);
-        recoverAnswers(cutoff);
+        try (JobTrace ignored = JobTrace.open("watchdog")) {
+            OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(STALE_MINUTES);
+            recoverSessions(cutoff);
+            recoverResumes(cutoff);
+            recoverAnswers(cutoff);
+        }
     }
 
     private void recoverSessions(OffsetDateTime cutoff) {

@@ -18,6 +18,10 @@ public final class AdminMetricsDtos {
             BigDecimal averageScore,
             long aiCalls,
             long aiFailures,
+            long aiTokensIn,
+            long aiTokensOut,
+            long aiCostMicros,
+            Integer aiTtftP95Ms,
             long activeUsersToday,
             String range) {}
 }

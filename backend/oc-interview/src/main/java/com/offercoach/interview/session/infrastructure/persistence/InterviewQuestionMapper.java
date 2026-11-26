@@ -42,7 +42,8 @@ public interface InterviewQuestionMapper {
 
     @Select("SELECT " + COLUMNS
             + " FROM interview_question WHERE session_id = #{sessionId}"
-            + " AND (seq <= #{currentSeq} OR status IN ('ANSWERED', 'SKIPPED')) ORDER BY seq")
+            + " AND (seq <= #{currentSeq} OR status IN ('ANSWERED', 'SKIPPED') OR source = 'FOLLOW_UP')"
+            + " ORDER BY seq")
     List<InterviewQuestionDO> listVisible(@Param("sessionId") long sessionId, @Param("currentSeq") int currentSeq);
 
     @Select("SELECT " + COLUMNS + " FROM interview_question WHERE id = #{questionId} AND session_id = #{sessionId}")
@@ -53,6 +54,12 @@ public interface InterviewQuestionMapper {
 
     @Select("SELECT COUNT(*) FROM interview_question WHERE session_id = #{sessionId} AND status = #{status}")
     long countByStatus(@Param("sessionId") long sessionId, @Param("status") String status);
+
+    @Select("SELECT COUNT(*) FROM interview_question WHERE session_id = #{sessionId} AND source = 'FOLLOW_UP'")
+    long countFollowUps(@Param("sessionId") long sessionId);
+
+    @Select("SELECT COALESCE(MAX(seq), 0) FROM interview_question WHERE session_id = #{sessionId}")
+    int maxSeq(@Param("sessionId") long sessionId);
 
     @Update(
             """

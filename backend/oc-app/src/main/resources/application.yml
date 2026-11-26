@@ -51,6 +51,14 @@ management:
     health:
       probes:
         enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        oc.ai.latency: true
+        oc.report.generation: true
+      percentiles:
+        oc.ai.latency: 0.5,0.95,0.99
+        oc.report.generation: 0.5,0.95,0.99
 
 springdoc:
   api-docs:
@@ -114,6 +122,16 @@ oc:
     allow-private-hosts: ${AI_ALLOW_PRIVATE_HOSTS:false}
     # 前端已改为轮询反馈；SSE 端点默认关闭，仅保留给显式开启的兼容客户端。
     sse-enabled: ${AI_SSE_ENABLED:false}
+    # 每日全局 token 预算；0 表示不限制，超限后业务自动走模板/启发式降级。
+    daily-token-budget: ${AI_DAILY_TOKEN_BUDGET:0}
+    # 成本看板估算单价：每百万 token 的微元（1 元 = 1,000,000 微元），以供应商账单为准。
+    pricing:
+      input-micros-per-million: ${AI_PRICE_INPUT_MICROS:2000000}
+      output-micros-per-million: ${AI_PRICE_OUTPUT_MICROS:8000000}
+      models:
+        deepseek-chat:
+          input-micros-per-million: ${AI_PRICE_DEEPSEEK_CHAT_INPUT_MICROS:2000000}
+          output-micros-per-million: ${AI_PRICE_DEEPSEEK_CHAT_OUTPUT_MICROS:8000000}
     tools:
       # 服务间内部令牌：oc-app 与 oc-ai-asr/tts/ocr 必须一致；为空时工具服务拒绝所有调用。
       internal-token: ${OC_AI_INTERNAL_TOKEN:}

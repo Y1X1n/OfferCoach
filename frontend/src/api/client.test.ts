@@ -3,6 +3,7 @@ import {
   ApiError,
   buildUrl,
   clearAccessToken,
+  errorMessage,
   request,
   refreshSession,
   setAccessToken,
@@ -85,6 +86,36 @@ describe('request', () => {
     expect(error).toBeInstanceOf(ApiError)
     expect((error as ApiError).code).toBe('NETWORK_ERROR')
     expect((error as ApiError).retryable).toBe(true)
+  })
+
+  it('错误体缺少 ID 时回退到响应头，且 5xx 文案带请求编号', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ code: 'INTERNAL_ERROR', message: '服务错误' }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req_header',
+          'X-Trace-Id': 'trace_header',
+        },
+      }),
+    )
+
+    const error = await request('/reports/9').catch((cause: unknown) => cause)
+    expect(error).toBeInstanceOf(ApiError)
+    const apiError = error as ApiError
+    expect(apiError.requestId).toBe('req_header')
+    expect(apiError.traceId).toBe('trace_header')
+    expect(errorMessage(apiError)).toBe('服务错误（请求编号 req_header）')
+  })
+
+  it('4xx 错误文案不追加请求编号', () => {
+    const error = new ApiError({
+      code: 'QUOTA_EXCEEDED',
+      message: '额度不足',
+      status: 402,
+      requestId: 'req_1',
+    })
+    expect(errorMessage(error)).toBe('额度不足')
   })
 })
 

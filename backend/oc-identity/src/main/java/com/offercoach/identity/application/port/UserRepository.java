@@ -65,4 +65,9 @@ public interface UserRepository {
      * 管理端调整账号角色（USER / SUPPORT / ADMIN）。
      */
     void updateRole(long id, String role);
+
+    /**
+     * 用户自助注销：软删并清空联系方式/昵称/头像，保留主键供审计与额度流水引用。
+     */
+    void softDelete(long id, OffsetDateTime at);
 }

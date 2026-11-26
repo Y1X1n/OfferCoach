@@ -1,5 +1,6 @@
 package com.offercoach.admin.application.port;
 
+import com.offercoach.admin.application.model.AdminModels.AiUsage;
 import com.offercoach.admin.application.model.AdminModels.Metrics;
 
 /**
@@ -8,4 +9,6 @@ import com.offercoach.admin.application.model.AdminModels.Metrics;
 public interface AdminMetricsRepository {
 
     Metrics overview(int rangeDays);
+
+    AiUsage aiUsage(int rangeDays);
 }

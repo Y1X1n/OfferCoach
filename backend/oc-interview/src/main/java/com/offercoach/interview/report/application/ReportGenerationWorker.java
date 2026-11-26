@@ -1,5 +1,7 @@
 package com.offercoach.interview.report.application;
 
+import com.offercoach.common.trace.JobTrace;
+import com.offercoach.interview.ai.InterviewMetrics;
 import com.offercoach.interview.config.InterviewProperties;
 import com.offercoach.interview.report.application.port.InterviewReportRepository;
 import java.util.List;
@@ -28,26 +30,31 @@ public class ReportGenerationWorker {
     private final ReportService reportService;
     private final InterviewProperties properties;
     private final Executor aiExecutor;
+    private final InterviewMetrics metrics;
     private final Set<Long> running = ConcurrentHashMap.newKeySet();
 
     public ReportGenerationWorker(
             InterviewReportRepository reportRepository,
             ReportService reportService,
             InterviewProperties properties,
-            @Qualifier("aiExecutor") Executor aiExecutor) {
+            @Qualifier("aiExecutor") Executor aiExecutor,
+            InterviewMetrics metrics) {
         this.reportRepository = reportRepository;
         this.reportService = reportService;
         this.properties = properties;
         this.aiExecutor = aiExecutor;
+        this.metrics = metrics;
     }
 
     @Scheduled(fixedDelay = 5000L)
     public void run() {
-        List<Long> pending = reportRepository.findStaleGenerating(STALE_SECONDS, BATCH_SIZE);
-        for (Long reportId : pending) {
-            String token = UUID.randomUUID().toString();
-            if (reportRepository.claim(reportId, STALE_SECONDS, token)) {
-                submit(reportId, token);
+        try (JobTrace ignored = JobTrace.open("report-worker")) {
+            List<Long> pending = reportRepository.findStaleGenerating(STALE_SECONDS, BATCH_SIZE);
+            for (Long reportId : pending) {
+                String token = UUID.randomUUID().toString();
+                if (reportRepository.claim(reportId, STALE_SECONDS, token)) {
+                    submit(reportId, token);
+                }
             }
         }
     }
@@ -105,14 +112,19 @@ public class ReportGenerationWorker {
     }
 
     private void generate(long reportId, String token) {
+        long startedAt = System.nanoTime();
         try {
             reportService.generate(reportId, token);
+            metrics.reportGeneration("success", (System.nanoTime() - startedAt) / 1_000_000);
         } catch (ReportService.ScoringPendingException exception) {
+            metrics.reportGeneration("pending", (System.nanoTime() - startedAt) / 1_000_000);
             log.info("评分尚未完成，等待下次调度：reportId={}", reportId);
         } catch (ReportService.EmptyFeedbackException exception) {
+            metrics.reportGeneration("empty", (System.nanoTime() - startedAt) / 1_000_000);
             log.warn("报告没有可聚合的评分，直接终止：reportId={}", reportId);
             reportService.failFinal(reportId, token, "NO_SCORABLE_FEEDBACK");
         } catch (RuntimeException exception) {
+            metrics.reportGeneration("failed", (System.nanoTime() - startedAt) / 1_000_000);
             String reason = exception.getClass().getSimpleName();
             log.warn("报告生成失败：reportId={} reason={}", reportId, reason);
             reportService.fail(reportId, token, truncate(reason, 64), properties.getReportMaxAttempts());

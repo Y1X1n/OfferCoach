@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -139,7 +140,18 @@ public final class AdminModels {
             BigDecimal averageScore,
             long aiCalls,
             long aiFailures,
+            long aiTokensIn,
+            long aiTokensOut,
+            long aiCostMicros,
+            Integer aiTtftP95Ms,
             long activeUsersToday) {}
+
+    /**
+     * AI 用量聚合；成本由应用层按模型单价计算。
+     */
+    public record AiUsage(long tokensIn, long tokensOut, Integer ttftP95Ms, Map<String, ModelTokens> byModel) {}
+
+    public record ModelTokens(long tokensIn, long tokensOut) {}
 
     /**
      * AI 调用日志视图；只读。
@@ -156,6 +168,10 @@ public final class AdminModels {
             Integer firstTokenMs,
             Integer latencyMs,
             String errorCode,
+            Long sessionId,
+            String requestId,
+            String traceId,
+            String promptVersion,
             OffsetDateTime createdAt) {}
 
     /**

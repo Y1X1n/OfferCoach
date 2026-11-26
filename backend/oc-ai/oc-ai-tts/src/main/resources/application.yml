@@ -51,6 +51,7 @@ oc:
     allow-private-hosts: ${AI_ALLOW_PRIVATE_HOSTS:false}
     tools:
       internal-token: ${OC_AI_INTERNAL_TOKEN:}
+      trace-mdc: true
       tts-timeout: ${AI_TTS_TIMEOUT:120s}
       tts-max-concurrency: ${AI_TTS_MAX_CONCURRENCY:20}
       tts-default-voice: ${AI_TTS_DEFAULT_VOICE:stella}
@@ -58,3 +59,7 @@ oc:
       tts-cache-days: ${AI_TTS_CACHE_DAYS:7}
       tts-cache-cron: ${AI_TTS_CACHE_CRON:0 45 3 * * *}
       call-log-enabled: true
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId:-}] [%X{userId:-}] [%X{sessionId:-}] %logger{36} - %msg%n"

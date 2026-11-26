@@ -35,6 +35,10 @@ public class AdminMetricsController {
                 metrics.averageScore(),
                 metrics.aiCalls(),
                 metrics.aiFailures(),
+                metrics.aiTokensIn(),
+                metrics.aiTokensOut(),
+                metrics.aiCostMicros(),
+                metrics.aiTtftP95Ms(),
                 metrics.activeUsersToday(),
                 range);
     }

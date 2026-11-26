@@ -67,6 +67,9 @@ const {
   feedbackRef,
   canSubmit,
   canAdvance,
+  canFollowUp,
+  followUpLoading,
+  requestFollowUp,
   timerVisible,
   reload,
   submitAnswer,
@@ -96,6 +99,23 @@ const poller = usePolling(async () => {
 }, 2000)
 
 function goNext(): void {
+  // 追问 seq 位于题尾；回答完追问后优先回到仍未作答的原题，避免提前结束。
+  const isOpen = (question: (typeof questions.value)[number]): boolean =>
+    question.id !== currentQuestionId.value &&
+    question.status !== 'ANSWERED' &&
+    question.status !== 'SKIPPED'
+  const currentIndex = questions.value.findIndex(
+    (question) => question.id === currentQuestionId.value,
+  )
+  const after = questions.value.findIndex(
+    (question, index) => index > currentIndex && isOpen(question),
+  )
+  const before = questions.value.findIndex((question) => isOpen(question))
+  const nextOpen = after >= 0 ? after : before
+  if (nextOpen >= 0) {
+    goToQuestion(questions.value[nextOpen]?.id ?? '')
+    return
+  }
   if (isLastQuestion.value) {
     endDialogOpen.value = true
     return
@@ -287,7 +307,13 @@ onBeforeRouteLeave(() => {
         title="本场面试已结束"
         description="报告正在生成或已就绪，可以查看逐题评分与改进建议。"
       >
-        <Button v-if="completedReportId" variant="outline" size="sm" class="mt-2" @click="openReport">
+        <Button
+          v-if="completedReportId"
+          variant="outline"
+          size="sm"
+          class="mt-2"
+          @click="openReport"
+        >
           <FileText class="h-3.5 w-3.5" aria-hidden="true" />
           查看报告
         </Button>
@@ -349,12 +375,15 @@ onBeforeRouteLeave(() => {
               :current-status="currentStatus"
               :is-last-question="isLastQuestion"
               :can-advance="canAdvance"
+              :can-follow-up="canFollowUp"
+              :follow-up-loading="followUpLoading"
               :stream-state="streamState"
               :has-report="Boolean(completedReportId)"
               :voice-transcribing="voiceTranscribing"
               @submit="submitAnswer"
               @skip="skipCurrent(false)"
               @next="goNext"
+              @follow-up="requestFollowUp"
               @open-report="openReport"
               @voice-recorded="handleVoiceRecorded"
               @voice-error="(message) => toast(message, 'error')"

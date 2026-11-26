@@ -28,6 +28,10 @@ const resumes = ref<ResumeSummary[]>([])
 const jds = ref<Jd[]>([])
 const loading = ref(true)
 const loadError = ref<string | null>(null)
+const focusLabel = computed(() => {
+  const value = route.query.focusLabel
+  return typeof value === 'string' && value.trim() ? value.trim() : ''
+})
 
 const config = ref<InterviewConfig>({
   questionCount: 8,
@@ -56,9 +60,12 @@ const selectedResume = computed(
 const selectedJd = computed(() => jds.value.find((jd) => jd.id === selectedJdId.value) ?? null)
 
 /** 联网获取的 JD 预览；确认后随创建请求提交，不进入 JD 列表。 */
-const pendingPreview = ref<{ previewToken: string; title: string; company: string; sourceUrl: string } | null>(
-  null,
-)
+const pendingPreview = ref<{
+  previewToken: string
+  title: string
+  company: string
+  sourceUrl: string
+} | null>(null)
 const webDialogOpen = ref(false)
 
 const previewAsJd = computed<Jd | null>(() => {
@@ -203,7 +210,9 @@ async function startInterview(): Promise<void> {
     const session = await interviewsApi.createInterview(
       {
         resumeId: resume.id,
-        ...(preview ? { previewToken: preview.previewToken } : { jdId: selectedJd.value?.id ?? jd.id }),
+        ...(preview
+          ? { previewToken: preview.previewToken }
+          : { jdId: selectedJd.value?.id ?? jd.id }),
         config: { ...config.value },
       },
       idempotencyKey,
@@ -214,7 +223,11 @@ async function startInterview(): Promise<void> {
     idempotencyKey = null
     await store.loadQuota()
     if (disposed) return
-    toast('面试已就绪，开始作答', 'success', `${jd.title} · ${ready.questionCount ?? config.value.questionCount} 道题`)
+    toast(
+      '面试已就绪，开始作答',
+      'success',
+      `${jd.title} · ${ready.questionCount ?? config.value.questionCount} 道题`,
+    )
     await router.push({ name: 'interview-room', params: { id: session.id } })
   } catch (cause) {
     phase.value = 'idle'
@@ -283,6 +296,13 @@ onBeforeUnmount(() => {
     <PageHeader
       title="创建模拟面试"
       description="基于简历与目标岗位生成针对性题目。默认 8 道题约 10 分钟，可按需调整题量、难度与面试官风格。"
+    />
+
+    <Alert
+      v-if="focusLabel"
+      variant="info"
+      :title="`本场建议重点练习：${focusLabel}`"
+      description="来自最近一份报告的弱项。出题仍按当前配置生成，回答时可以有意识地补强这个维度。"
     />
 
     <AsyncState
@@ -367,13 +387,22 @@ onBeforeUnmount(() => {
                 继续未结束的面试
                 <ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
               </RouterLink>
-              <Button v-else variant="outline" size="sm" :disabled="starting" @click="startInterview">
+              <Button
+                v-else
+                variant="outline"
+                size="sm"
+                :disabled="starting"
+                @click="startInterview"
+              >
                 重试创建
               </Button>
             </div>
           </Alert>
 
-          <p v-if="startErrorCode === 'STATE_CONFLICT' && !conflictSessionId" class="flex items-start gap-1.5 text-xs leading-5 text-text-muted">
+          <p
+            v-if="startErrorCode === 'STATE_CONFLICT' && !conflictSessionId"
+            class="flex items-start gap-1.5 text-xs leading-5 text-text-muted"
+          >
             <CircleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             已有一场未结束的面试。可先结束或放弃该会话，再创建新的面试。
           </p>

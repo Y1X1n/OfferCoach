@@ -26,14 +26,33 @@ public class AdminAiCallService {
         this.aiCallRepository = aiCallRepository;
     }
 
-    public Paged<AiCall> list(int page, int size, String scene, String status, String userId) {
+    public Paged<AiCall> list(
+            int page,
+            int size,
+            String scene,
+            String status,
+            String userId,
+            String sessionId,
+            String model,
+            String requestId) {
         PageQuery query = PageQuery.of(page, size);
         String sceneFilter = normalizeScene(scene);
         String statusFilter = normalizeStatus(status);
-        Long userFilter = parseUserId(userId);
-        List<AiCall> items =
-                aiCallRepository.search(sceneFilter, statusFilter, userFilter, (int) query.offset(), query.size());
-        long total = aiCallRepository.count(sceneFilter, statusFilter, userFilter);
+        Long userFilter = parseId(userId, "userId");
+        Long sessionFilter = parseId(sessionId, "sessionId");
+        String modelFilter = blankToNull(model);
+        String requestFilter = blankToNull(requestId);
+        List<AiCall> items = aiCallRepository.search(
+                sceneFilter,
+                statusFilter,
+                userFilter,
+                sessionFilter,
+                modelFilter,
+                requestFilter,
+                (int) query.offset(),
+                query.size());
+        long total = aiCallRepository.count(
+                sceneFilter, statusFilter, userFilter, sessionFilter, modelFilter, requestFilter);
         return new Paged<>(items, total, query.page(), query.size());
     }
 
@@ -54,15 +73,15 @@ public class AdminAiCallService {
         return value;
     }
 
-    private static Long parseUserId(String userId) {
-        String value = blankToNull(userId);
-        if (value == null) {
+    private static Long parseId(String value, String field) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
             return null;
         }
         try {
-            return Long.parseLong(value);
+            return Long.parseLong(normalized);
         } catch (NumberFormatException exception) {
-            throw fieldError("userId", "非数字 ID");
+            throw fieldError(field, "非数字 ID");
         }
     }
 

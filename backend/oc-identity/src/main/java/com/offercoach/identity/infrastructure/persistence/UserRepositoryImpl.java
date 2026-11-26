@@ -140,6 +140,23 @@ public class UserRepositoryImpl implements UserRepository {
                         .set(AppUserDO::getUpdatedAt, OffsetDateTime.now(ZoneOffset.UTC)));
     }
 
+    @Override
+    public void softDelete(long id, OffsetDateTime at) {
+        userMapper.update(
+                null,
+                Wrappers.<AppUserDO>lambdaUpdate()
+                        .eq(AppUserDO::getId, id)
+                        .isNull(AppUserDO::getDeletedAt)
+                        .set(AppUserDO::getStatus, "DELETED")
+                        .set(AppUserDO::getDeletedAt, at)
+                        .set(AppUserDO::getEmail, null)
+                        .set(AppUserDO::getPhone, null)
+                        .set(AppUserDO::getPhoneHash, null)
+                        .set(AppUserDO::getNickname, "已注销用户")
+                        .set(AppUserDO::getAvatarUrl, null)
+                        .set(AppUserDO::getUpdatedAt, at));
+    }
+
     private static LambdaQueryWrapper<AppUserDO> searchWrapper(String keyword, String status) {
         LambdaQueryWrapper<AppUserDO> wrapper =
                 Wrappers.<AppUserDO>lambdaQuery().isNull(AppUserDO::getDeletedAt);

@@ -36,4 +36,7 @@ public class AiProperties {
 
     /** 是否允许 AI 网关指向内网/本机；生产默认关闭以降低 SSRF 风险。 */
     private boolean allowPrivateHosts;
+
+    /** 每日全局 token 预算；0 表示不限制，超限后业务自动走确定性降级。 */
+    private long dailyTokenBudget;
 }

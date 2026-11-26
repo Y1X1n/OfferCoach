@@ -19,5 +19,9 @@ public final class AdminAiCallDtos {
             Integer firstTokenMs,
             Integer latencyMs,
             String errorCode,
+            String sessionId,
+            String requestId,
+            String traceId,
+            String promptVersion,
             String createdAt) {}
 }

@@ -6,12 +6,14 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import MetricStrip from '@/components/common/MetricStrip.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
 import Button from '@/components/ui/Button.vue'
+import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import ScoreTrend from '@/components/report/ScoreTrend.vue'
 import { errorMessage } from '@/api/client'
 import * as reportsApi from '@/api/reports'
 import { usePolling } from '@/composables/usePolling'
 import { useToast } from '@/composables/useToast'
-import type { ReportSummary } from '@/types'
+import type { RadarItem, ReportSummary } from '@/types'
 import { formatDate, formatRelative, formatScore, mean, round1, scoreTone } from '@/utils/format'
 
 type RangeOption = 'all' | '30d'
@@ -24,6 +26,7 @@ const total = ref(0)
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const retryingId = ref('')
+const latestRadar = ref<RadarItem[]>([])
 
 const rangeOptions: { value: RangeOption; label: string }[] = [
   { value: 'all', label: '全部' },
@@ -39,6 +42,9 @@ const averageScore = computed(() =>
     : 0,
 )
 const latestReport = computed<ReportSummary | null>(() => reports.value[0] ?? null)
+const weakDimensions = computed(() =>
+  [...latestRadar.value].sort((a, b) => a.score - b.score).slice(0, 2),
+)
 const overviewItems = computed(() => [
   { label: '报告数', value: total.value, hint: '已完成的模拟面试' },
   {
@@ -73,16 +79,22 @@ const filteredReports = computed(() => {
 const hasFilters = computed(() => keyword.value.trim().length > 0 || range.value !== 'all')
 const libraryEmpty = computed(() => !loading.value && reports.value.length === 0)
 
-const poller = usePolling(async () => {
-  try {
-    const page = await reportsApi.listReports({ page: 1, size: 50 })
-    reports.value = page.items
-    total.value = page.total
-  } catch {
-    return false
-  }
-  return reports.value.some((report) => report.status === 'GENERATING')
-}, 3000)
+const poller = usePolling(
+  async () => {
+    try {
+      const page = await reportsApi.listReports({ page: 1, size: 50 })
+      reports.value = page.items
+      total.value = page.total
+    } catch {
+      return false
+    }
+    if (!reports.value.some((report) => report.status === 'GENERATING')) {
+      void loadLatestRadar()
+    }
+    return reports.value.some((report) => report.status === 'GENERATING')
+  },
+  { intervalMs: 3000, maxIntervalMs: 20000, factor: 1.5, pauseWhenHidden: true },
+)
 
 async function loadReports(): Promise<void> {
   loading.value = true
@@ -92,10 +104,26 @@ async function loadReports(): Promise<void> {
     reports.value = page.items
     total.value = page.total
     if (page.items.some((report) => report.status === 'GENERATING')) poller.start()
+    else void loadLatestRadar()
   } catch (cause) {
     loadError.value = errorMessage(cause, '报告列表加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+/** 最近一份报告的雷达数据用于弱项练习；失败不阻塞列表。 */
+async function loadLatestRadar(): Promise<void> {
+  const latest = latestReport.value
+  if (!latest || latest.status !== 'READY') {
+    latestRadar.value = []
+    return
+  }
+  try {
+    const report = await reportsApi.getReport(latest.id)
+    latestRadar.value = report.radar ?? []
+  } catch {
+    latestRadar.value = []
   }
 }
 
@@ -179,6 +207,41 @@ onBeforeUnmount(() => {
       </template>
 
       <MetricStrip class="mt-5" :items="overviewItems" label="报告概览" />
+
+      <div
+        :class="['mt-5 grid gap-4', weakDimensions.length > 0 ? 'lg:grid-cols-[1.6fr_1fr]' : '']"
+      >
+        <ScoreTrend :reports="reports" />
+
+        <Card v-if="weakDimensions.length > 0" padding="lg">
+          <h2 class="text-sm font-semibold text-text">弱项专项练习</h2>
+          <p class="mt-1 text-xs text-text-muted">
+            来自最近一份报告的最低两个维度，下一场可以重点练。
+          </p>
+          <ul class="mt-3 space-y-3">
+            <li
+              v-for="item in weakDimensions"
+              :key="item.dimension"
+              class="flex items-center justify-between gap-3"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm text-text">{{ item.label }}</p>
+                <p class="tabular text-xs text-text-muted">{{ formatScore(item.score) }} / 10</p>
+              </div>
+              <RouterLink
+                :to="{
+                  name: 'interview-setup',
+                  query: { focus: item.dimension, focusLabel: item.label },
+                }"
+                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-text-2 transition-colors hover:bg-surface-2 hover:text-text"
+              >
+                针对练习
+                <ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
+              </RouterLink>
+            </li>
+          </ul>
+        </Card>
+      </div>
 
       <section
         class="mt-5 flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-center"

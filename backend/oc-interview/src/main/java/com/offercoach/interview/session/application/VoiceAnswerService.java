@@ -5,6 +5,7 @@ import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.common.trace.TraceContext;
 import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
 import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
 import com.offercoach.interview.session.application.port.InterviewSessionRepository;
@@ -106,6 +107,7 @@ public class VoiceAnswerService {
         String fileName = "answer-" + questionId + "." + AUDIO_EXT_WAV;
 
         ToolDtos.AsrResult transcribed;
+        TraceContext.putSessionId(sessionId);
         try {
             transcribed = toolGateway.transcribe(userId, audio, fileName, contentType);
         } catch (ToolException exception) {

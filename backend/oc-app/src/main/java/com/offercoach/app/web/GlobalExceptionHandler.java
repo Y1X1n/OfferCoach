@@ -4,6 +4,7 @@ import com.offercoach.common.error.ApiError;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.common.trace.TraceContext;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -82,8 +83,13 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiError> handleUnknown(Exception exception) {
-        log.error("unhandled error", exception);
+    public ResponseEntity<ApiError> handleUnknown(Exception exception, HttpServletRequest request) {
+        log.error(
+                "unhandled error: method={} path={} type={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                exception.getClass().getSimpleName(),
+                exception);
         return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.httpStatus())
                 .body(ApiError.of(
                         ErrorCode.INTERNAL_ERROR, null, Map.of(), TraceContext.requestId(), TraceContext.traceId()));
