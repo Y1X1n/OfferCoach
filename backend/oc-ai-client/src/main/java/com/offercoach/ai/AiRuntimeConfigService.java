@@ -106,6 +106,10 @@ public class AiRuntimeConfigService {
 
     /**
      * 更新运行时配置并立即失效缓存；apiKey 为空保留旧值，clearApiKey=true 写空串表示显式清除。
+     *
+     * <p>「换 baseUrl 但沿用旧 Key」必须被拒绝：管理员可以把 baseUrl 指向自己控制的域名，
+     * 再点一次连通性探测，就能让服务端带着既有 Key 主动外发（Key 本身永远不回显，
+     * 但一次外发足以把明文送到对方服务器）。因此更换主机名时要求重新提交 Key。</p>
      */
     public AiRuntimeSnapshot update(
             Long actorId,
@@ -122,6 +126,10 @@ public class AiRuntimeConfigService {
         String voice = normalizeVoice(tools.ttsDefaultVoice());
         if (clearApiKey && apiKey != null && !apiKey.isBlank()) {
             throw fieldError("apiKey", "与 clearApiKey 不能同时提交");
+        }
+        boolean submittingKey = apiKey != null && !apiKey.isBlank();
+        if (!submittingKey && !clearApiKey) {
+            requireHostUnchangedWhenReusingKey(normalizedBaseUrl);
         }
         String cipher = null;
         if (clearApiKey) {
@@ -179,6 +187,31 @@ public class AiRuntimeConfigService {
 
     private static String normalizeVoice(String voice) {
         return "tide".equalsIgnoreCase(voice) ? "tide" : "stella";
+    }
+
+    /**
+     * 沿用旧 Key 时要求主机名不变：防止管理员通过改 baseUrl 把已保存的 Key 外发到自控域名。
+     */
+    private void requireHostUnchangedWhenReusingKey(String normalizedBaseUrl) {
+        RuntimeRow row = readRow();
+        String storedBaseUrl = row == null ? null : row.baseUrl();
+        if (storedBaseUrl == null || storedBaseUrl.isBlank()) {
+            return;
+        }
+        String storedHost = hostOrNull(storedBaseUrl);
+        String nextHost = hostOrNull(normalizedBaseUrl);
+        if (storedHost != null && !storedHost.equalsIgnoreCase(nextHost)) {
+            throw fieldError("apiKey", "更换 AI 网关域名时必须重新提交 API Key");
+        }
+    }
+
+    private static String hostOrNull(String url) {
+        try {
+            String host = new URI(url).getHost();
+            return host == null || host.isBlank() ? null : host.toLowerCase(Locale.ROOT);
+        } catch (URISyntaxException exception) {
+            return null;
+        }
     }
 
     private static ToolSettings toolsOf(RuntimeRow row) {

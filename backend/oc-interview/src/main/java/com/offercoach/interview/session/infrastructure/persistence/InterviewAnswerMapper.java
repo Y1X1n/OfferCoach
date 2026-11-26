@@ -52,7 +52,13 @@ public interface InterviewAnswerMapper {
             + " ORDER BY submitted_at, id")
     List<InterviewAnswerDO> listBySession(@Param("sessionId") long sessionId);
 
-    @Update("UPDATE interview_answer SET status = 'SCORED' WHERE id = #{answerId}")
+    /**
+     * 评分完成：不覆盖 REJECTED（内容不合规）的回答。
+     *
+     * <p>从 FAILED 迁回 SCORED 是合法的：看门狗把超时回答标 FAILED 后，评分任务若最终成功，
+     * 前端应看到分数而不是「评分失败」。但 REJECTED 是审核结论，不能被评分结果复活。</p>
+     */
+    @Update("UPDATE interview_answer SET status = 'SCORED' WHERE id = #{answerId} AND status <> 'REJECTED'")
     int markScored(@Param("answerId") long answerId);
 
     /**
@@ -62,7 +68,11 @@ public interface InterviewAnswerMapper {
             """
             UPDATE interview_answer
             SET status = 'FAILED'
-            WHERE status = 'SCORING' AND submitted_at < #{cutoff}
+            WHERE id IN (
+                SELECT id FROM interview_answer
+                WHERE status = 'SCORING' AND submitted_at < #{cutoff}
+                LIMIT 500
+            )
             """)
     int failStaleScoring(@Param("cutoff") java.time.OffsetDateTime cutoff);
 }

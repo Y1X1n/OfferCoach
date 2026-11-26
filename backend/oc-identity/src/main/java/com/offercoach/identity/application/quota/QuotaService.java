@@ -46,11 +46,15 @@ public class QuotaService {
 
     private static final DateTimeFormatter DAY_KEY = DateTimeFormatter.BASIC_ISO_DATE;
 
+    /** 每日解析计数的 TTL：跨两个自然日，避免边界前后重复计数。 */
+    private static final Duration DAILY_RESUME_PARSE_TTL = Duration.ofDays(2);
+
     private final QuotaRepository quotaRepository;
     private final QuotaProperties properties;
     private final PlatformSettingsService settingsService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final RedisCounterGuard counterGuard;
 
     /**
      * 幂等初始化：已有 user_quota 时直接返回；planCode 不存在时回退 FREE。
@@ -251,6 +255,9 @@ public class QuotaService {
 
     /**
      * 占用一次每日简历解析名额；Redis 故障放行，避免缓存故障阻断解析。
+     *
+     * <p>走 {@link RedisCounterGuard}：INCR 与首次 PEXPIRE 在同一 Lua 脚本内完成。
+     * 分开调用时，若进程在两步之间退出，计数键就没有 TTL，用户会被永久挡在解析入口外。</p>
      */
     public void reserveDailyResumeParse(long userId) {
         int cap = settingsService.snapshot().dailyResumeLimit();
@@ -258,18 +265,8 @@ public class QuotaService {
             return;
         }
         String key = RedisKeys.dailyResumeParse(userId, LocalDate.now().format(DAY_KEY));
-        try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, Duration.ofDays(2));
-            }
-            if (count != null && count > cap) {
-                throw new BizException(ErrorCode.QUOTA_EXCEEDED, Map.of("type", "DAILY_RESUME_PARSE", "cap", cap));
-            }
-        } catch (BizException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
-            log.warn("每日解析次数计数不可用，放行本次请求：{}", exception.getClass().getSimpleName());
+        if (!counterGuard.tryAcquire(key, cap, DAILY_RESUME_PARSE_TTL)) {
+            throw new BizException(ErrorCode.QUOTA_EXCEEDED, Map.of("type", "DAILY_RESUME_PARSE", "cap", cap));
         }
     }
 
@@ -308,6 +305,12 @@ public class QuotaService {
         }
         if (reason == null || reason.isBlank()) {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("field", "reason"));
+        }
+
+        // 额度行可能缺失（历史用户、非注册路径创建的账号）；发放/退款时按 FREE 套餐补齐，
+        // 否则邀请奖励这类"给他人加额度"的调用会以 404 打断调用方事务（注册整体回滚）。
+        if (quotaRepository.findQuota(userId).isEmpty()) {
+            initializeQuota(userId, FREE_PLAN_CODE);
         }
 
         QuotaAccount quota = quotaRepository

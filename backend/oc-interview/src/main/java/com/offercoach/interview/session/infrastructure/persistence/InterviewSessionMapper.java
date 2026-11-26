@@ -29,10 +29,14 @@ public interface InterviewSessionMapper {
     @Select("SELECT " + COLUMNS + " FROM interview_session WHERE id = #{id}")
     InterviewSessionDO findAny(@Param("id") long id);
 
+    /**
+     * 工作台的「进行中会话」：状态集合必须与 {@link #countActive} 和 uq_session_active 一致，
+     * 否则处于 PREPARING 的会话会占住唯一活跃名额，却在前端显示为「没有进行中的面试」。
+     */
     @Select("SELECT "
             + COLUMNS
             + " FROM interview_session WHERE user_id = #{userId}"
-            + " AND status IN ('CREATED', 'READY', 'IN_PROGRESS', 'PAUSED')"
+            + " AND status IN ('CREATED', 'PREPARING', 'READY', 'IN_PROGRESS', 'PAUSED')"
             + " ORDER BY last_active_at DESC NULLS LAST, id DESC LIMIT 1")
     InterviewSessionDO findLatestOpen(@Param("userId") long userId);
 
@@ -170,6 +174,15 @@ public interface InterviewSessionMapper {
             WHERE id = #{id} AND status IN ('IN_PROGRESS', 'PAUSED')
             """)
     int touch(@Param("id") long id);
+
+    /**
+     * 锁定会话行，用于把「计数 → 取 seq → 插入」串行化（追问上限与作答推进）。
+     *
+     * <p>没有行锁时两个并发追问都能通过 {@code countFollowUps < 2} 检查，
+     * 各自拿到不同 seq 后都插入成功，上限就被绕过；作答并发则会重复推进 current_seq。</p>
+     */
+    @Select("SELECT " + COLUMNS + " FROM interview_session WHERE id = #{id} FOR UPDATE")
+    InterviewSessionDO lockById(@Param("id") long id);
 
     @Update(
             """

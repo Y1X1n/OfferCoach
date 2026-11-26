@@ -31,6 +31,15 @@ public class JobDescriptionRepositoryImpl implements JobDescriptionRepository {
 
     @Override
     public long insert(JobDescription description) {
+        return doInsert(description, false);
+    }
+
+    @Override
+    public long insertIfAbsent(JobDescription description) {
+        return doInsert(description, true);
+    }
+
+    private long doInsert(JobDescription description, boolean ifAbsent) {
         JobDescriptionDO row = new JobDescriptionDO();
         row.setUserId(description.userId());
         row.setTitle(description.title());
@@ -40,8 +49,8 @@ public class JobDescriptionRepositoryImpl implements JobDescriptionRepository {
         row.setContentHash(description.contentHash());
         row.setSourceType(description.sourceType() == null ? JobDescription.SOURCE_MANUAL : description.sourceType());
         row.setSourceUrl(description.sourceUrl());
-        jdMapper.insert(row);
-        return row.getId() == null ? 0 : row.getId();
+        int affected = ifAbsent ? jdMapper.insertIfAbsent(row) : jdMapper.insert(row);
+        return affected == 0 || row.getId() == null ? 0 : row.getId();
     }
 
     @Override

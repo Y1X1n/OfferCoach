@@ -56,8 +56,17 @@ public class StaleStateWatchdog {
     private void recoverSessions(OffsetDateTime cutoff) {
         List<InterviewSession> stale = sessionRepository.findStalePreparing(cutoff, BATCH_SIZE);
         for (InterviewSession session : stale) {
-            sessionService.markGenerationFailed(session.userId(), session.id(), SESSION_TIMEOUT_REASON);
-            log.warn("超时会话置失败：sessionId={}", session.id());
+            try {
+                sessionService.markGenerationFailed(session.userId(), session.id(), SESSION_TIMEOUT_REASON);
+                log.warn("超时会话置失败：sessionId={}", session.id());
+            } catch (RuntimeException exception) {
+                // 单条失败（例如退款时数据库抖动）不应中断整批：事务已回滚，
+                // 会话仍是 PREPARING，下一轮看门狗会再试。
+                log.warn(
+                        "超时会话置失败失败，等待下轮重试：sessionId={} reason={}",
+                        session.id(),
+                        exception.getClass().getSimpleName());
+            }
         }
     }
 

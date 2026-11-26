@@ -155,6 +155,8 @@ public class UserRepositoryImpl implements UserRepository {
                         .set(AppUserDO::getNickname, "已注销用户")
                         .set(AppUserDO::getAvatarUrl, null)
                         .set(AppUserDO::getUpdatedAt, at));
+        // 注册 IP/设备指纹与个人邀请码不在 DO 映射内，单独清空（注销后不应保留可识别信息）。
+        userMapper.clearSignupFingerprint(id);
     }
 
     private static LambdaQueryWrapper<AppUserDO> searchWrapper(String keyword, String status) {

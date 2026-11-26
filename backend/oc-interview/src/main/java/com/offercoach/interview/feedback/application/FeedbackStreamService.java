@@ -43,19 +43,29 @@ public class FeedbackStreamService {
     }
 
     /**
-     * 校验短期令牌；返回 true 表示允许建立评分流。
+     * 校验短期令牌；区分「令牌无效」与「存储不可用」。
+     *
+     * <p>Redis 抖动时返回 {@link TokenCheck#UNAVAILABLE}，让调用方回 503 而不是 403——
+     * 把基础设施故障报成「无权执行该操作」会让用户以为账号出问题，也让排障方向跑偏。</p>
      */
-    public boolean validToken(long userId, long answerId, String token) {
+    public TokenCheck checkToken(long userId, long answerId, String token) {
         if (token == null || token.isBlank()) {
-            return false;
+            return TokenCheck.INVALID;
         }
         try {
             String stored = redisTemplate.opsForValue().get(RedisKeys.aiStreamToken(token));
-            return (userId + ":" + answerId).equals(stored);
+            return (userId + ":" + answerId).equals(stored) ? TokenCheck.VALID : TokenCheck.INVALID;
         } catch (RuntimeException exception) {
             log.warn("评分流令牌校验失败：reason={}", exception.getClass().getSimpleName());
-            return false;
+            return TokenCheck.UNAVAILABLE;
         }
+    }
+
+    /** 令牌校验结果。 */
+    public enum TokenCheck {
+        VALID,
+        INVALID,
+        UNAVAILABLE
     }
 
     /**

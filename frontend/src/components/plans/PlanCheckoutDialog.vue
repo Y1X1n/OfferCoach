@@ -39,6 +39,9 @@ let pollTimer: number | null = null
 /** 首次下单确定的支付截止时间；轮询返回的 expiresAt 不覆盖它。 */
 let deadlineAt = 0
 let disposed = false
+/** 重试期间复用的下单幂等键，以及它所属的「套餐:渠道」作用域。 */
+let pendingOrderKey = ''
+let pendingOrderScope = ''
 
 const enabledChannels = computed(() => channels.value.filter((item) => item.enabled))
 const selected = computed(
@@ -71,6 +74,7 @@ async function begin(): Promise<void> {
   // 重新下单前先关掉上一笔未支付订单，避免旧二维码继续可付
   const current = order.value
   resetPayState()
+  clearIdempotencyKey()
   void cancelPendingOrder(current, '重新下单')
   channels.value = []
   channel.value = ''
@@ -105,8 +109,30 @@ function createIdempotencyKey(): string {
   return `order_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
 }
 
+/**
+ * 下单幂等键按「套餐 + 渠道」维度保持稳定。
+ *
+ * 每次点击都换新键时，若首次请求已在服务端建成订单但响应丢失（超时/断网），
+ * 用户点「重试」会再建一笔订单，最终可能付两笔。保持同一个键则重试命中服务端幂等，
+ * 拿回的是同一笔订单。
+ */
+function idempotencyKeyFor(planCode: string, channelCode: PayChannelCode): string {
+  const scope = `${planCode}:${channelCode}`
+  if (pendingOrderKey && pendingOrderScope === scope) return pendingOrderKey
+  pendingOrderKey = createIdempotencyKey()
+  pendingOrderScope = scope
+  return pendingOrderKey
+}
+
+function clearIdempotencyKey(): void {
+  pendingOrderKey = ''
+  pendingOrderScope = ''
+}
+
 async function pay(): Promise<void> {
   if (!props.plan || !channel.value || creating.value) return
+  const planCode = props.plan.code
+  const channelCode = channel.value
   creating.value = true
   phase.value = 'paying'
   message.value = ''
@@ -114,9 +140,11 @@ async function pay(): Promise<void> {
   pollError.value = ''
   try {
     const created = await ordersApi.createOrder(
-      { planCode: props.plan.code, channel: channel.value },
-      createIdempotencyKey(),
+      { planCode, channel: channelCode },
+      idempotencyKeyFor(planCode, channelCode),
     )
+    // 订单已落地，后续重试应视为新订单（旧单已在下面关单或已完成）。
+    clearIdempotencyKey()
     // 下单期间弹窗已关闭、组件已卸载或已重新开始：立即关掉这笔订单
     if (disposed || !props.open || phase.value !== 'paying') {
       void cancelPendingOrder(created, '下单结果已失效')
@@ -283,6 +311,8 @@ function chooseChannel(next: PayChannelCode): void {
   if (channel.value === next) return
   const current = order.value
   channel.value = next
+  // 渠道变了就是另一笔订单，幂等键不能再复用。
+  clearIdempotencyKey()
   if (!current) return
   resetPayState()
   phase.value = 'select'

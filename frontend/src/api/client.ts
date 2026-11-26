@@ -281,14 +281,22 @@ async function performRefresh(): Promise<boolean> {
 
 /**
  * 发送请求并在 401 时刷新重放一次；刷新失败则清空会话并交由回调跳转。
+ *
+ * 刷新前先比较「本次请求用的 Token」与「当前内存 Token」：若已被其他请求刷新过，
+ * 说明 401 是旧 Token 的迟到响应，直接重放即可，不必再消耗一次 Refresh 轮换
+ * （Refresh 是一次性轮换的，多余的刷新会无谓放大重放检测的触发面）。
  */
 async function sendWithRefreshRetry(path: string, options: RequestOptions): Promise<Response> {
+  const tokenUsed = accessToken
   const response = await send(path, options)
   if (
     response.status === 401 &&
     options.refreshOnUnauthorized !== false &&
     (!path.startsWith('/auth/') || path === '/auth/logout')
   ) {
+    if (accessToken !== null && accessToken !== tokenUsed) {
+      return send(path, options)
+    }
     const refreshed = await refreshSession()
     if (!refreshed) throw await toApiError(response)
     return send(path, options)

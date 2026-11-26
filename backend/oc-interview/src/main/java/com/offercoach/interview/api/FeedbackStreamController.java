@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,11 +47,21 @@ public class FeedbackStreamController {
         } catch (NumberFormatException exception) {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("answerId", "非数字 ID")));
         }
-        if (!streamService.validToken(userId, parsedAnswerId, token)) {
-            throw new BizException(ErrorCode.FORBIDDEN, Map.of("reason", "STREAM_TOKEN_INVALID"));
+        switch (streamService.checkToken(userId, parsedAnswerId, token)) {
+            case INVALID -> throw new BizException(ErrorCode.FORBIDDEN, Map.of("reason", "STREAM_TOKEN_INVALID"));
+            case UNAVAILABLE -> throw new BizException(
+                    ErrorCode.AI_UNAVAILABLE, Map.of("reason", "STREAM_TOKEN_STORE_UNAVAILABLE"));
+            default -> {
+                // VALID：继续建立流
+            }
         }
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
-        sseExecutor.execute(() -> streamService.stream(emitter, userId, parsedAnswerId));
+        try {
+            sseExecutor.execute(() -> streamService.stream(emitter, userId, parsedAnswerId));
+        } catch (TaskRejectedException exception) {
+            // 线程池已满：以错误事件收尾，避免 500 + 永不完成的 emitter。
+            emitter.completeWithError(exception);
+        }
         return emitter;
     }
 }

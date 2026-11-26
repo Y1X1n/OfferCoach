@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -142,27 +141,28 @@ public class JdService {
         if (existing.isPresent()) {
             return resolveExisting(existing.get(), conflict);
         }
-        try {
-            return jdRepository.insert(new JobDescription(
-                    0,
-                    userId,
-                    safeTitle,
-                    safeCompany,
-                    text,
-                    structuredJson,
-                    null,
-                    null,
-                    hash,
-                    null,
-                    sourceType,
-                    sourceUrl));
-        } catch (DuplicateKeyException exception) {
-            Optional<JobDescription> raced = jdRepository.findByContentHash(userId, hash);
-            if (raced.isPresent()) {
-                return resolveExisting(raced.get(), conflict);
-            }
-            throw exception;
+        // 幂等插入：并发同内容不会抛异常，也不会把外层事务置为 aborted（PG 冲突后事务不可继续）。
+        long insertedId = jdRepository.insertIfAbsent(new JobDescription(
+                0,
+                userId,
+                safeTitle,
+                safeCompany,
+                text,
+                structuredJson,
+                null,
+                null,
+                hash,
+                null,
+                sourceType,
+                sourceUrl));
+        if (insertedId > 0) {
+            return insertedId;
         }
+        return jdRepository
+                .findByContentHash(userId, hash)
+                .map(raced -> resolveExisting(raced, conflict))
+                .orElseThrow(() -> new BizException(
+                        ErrorCode.STATE_CONFLICT, Map.of("reason", "JD_INSERT_CONFLICT", "message", "JD 保存冲突，请重试")));
     }
 
     private static long resolveExisting(JobDescription existing, boolean conflict) {

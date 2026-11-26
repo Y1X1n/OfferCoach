@@ -127,6 +127,7 @@ class FollowUpServiceTest {
         when(questionRepository.findOwned(100L, 5L)).thenReturn(Optional.of(parent));
         when(answerRepository.findByQuestionId(5L)).thenReturn(Optional.of(answer));
         when(aiGateway.available()).thenReturn(false);
+        when(sessionRepository.lockForUpdate(100L)).thenReturn(true);
         when(questionRepository.countFollowUps(100L)).thenReturn(0L);
         when(questionRepository.maxSeq(100L)).thenReturn(8);
         when(questionRepository.insertFollowUp(
@@ -195,6 +196,7 @@ class FollowUpServiceTest {
         when(questionRepository.findOwned(100L, 5L)).thenReturn(Optional.of(parent));
         when(answerRepository.findByQuestionId(5L)).thenReturn(Optional.of(answer));
         when(aiGateway.available()).thenReturn(false);
+        when(sessionRepository.lockForUpdate(100L)).thenReturn(true);
         when(questionRepository.countFollowUps(100L)).thenReturn(0L);
         when(questionRepository.maxSeq(100L)).thenReturn(8);
         when(questionRepository.insertFollowUp(

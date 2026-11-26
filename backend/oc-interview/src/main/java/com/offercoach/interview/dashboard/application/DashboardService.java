@@ -52,7 +52,15 @@ public class DashboardService {
         this.reportMetaResolver = reportMetaResolver;
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * 工作台聚合读取。
+     *
+     * <p>不能声明 {@code readOnly = true}：{@link QuotaService#snapshot} 会在跨天/跨月/首次访问时
+     * 写回 {@code user_quota}（重置当日计数、续期周期、初始化额度行）。pgjdbc 的
+     * {@code readOnlyMode=transaction} 会发出 {@code SET TRANSACTION READ ONLY}，
+     * 从而让工作台在每日 0 点后稳定返回 500。</p>
+     */
+    @Transactional
     public DashboardView load(long userId) {
         QuotaSnapshot quota = quotaService.snapshot(userId);
         boolean resumeReady = resumeRepository.countReady(userId) > 0;

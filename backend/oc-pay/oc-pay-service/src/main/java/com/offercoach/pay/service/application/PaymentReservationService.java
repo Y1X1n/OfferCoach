@@ -12,7 +12,6 @@ import com.offercoach.pay.service.error.PayException;
 import com.offercoach.pay.service.support.OrderNumbers;
 import java.time.Instant;
 import java.util.Optional;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,9 +65,8 @@ public class PaymentReservationService {
                 request.idempotencyKey(),
                 now,
                 now);
-        try {
-            refundRepository.insert(refund);
-        } catch (DuplicateKeyException exception) {
+        // 幂等插入：并发重复请求由唯一键拦截，不抛异常，也不污染事务（PG 冲突后事务会 aborted）。
+        if (!refundRepository.insertIfAbsent(refund)) {
             PaymentRefund concurrent = refundRepository
                     .findByOrderIdempotency(orderNo, request.idempotencyKey())
                     .orElseThrow(() -> new PayException(PayErrorKind.STATE_CONFLICT, "退款请求冲突，请重试"));

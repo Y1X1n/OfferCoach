@@ -28,7 +28,10 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -53,6 +56,7 @@ public class InterviewController {
 
     private static final long EVENT_TIMEOUT_MS = 30_000L;
     private static final long EVENT_POLL_MS = 500L;
+    private static final Logger log = LoggerFactory.getLogger(InterviewController.class);
 
     private final InterviewSessionService sessionService;
     private final AnswerService answerService;
@@ -280,7 +284,13 @@ public class InterviewController {
         long userId = currentUser.userId();
         long sessionId = parseId(id, "id");
         SseEmitter emitter = new SseEmitter(EVENT_TIMEOUT_MS);
-        sseExecutor.execute(() -> pumpEvents(emitter, userId, sessionId));
+        try {
+            sseExecutor.execute(() -> pumpEvents(emitter, userId, sessionId));
+        } catch (TaskRejectedException exception) {
+            // 线程池已满：直接以错误事件收尾，否则会变成未完成 emitter + 500。
+            log.warn("SSE 线程池已满，拒绝订阅：sessionId={}", sessionId);
+            emitter.completeWithError(exception);
+        }
         return emitter;
     }
 

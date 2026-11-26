@@ -68,9 +68,11 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/actuator/prometheus")
                         .permitAll()
-                        // 仅 local profile 暴露 metrics/loggers；生产 exposure 不包含这两个端点。
+                        // metrics/loggers 只在 local profile 暴露（见 application-local.yml），
+                        // 这里再要求 ADMIN：即使误把暴露面带到非本地环境，也不会对匿名开放运行期探针
+                        // 与日志级别动态修改（loggers 可被 POST 改写，等于远程改运行行为）。
                         .requestMatchers("/actuator/metrics/**", "/actuator/loggers/**")
-                        .permitAll()
+                        .hasRole("ADMIN")
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
                         // 支付额度发放回调是唯一对外开放的内部接口，令牌由 InternalTokenFilter 校验；

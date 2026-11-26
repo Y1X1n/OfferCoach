@@ -134,8 +134,9 @@ public class QuestionGenerationWorker {
         if (bankCount < plan.bankMinimum()) {
             log.info("题库候选不足目标配比：sessionId={} bank={} minimum={}", session.id(), bankCount, plan.bankMinimum());
         }
+        TokenUsage aiUsage = TokenUsage.EMPTY;
         if (drafts.stream().anyMatch(draft -> !draft.fromBank())) {
-            fillWithAi(drafts, context);
+            aiUsage = fillWithAi(drafts, context);
         }
         persist(session.id(), drafts);
         sessionService.markReady(session.id());
@@ -146,8 +147,9 @@ public class QuestionGenerationWorker {
                 aiAvailable ? "openai-compatible" : "heuristic",
                 aiAvailable ? "configured" : "rules-v1",
                 aiAvailable ? "SUCCESS" : "DEGRADED",
-                0,
-                0,
+                // 真实 token 数：每日 token 预算按 ai_call_log 求和，写 0 等于让熔断永远不触发。
+                aiUsage.tokensIn(),
+                aiUsage.tokensOut(),
                 null,
                 (System.nanoTime() - startedAt) / 1_000_000,
                 null,
@@ -176,13 +178,17 @@ public class QuestionGenerationWorker {
         }
     }
 
-    private void fillWithAi(List<PendingDraft> drafts, QuestionContext context) {
+    /**
+     * 用 AI 补齐题库未覆盖的槽位，返回本次消耗的 token 数（供 ai_call_log 记录）。
+     */
+    private TokenUsage fillWithAi(List<PendingDraft> drafts, QuestionContext context) {
         List<PendingDraft> missing =
                 drafts.stream().filter(draft -> !draft.fromBank()).toList();
         if (missing.isEmpty()) {
-            return;
+            return TokenUsage.EMPTY;
         }
-        List<AiDraft> aiDrafts = callAi(missing, context);
+        AiCall aiCall = callAi(missing, context);
+        List<AiDraft> aiDrafts = aiCall.drafts();
         int cursor = 0;
         for (PendingDraft draft : missing) {
             AiDraft chosen = null;
@@ -204,11 +210,12 @@ public class QuestionGenerationWorker {
             }
             cursor = Math.min(cursor + 1, aiDrafts.size());
         }
+        return aiCall.usage();
     }
 
-    private List<AiDraft> callAi(List<PendingDraft> missing, QuestionContext context) {
+    private AiCall callAi(List<PendingDraft> missing, QuestionContext context) {
         if (!aiGateway.available()) {
-            return List.of();
+            return AiCall.EMPTY;
         }
         try {
             StringBuilder slots = new StringBuilder();
@@ -227,12 +234,14 @@ public class QuestionGenerationWorker {
             Optional<AiProvider.AiResult> result = aiGateway.complete(
                     AiScene.QUESTION_GEN, aiGateway.systemPrompt(AiScene.QUESTION_GEN, SYSTEM_PROMPT), prompt);
             if (result.isEmpty()) {
-                return List.of();
+                return AiCall.EMPTY;
             }
-            return parseAiDrafts(result.get().text());
+            AiProvider.AiResult aiResult = result.get();
+            TokenUsage usage = new TokenUsage(aiResult.tokensIn(), aiResult.tokensOut());
+            return new AiCall(parseAiDrafts(aiResult.text()), usage);
         } catch (RuntimeException exception) {
             log.warn("AI 出题输出非法，改用模板：reason={}", exception.getClass().getSimpleName());
-            return List.of();
+            return AiCall.EMPTY;
         }
     }
 
@@ -314,6 +323,18 @@ public class QuestionGenerationWorker {
     /** AI 生成题草稿。 */
     private record AiDraft(
             String dimension, String difficulty, String text, List<String> referencePoints, String whyThisQuestion) {}
+
+    /** 一次出题 AI 调用的结果与 token 消耗。 */
+    private record AiCall(List<AiDraft> drafts, TokenUsage usage) {
+
+        private static final AiCall EMPTY = new AiCall(List.of(), TokenUsage.EMPTY);
+    }
+
+    /** token 用量；降级路径为 0。 */
+    private record TokenUsage(int tokensIn, int tokensOut) {
+
+        private static final TokenUsage EMPTY = new TokenUsage(0, 0);
+    }
 
     /** 槽位草稿：题库命中或待生成。 */
     private static final class PendingDraft {

@@ -1,3 +1,15 @@
+/**
+ * 展示用时间区域：由 app store 在用户信息变化时写入。
+ *
+ * 不设时，`Intl.DateTimeFormat` 用浏览器本地时区，用户在设置页改的时区就完全没效果；
+ * 这里让格式化统一跟随账号设置，未登录或设置缺失时再回退浏览器默认。
+ */
+let displayTimezone: string | null = null
+
+export function setDisplayTimezone(timezone: string | null | undefined): void {
+  displayTimezone = timezone && timezone.trim() ? timezone.trim() : null
+}
+
 export function formatDate(iso: string, withTime = false): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '—'
@@ -6,6 +18,7 @@ export function formatDate(iso: string, withTime = false): string {
     month: 'short',
     day: 'numeric',
     ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+    ...(displayTimezone ? { timeZone: displayTimezone } : {}),
   }).format(date)
 }
 

@@ -26,5 +26,11 @@ public interface AdminUserRepository {
 
     int updatePassword(long id, String passwordHash);
 
-    long countAdmins();
+    /**
+     * 锁定全部管理员行并返回数量；用于「至少保留一个管理员」的检查-更新原子化。
+     *
+     * <p>必须在事务内调用。普通 COUNT(*) 与随后的 UPDATE 之间存在窗口，
+     * 两个并发降级请求都可能读到 2 而各自放行，最终把管理员降到 0。</p>
+     */
+    long lockAdminsAndCount();
 }

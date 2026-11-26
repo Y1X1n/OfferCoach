@@ -5,6 +5,7 @@ import com.offercoach.interview.session.application.port.InterviewAnswerReposito
 import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
 import com.offercoach.interview.session.application.port.InterviewSessionRepository;
 import com.offercoach.interview.session.domain.InterviewSession;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -43,9 +44,15 @@ public class SessionIdleAbandoner {
 
     @Scheduled(fixedDelay = 600_000L)
     public void run() {
-        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minus(properties.getSessionIdleAbandon());
-        List<InterviewSession> idle = sessionRepository.findIdle(cutoff, BATCH_SIZE);
-        for (InterviewSession session : idle) {
+        Duration idle = properties.getSessionIdleAbandon();
+        if (idle == null || idle.isNegative() || idle.isZero()) {
+            // 配置为 0/负值会把 cutoff 推到未来，下一轮就会把所有进行中会话全部放弃。
+            log.warn("空闲放弃阈值未配置或非法，跳过本轮：value={}", idle);
+            return;
+        }
+        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minus(idle);
+        List<InterviewSession> idleSessions = sessionRepository.findIdle(cutoff, BATCH_SIZE);
+        for (InterviewSession session : idleSessions) {
             if (!sessionRepository.markIdleAbandoned(session.id(), cutoff)) {
                 continue;
             }

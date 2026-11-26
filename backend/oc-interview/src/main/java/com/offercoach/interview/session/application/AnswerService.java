@@ -14,6 +14,7 @@ import com.offercoach.interview.session.domain.SessionStatus;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.context.ApplicationEventPublisher;
@@ -91,6 +92,14 @@ public class AnswerService {
         if (!SessionStatus.IN_PROGRESS.equals(session.status())) {
             throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("status", session.status()));
         }
+        // 锁定会话行后重读：并发作答（例如原题与追问同时提交）会各自推进 current_seq，
+        // 无锁时 1 → 3 跳过一题，前端看到的「当前题」与已答题错位。
+        if (!sessionRepository.lockForUpdate(sessionId)) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("sessionId", sessionId));
+        }
+        session = sessionRepository
+                .findOwned(userId, sessionId)
+                .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("sessionId", sessionId)));
         InterviewQuestion question = questionRepository
                 .findOwned(sessionId, questionId)
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("questionId", questionId)));
@@ -114,9 +123,10 @@ public class AnswerService {
                                     "回答长度需为 " + properties.getMinAnswerLength() + "-"
                                             + properties.getMaxAnswerLength())));
         }
+        // Locale.ROOT：土耳其语环境下 "voice".toUpperCase() 会得到 "VOİCE"，导致合法入参被拒。
         String mode = inputMode == null || inputMode.isBlank()
                 ? INPUT_MODE_TEXT
-                : inputMode.strip().toUpperCase();
+                : inputMode.strip().toUpperCase(Locale.ROOT);
         if (!INPUT_MODE_TEXT.equals(mode) && !INPUT_MODE_VOICE.equals(mode)) {
             throw new BizException(
                     ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("inputMode", "仅支持 TEXT 或 VOICE")));
@@ -199,7 +209,7 @@ public class AnswerService {
         if (asrStatus == null || asrStatus.isBlank()) {
             return "DONE";
         }
-        String value = asrStatus.strip().toUpperCase();
+        String value = asrStatus.strip().toUpperCase(Locale.ROOT);
         return switch (value) {
             case "PENDING", "DONE", "FAILED" -> value;
             default -> "DONE";

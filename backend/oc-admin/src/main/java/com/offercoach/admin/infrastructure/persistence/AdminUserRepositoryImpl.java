@@ -111,12 +111,20 @@ public class AdminUserRepositoryImpl implements AdminUserRepository {
                 id);
     }
 
+    /**
+     * 行锁版计数：并发降级时两个事务会在同一批管理员行上串行，避免都读到 2 而各放行一次。
+     */
     @Override
-    public long countAdmins() {
-        Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM app_user WHERE role = 'ADMIN' AND deleted_at IS NULL AND status <> 'DELETED'",
+    public long lockAdminsAndCount() {
+        List<Long> ids = jdbcTemplate.queryForList(
+                """
+                SELECT id FROM app_user
+                WHERE role = 'ADMIN' AND deleted_at IS NULL AND status <> 'DELETED'
+                ORDER BY id
+                FOR UPDATE
+                """,
                 Long.class);
-        return count == null ? 0 : count;
+        return ids.size();
     }
 
     private static WhereClause filter(String keyword, String status) {

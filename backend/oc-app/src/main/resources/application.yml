@@ -35,6 +35,13 @@ spring:
     # 不设置 default-property-inclusion：null 字段按契约显式输出，前端可区分“缺失”与“null”。
     serialization:
       write-dates-as-timestamps: false
+  task:
+    scheduling:
+      # 默认只有 1 个调度线程：保留策略一次分批删除可能跑几分钟，
+      # 期间报告 worker（5s）、状态看门狗（60s）、空闲放弃（10min）全部停摆。
+      pool:
+        size: ${SCHEDULING_POOL_SIZE:4}
+      thread-name-prefix: oc-sched-
 
 mybatis-plus:
   configuration:
@@ -153,6 +160,7 @@ oc:
   retention:
     ai-call-days: ${RETENTION_AI_CALL_DAYS:90}
     audit-days: ${RETENTION_AUDIT_DAYS:1095}
+    payment-notify-days: ${RETENTION_PAYMENT_NOTIFY_DAYS:180}
     cron: "${RETENTION_CRON:0 30 3 * * *}"
     zone: ${RETENTION_ZONE:Asia/Shanghai}
   interview:

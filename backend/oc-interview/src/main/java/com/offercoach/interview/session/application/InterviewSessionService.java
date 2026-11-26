@@ -217,9 +217,17 @@ public class InterviewSessionService {
 
     /**
      * 题目列表：READY 首次访问自动进入 IN_PROGRESS，只返回当前及已答/已跳过题目。
+     *
+     * <p>FAILED / ABANDONED 等终态一律拒绝：看门狗把超时会话置 FAILED 时，出题任务可能已经把题目
+     * 落库了，若不拦住，用户就能在已退款的会话里白拿整套题目。</p>
      */
     public List<QuestionView> questions(long userId, long sessionId) {
         InterviewSession session = loadOwned(userId, sessionId);
+        if (SessionStatus.FAILED.equals(session.status()) || SessionStatus.ABANDONED.equals(session.status())) {
+            throw new BizException(
+                    ErrorCode.STATE_CONFLICT,
+                    Map.of("status", session.status(), "reason", "SESSION_CLOSED", "message", "会话已结束，请重新创建"));
+        }
         if (SessionStatus.READY.equals(session.status())) {
             sessionRepository.markInProgress(sessionId);
             questionRepository.markAsked(sessionId, session.currentSeq());
@@ -279,12 +287,18 @@ public class InterviewSessionService {
     public void abandon(long userId, long sessionId) {
         InterviewSession session = loadOwned(userId, sessionId);
         SessionStateMachine.require(session.status(), SessionStatus.ABANDONED);
-        if (!sessionRepository.abandon(sessionId)) {
-            throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("status", reloadStatus(sessionId)));
-        }
-        // 题目已生成即视为已消耗出题成本，放弃不再退款，避免“生成后放弃”刷额度。
-        if (answerRepository.countBySession(sessionId) == 0 && questionRepository.countBySession(sessionId) == 0) {
-            refundQuietly(userId, sessionId);
+        Boolean abandoned = transactionTemplate.execute(status -> {
+            if (!sessionRepository.abandon(sessionId)) {
+                throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("status", reloadStatus(sessionId)));
+            }
+            // 题目已生成即视为已消耗出题成本，放弃不再退款，避免"生成后放弃"刷额度。
+            if (answerRepository.countBySession(sessionId) == 0 && questionRepository.countBySession(sessionId) == 0) {
+                return refundInTx(userId, sessionId);
+            }
+            return Boolean.FALSE;
+        });
+        if (Boolean.FALSE.equals(abandoned)) {
+            log.info("会话放弃未退款（已有作答或题目）：sessionId={}", sessionId);
         }
     }
 
@@ -326,32 +340,45 @@ public class InterviewSessionService {
         }
     }
 
-    /** 出题失败置 FAILED 并幂等退款。 */
+    /**
+     * 出题失败置 FAILED 并幂等退款。
+     *
+     * <p>状态迁移与退款必须同事务：分两步提交时，若中间发生数据库/连接抖动，
+     * 会话已是 FAILED 而额度仍被扣着，且没有任何任务会重试（看门狗只看 PREPARING），
+     * 用户会永久损失一次额度。同事务下要么都成功，要么都回滚由看门狗再次触发。</p>
+     */
     public void markGenerationFailed(long userId, long sessionId, String reason) {
-        try {
+        Boolean failed = transactionTemplate.execute(status -> {
             if (!sessionRepository.markGenerationFailed(sessionId, reason)) {
-                return;
+                return Boolean.FALSE;
             }
-        } catch (RuntimeException exception) {
-            log.warn(
-                    "会话置 FAILED 失败：sessionId={} reason={}",
-                    sessionId,
-                    exception.getClass().getSimpleName());
-            return;
+            // 题目已落库时视为已消耗出题成本，与 abandon 口径一致。
+            if (questionRepository.countBySession(sessionId) > 0) {
+                log.info("出题失败但题目已落库，不退款：sessionId={}", sessionId);
+                return Boolean.TRUE;
+            }
+            return refundInTx(userId, sessionId);
+        });
+        if (Boolean.FALSE.equals(failed)) {
+            log.info("会话已不在 PREPARING，忽略出题失败处理：sessionId={}", sessionId);
         }
-        refundQuietly(userId, sessionId);
     }
 
+    /**
+     * 事务内退款；失败向上抛，让调用方事务整体回滚，避免"状态已变但额度未退"。
+     */
+    private boolean refundInTx(long userId, long sessionId) {
+        quotaService.refund(
+                userId, QuotaType.INTERVIEW, 1, REFUND_REASON, REF_TYPE, sessionId, "interview-refund:" + sessionId);
+        return true;
+    }
+
+    /**
+     * 尽力退款：用于没有外层事务可依赖的场景（如看门狗批量修复），失败只告警。
+     */
     public void refundQuietly(long userId, long sessionId) {
         try {
-            quotaService.refund(
-                    userId,
-                    QuotaType.INTERVIEW,
-                    1,
-                    REFUND_REASON,
-                    REF_TYPE,
-                    sessionId,
-                    "interview-refund:" + sessionId);
+            refundInTx(userId, sessionId);
         } catch (RuntimeException exception) {
             log.warn(
                     "会话退款未完成：sessionId={} reason={}",
@@ -469,11 +496,17 @@ public class InterviewSessionService {
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("jdId", jdId)));
     }
 
+    /**
+     * 重新读取状态用于错误详情；行已消失时返回 {@code UNKNOWN} 而不是 null。
+     *
+     * <p>调用方都写 {@code Map.of("status", ...)}，而 {@code Map.of} 不接受 null 值——
+     * 注销清理把会话删掉后，这里原本会抛 NPE 变成 500 而不是 409。</p>
+     */
     private String reloadStatus(long sessionId) {
         return sessionRepository
                 .findAny(sessionId)
                 .map(InterviewSession::status)
-                .orElse(null);
+                .orElse("UNKNOWN");
     }
 
     private static String normalizeKey(String idempotencyKey) {

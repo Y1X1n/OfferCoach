@@ -26,8 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 认证端点：注册、登录、刷新、登出。
  *
- * <p>注册/登录按客户端 IP 限流；仅当直连地址为回环/私有地址（受信代理）时才采信
- * {@code X-Forwarded-For} 的首个地址，避免客户端伪造。</p>
+ * <p>注册/登录按客户端 IP 限流；代理头只在「直连地址为回环/私有地址」且「携带匹配
+ * {@code X-Proxy-Secret}」时才采信（见 {@code ClientIpResolver}），否则一律用直连地址，
+ * 避免客户端自选 IP 绕过限流。</p>
  */
 @RestController
 @RequestMapping("/api/v1/auth")
