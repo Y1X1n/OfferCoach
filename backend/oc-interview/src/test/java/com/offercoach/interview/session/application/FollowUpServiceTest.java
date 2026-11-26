@@ -171,17 +171,7 @@ class FollowUpServiceTest {
                 "{}",
                 "ANSWERED");
         InterviewAnswer answer = new InterviewAnswer(
-                9L,
-                100L,
-                5L,
-                7L,
-                "TEXT",
-                "我把 P95 从 800ms 降到 120ms",
-                null,
-                "SCORED",
-                OffsetDateTime.now(),
-                null,
-                null);
+                9L, 100L, 5L, 7L, "TEXT", "我把 P95 从 800ms 降到 120ms", null, "SCORED", OffsetDateTime.now(), null, null);
         when(sessionRepository.findOwned(7L, 100L)).thenReturn(Optional.of(session));
         when(questionRepository.findOwned(100L, 5L)).thenReturn(Optional.of(parent));
         when(answerRepository.findByQuestionId(5L)).thenReturn(Optional.of(answer));
