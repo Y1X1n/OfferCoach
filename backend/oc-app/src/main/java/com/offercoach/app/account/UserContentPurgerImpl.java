@@ -63,7 +63,11 @@ public class UserContentPurgerImpl implements UserContentPurger {
             try {
                 fileStorage.delete(key);
             } catch (RuntimeException exception) {
-                log.warn("注销清理{}失败：key={} reason={}", label, key, exception.getClass().getSimpleName());
+                log.warn(
+                        "注销清理{}失败：key={} reason={}",
+                        label,
+                        key,
+                        exception.getClass().getSimpleName());
             }
         }
     }
