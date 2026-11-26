@@ -72,7 +72,7 @@ jobs:
         run: |
           changed="$(bash .github/scripts/changed-paths.sh frontend)"
           echo "changed=${changed}" >> "$GITHUB_OUTPUT"
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         if: steps.filter.outputs.changed == 'true'
         with:
           version: 10.23.0
