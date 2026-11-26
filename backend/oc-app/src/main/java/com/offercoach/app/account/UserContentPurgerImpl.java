@@ -40,24 +40,18 @@ public class UserContentPurgerImpl implements UserContentPurger {
                 String.class,
                 userId);
 
-        jdbcTemplate.update(
-                "DELETE FROM answer_feedback WHERE user_id = ?", userId);
-        jdbcTemplate.update(
-                "DELETE FROM interview_answer WHERE user_id = ?", userId);
-        jdbcTemplate.update(
-                "DELETE FROM interview_report WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM answer_feedback WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM interview_answer WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM interview_report WHERE user_id = ?", userId);
         jdbcTemplate.update(
                 """
                 DELETE FROM interview_question
                 WHERE session_id IN (SELECT id FROM interview_session WHERE user_id = ?)
                 """,
                 userId);
-        jdbcTemplate.update(
-                "DELETE FROM interview_session WHERE user_id = ?", userId);
-        jdbcTemplate.update(
-                "DELETE FROM job_description WHERE user_id = ?", userId);
-        jdbcTemplate.update(
-                "DELETE FROM resume WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM interview_session WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM job_description WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM resume WHERE user_id = ?", userId);
 
         deleteQuietly(resumeKeys, "简历文件");
         deleteQuietly(audioKeys, "作答音频");
