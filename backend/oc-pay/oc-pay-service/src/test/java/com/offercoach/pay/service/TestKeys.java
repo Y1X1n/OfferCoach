@@ -17,6 +17,7 @@ public final class TestKeys {
 
     /** 渠道签名固定 RSA；集中为常量，避免散落的算法字面量。 */
     private static final String KEY_ALGORITHM = "RSA";
+
     private static final int KEY_SIZE = 4096;
 
     private TestKeys() {}

@@ -35,6 +35,7 @@ public class JwtKeyProvider {
     private static final String PROD_PROFILE = "prod";
     /** RS256 固定算法；集中为常量，避免散落的算法字面量。 */
     private static final String KEY_ALGORITHM = "RSA";
+
     private static final int KEY_SIZE = 4096;
 
     private final RSAPublicKey publicKey;
