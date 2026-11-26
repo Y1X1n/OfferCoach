@@ -46,7 +46,7 @@ public class AdminMetricsService {
                 usage.tokensIn(),
                 usage.tokensOut(),
                 costMicros,
-                usage.ttftP95Ms(),
+                usage.latencyP95Ms(),
                 base.activeUsersToday());
     }
 }

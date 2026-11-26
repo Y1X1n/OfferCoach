@@ -269,6 +269,9 @@ spec:
 - 数据库：最小权限账号（应用无 DDL 权限）；审计登录；生产禁公网。
 - 备份加密；恢复演练使用脱敏数据。
 - 管理端：IP 白名单 + MFA（V1.1）+ 操作审计。
+- 迁移索引：`V202611260001` 对 `ai_call_log` 用普通 `CREATE INDEX`（Flyway 事务内、持 SHARE 锁）。
+  日志表超过百万行时，先在维护窗口手工执行 `CREATE INDEX CONCURRENTLY`（索引名保持一致），
+  再让 Flyway 跳过该迁移或改用 `-- flyway:executeInTransaction=false` 的独立迁移，避免阻塞写入。
 
 ## 7. 成本控制
 

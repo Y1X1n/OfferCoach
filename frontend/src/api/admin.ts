@@ -97,7 +97,7 @@ export interface AdminOverview {
   aiTokensIn: number
   aiTokensOut: number
   aiCostMicros: number
-  aiTtftP95Ms: number | null
+  aiLatencyP95Ms: number | null
   activeToday: number
 }
 
@@ -116,7 +116,7 @@ export async function getOverview(range: AdminRange): Promise<AdminOverview> {
     aiTokensIn: asNumber(dto.aiTokensIn),
     aiTokensOut: asNumber(dto.aiTokensOut),
     aiCostMicros: asNumber(dto.aiCostMicros),
-    aiTtftP95Ms: asNullableNumber(dto.aiTtftP95Ms),
+    aiLatencyP95Ms: asNullableNumber(dto.aiLatencyP95Ms),
     activeToday: asNumber(
       dto.activeToday,
       asNumber(dto.activeUsersToday, asNumber(dto.activeUsers)),

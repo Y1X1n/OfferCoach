@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.offercoach.common.error.BizException;
+import com.offercoach.identity.application.port.UserContentPurger;
 import com.offercoach.identity.application.port.UserRepository;
 import com.offercoach.identity.domain.user.UserAccount;
 import java.time.OffsetDateTime;
@@ -34,6 +35,9 @@ class AccountDeletionServiceTest {
     @Mock
     private TokenEpochService tokenEpochService;
 
+    @Mock
+    private UserContentPurger userContentPurger;
+
     @InjectMocks
     private AccountDeletionService service;
 
@@ -57,6 +61,7 @@ class AccountDeletionServiceTest {
         service.delete(7L, "secret");
 
         verify(userRepository).softDelete(anyLong(), any(OffsetDateTime.class));
+        verify(userContentPurger).purge(7L);
         verify(refreshTokenService).revokeAllForUser(7L);
         verify(tokenEpochService).bump(7L);
     }
@@ -80,6 +85,7 @@ class AccountDeletionServiceTest {
 
         assertThatThrownBy(() -> service.delete(7L, "wrong")).isInstanceOf(BizException.class);
         verify(userRepository, never()).softDelete(anyLong(), any(OffsetDateTime.class));
+        verify(userContentPurger, never()).purge(anyLong());
         verify(refreshTokenService, never()).revokeAllForUser(anyLong());
     }
 }

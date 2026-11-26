@@ -105,15 +105,15 @@ public class AdminMetricsRepositoryImpl implements AdminMetricsRepository {
                     totals[1] += tokensOut;
                 },
                 rangeDays);
-        Integer ttftP95 = jdbcTemplate.queryForObject(
+        Integer latencyP95 = jdbcTemplate.queryForObject(
                 """
-                SELECT ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY first_token_ms))::int
+                SELECT ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms))::int
                 FROM ai_call_log
-                WHERE first_token_ms IS NOT NULL AND created_at >= now() - make_interval(days => ?)
+                WHERE latency_ms IS NOT NULL AND created_at >= now() - make_interval(days => ?)
                 """,
                 Integer.class,
                 rangeDays);
-        return new AiUsage(totals[0], totals[1], ttftP95 == null ? null : ttftP95, byModel);
+        return new AiUsage(totals[0], totals[1], latencyP95, byModel);
     }
 
     private long queryLong(String sql, Object... args) {
