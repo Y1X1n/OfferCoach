@@ -1,6 +1,7 @@
 package com.offercoach.interview.session.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -11,6 +12,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.offercoach.common.error.BizException;
+import com.offercoach.common.error.ErrorCode;
 import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.ai.AiGateway;
 import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
@@ -30,6 +33,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class FollowUpServiceTest {
@@ -131,5 +135,66 @@ class FollowUpServiceTest {
                         any(),
                         eq(100L),
                         any());
+    }
+
+    @Test
+    void concurrentInsertConflictBecomesStateConflict() {
+        InterviewSession session = new InterviewSession(
+                100L,
+                7L,
+                1L,
+                2L,
+                SessionStatus.IN_PROGRESS,
+                "{}",
+                8,
+                1,
+                2,
+                null,
+                null,
+                "key",
+                OffsetDateTime.now(),
+                null,
+                OffsetDateTime.now(),
+                OffsetDateTime.now());
+        InterviewQuestion parent = new InterviewQuestion(
+                5L,
+                100L,
+                1,
+                "DEPTH",
+                "MEDIUM",
+                "请介绍一次性能优化",
+                "BANK",
+                null,
+                List.of("背景"),
+                "关联 JD",
+                "{}",
+                "{}",
+                "ANSWERED");
+        InterviewAnswer answer = new InterviewAnswer(
+                9L,
+                100L,
+                5L,
+                7L,
+                "TEXT",
+                "我把 P95 从 800ms 降到 120ms",
+                null,
+                "SCORED",
+                OffsetDateTime.now(),
+                null,
+                null);
+        when(sessionRepository.findOwned(7L, 100L)).thenReturn(Optional.of(session));
+        when(questionRepository.findOwned(100L, 5L)).thenReturn(Optional.of(parent));
+        when(answerRepository.findByQuestionId(5L)).thenReturn(Optional.of(answer));
+        when(aiGateway.available()).thenReturn(false);
+        when(questionRepository.countFollowUps(100L)).thenReturn(0L);
+        when(questionRepository.maxSeq(100L)).thenReturn(8);
+        when(questionRepository.insertFollowUp(
+                        anyLong(), anyInt(), anyString(), anyString(), anyString(), anyList(), anyString(), anyLong()))
+                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        assertThatThrownBy(() -> service.add(7L, 100L, 5L))
+                .isInstanceOf(BizException.class)
+                .extracting(exception -> ((BizException) exception).errorCode())
+                .isEqualTo(ErrorCode.STATE_CONFLICT);
     }
 }

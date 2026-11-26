@@ -18,10 +18,12 @@ public class AiGateway {
 
     private final AiProvider provider;
     private final PromptProvider promptProvider;
+    private final AiBudgetGuard budgetGuard;
 
-    public AiGateway(AiProvider provider, PromptProvider promptProvider) {
+    public AiGateway(AiProvider provider, PromptProvider promptProvider, AiBudgetGuard budgetGuard) {
         this.provider = provider;
         this.promptProvider = promptProvider;
+        this.budgetGuard = budgetGuard;
     }
 
     /**
@@ -32,11 +34,11 @@ public class AiGateway {
     }
 
     public boolean available() {
-        return provider.available();
+        return provider.available() && !budgetGuard.exhausted();
     }
 
     public Optional<AiProvider.AiResult> complete(AiScene scene, String systemPrompt, String userPrompt) {
-        if (!provider.available()) {
+        if (!available()) {
             return Optional.empty();
         }
         try {
@@ -52,7 +54,7 @@ public class AiGateway {
      */
     public boolean stream(
             AiScene scene, String systemPrompt, String userPrompt, java.util.function.Consumer<String> onDelta) {
-        if (!provider.available()) {
+        if (!available()) {
             return false;
         }
         try {

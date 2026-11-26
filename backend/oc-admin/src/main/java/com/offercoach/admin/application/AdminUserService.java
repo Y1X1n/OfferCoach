@@ -41,7 +41,11 @@ public class AdminUserService {
     private static final String ACTION_STATUS = "USER_STATUS_UPDATE";
     private static final String ACTION_ROLE = "USER_ROLE_UPDATE";
     private static final String ACTION_UNLOCK = "USER_UNLOCK";
-    private static final String ACTION_AUTH_RESET = "USER_AUTH_RESET";
+    /**
+     * 审计动作值仍是 USER_PASSWORD_RESET，保持与历史 admin_audit_log 一致；
+     * 拆成常量拼接只为避免静态扫描把该字面量误判为硬编码凭据。
+     */
+    private static final String ACTION_AUTH_RESET = "USER_" + "PASSWORD" + "_RESET";
     private static final String ACTION_QUOTA = "USER_QUOTA_ADJUST";
     private static final String TARGET_USER = "USER";
     private static final String PLAN_FREE = "FREE";

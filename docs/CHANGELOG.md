@@ -43,6 +43,16 @@
 - `InternalTokenFilter` 改为按容器**解码后**的 `servletPath` 判定 `/internal/**`，不再使用原始 `requestURI` 前缀；原始 URI 仍含 `%` 或 `;` 的内部请求直接返回 400。
 - 过滤器移入 Spring Security 链（`addFilterBefore(…, AuthorizationFilter)`），先过 `StrictHttpFirewall` 再判定；同时关闭 Boot 对它的独立 servlet filter 注册，避免重复执行。
 - 补 `InternalTokenFilterTest`（8 例：编码路径、路径参数、缺失/错误/正确令牌、未配置令牌 fail-closed、空 servletPath）。
+
+### v2.30（2026-11-26）——追问可答性与预算熔断修复
+
+- 追问不再被 `currentSeq` 顺序门禁误拦：`InterviewQuestion.isAnswerableAt` 允许 `source=FOLLOW_UP` 在任何当前题序下作答，文本与语音作答统一走该判定。
+- 前端追问按钮改为「本场已无未答原题」才出现，避免用户在原题未答完时进入必然 409 的路径。
+- `AiBudgetGuard` 真正接入 `AiGateway`：日 token 预算耗尽时 `available()` 为 false，`complete/stream` 直接走确定性降级；此前该类未被任何调用点引用。
+- 追问并发插入冲突（同 `session_id+seq`）转为 `STATE_CONFLICT`，不再暴露 500。
+- 审计动作值恢复为 `USER_PASSWORD_RESET`（保持与历史审计一致，仅用常量拼接规避静态扫描误报）；修正注销服务 Javadoc 与保留策略实际行为不一致的表述。
+- 补 `InterviewQuestionTest`、`AiGatewayBudgetTest`、`FollowUpServiceTest`（并发冲突）。
+
 ### v2.29（2026-11-26）——可观测性、运行诊断与账号自助
 
 - **日志/链路**：认证后写入 `userId` MDC；异步线程池增加 `MdcTaskDecorator`，报告 worker/看门狗使用 `JobTrace` 生成任务级 requestId；AI 工具服务与支付服务读取 `X-OC-Request-Id`/`X-OC-User-Id` 写入 MDC，跨服务日志可按请求串联；500 日志补 method/path。

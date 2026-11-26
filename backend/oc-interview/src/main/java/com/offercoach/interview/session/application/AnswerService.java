@@ -94,7 +94,7 @@ public class AnswerService {
         InterviewQuestion question = questionRepository
                 .findOwned(sessionId, questionId)
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("questionId", questionId)));
-        if (question.seq() > session.currentSeq()) {
+        if (!question.isAnswerableAt(session.currentSeq())) {
             throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "NOT_CURRENT_QUESTION"));
         }
         Optional<InterviewAnswer> existing = answerRepository.findByQuestionId(questionId);
