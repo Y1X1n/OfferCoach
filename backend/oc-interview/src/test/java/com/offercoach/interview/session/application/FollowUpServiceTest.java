@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,6 +28,7 @@ import com.offercoach.interview.support.JsonCodec;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -34,6 +36,8 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class FollowUpServiceTest {
@@ -56,8 +60,23 @@ class FollowUpServiceTest {
     @Spy
     private JsonCodec jsonCodec = new JsonCodec(new ObjectMapper());
 
+    /** 单测不需要真实事务：让 execute 直接执行回调，等价于事务已提交。 */
+    private final TransactionTemplate transactionTemplate = mock(TransactionTemplate.class);
+
     @InjectMocks
     private FollowUpService service;
+
+    /**
+     * TransactionTemplate 是 final 方法，mock 无法拦截 execute；用真实模板会要求事务管理器。
+     * 这里改为让 mock 直接返回回调结果，模拟「事务已提交」。
+     */
+    @BeforeEach
+    void stubTransactionTemplate() {
+        when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
+            TransactionCallback<?> callback = invocation.getArgument(0);
+            return callback.doInTransaction(null);
+        });
+    }
 
     @Test
     void appendsFallbackFollowUpAndIncrementsQuestionCount() {

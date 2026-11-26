@@ -143,13 +143,13 @@ public final class AdminModels {
             long aiTokensIn,
             long aiTokensOut,
             long aiCostMicros,
-            Integer aiTtftP95Ms,
+            Integer aiLatencyP95Ms,
             long activeUsersToday) {}
 
     /**
-     * AI 用量聚合；成本由应用层按模型单价计算。
+     * AI 用量聚合；成本由应用层按模型单价计算，P95 取 ai_call_log.latency_ms。
      */
-    public record AiUsage(long tokensIn, long tokensOut, Integer ttftP95Ms, Map<String, ModelTokens> byModel) {}
+    public record AiUsage(long tokensIn, long tokensOut, Integer latencyP95Ms, Map<String, ModelTokens> byModel) {}
 
     public record ModelTokens(long tokensIn, long tokensOut) {}
 

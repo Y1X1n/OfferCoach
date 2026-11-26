@@ -38,6 +38,14 @@
 
 ## 文档版本
 
+### v2.31（2026-11-26）——补齐审查遗留四项
+
+- **首字 P95 → 调用 P95**：`ai_call_log.first_token_ms` 从未被写入（SSE 默认关闭），原卡片永远显示 `—`；改为统计 `latency_ms` 的 P95，字段更名为 `aiLatencyP95Ms`，管理端文案同步为「调用 P95」。
+- **追问移出长事务**：模型调用（最长 60s）不再包在 `@Transactional` 内；改为事务外生成 + `TransactionTemplate` 短事务写入，并在写前重新校验上限与 seq。避免占用 Hikari 连接，同时保留并发冲突的 `STATE_CONFLICT` 语义。
+- **注销清理业务内容**：新增 `UserContentPurger` 端口与 `oc-app` 侧实现，注销时按外键顺序删除评分/回答/报告/题目/会话/JD/简历，并删除简历文件与作答音频；额度流水、支付订单、审计与 AI 调用日志按对账与法务要求保留。
+- 迁移 `V202611260001` 已发布，索引写法不再改动；大表环境的上线做法记录在 [deployment.md](ops/deployment.md)。
+- 补 `AccountDeletionServiceTest` 断言（密码错误不清理内容）。
+
 ### v2.28（2026-11-18）——内部令牌校验防编码路径绕过
 
 - `InternalTokenFilter` 改为按容器**解码后**的 `servletPath` 判定 `/internal/**`，不再使用原始 `requestURI` 前缀；原始 URI 仍含 `%` 或 `;` 的内部请求直接返回 400。

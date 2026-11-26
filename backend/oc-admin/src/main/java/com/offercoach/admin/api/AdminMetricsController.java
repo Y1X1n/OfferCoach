@@ -38,7 +38,7 @@ public class AdminMetricsController {
                 metrics.aiTokensIn(),
                 metrics.aiTokensOut(),
                 metrics.aiCostMicros(),
-                metrics.aiTtftP95Ms(),
+                metrics.aiLatencyP95Ms(),
                 metrics.activeUsersToday(),
                 range);
     }

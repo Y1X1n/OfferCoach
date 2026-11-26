@@ -21,7 +21,7 @@ public final class AdminMetricsDtos {
             long aiTokensIn,
             long aiTokensOut,
             long aiCostMicros,
-            Integer aiTtftP95Ms,
+            Integer aiLatencyP95Ms,
             long activeUsersToday,
             String range) {}
 }

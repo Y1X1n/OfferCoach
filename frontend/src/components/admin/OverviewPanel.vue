@@ -101,9 +101,9 @@ const metrics = computed<OverviewMetric[]>(() => {
       icon: Coins,
     },
     {
-      label: '首字 P95',
-      value: data.aiTtftP95Ms === null ? '—' : `${data.aiTtftP95Ms}ms`,
-      hint: '区间内模型首字延迟',
+      label: '调用 P95',
+      value: data.aiLatencyP95Ms === null ? '—' : `${data.aiLatencyP95Ms}ms`,
+      hint: '区间内模型调用耗时',
       icon: Timer,
     },
     {

@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 单题追问：基于已提交回答生成 1 道追问，每场最多 2 道，计入题量但不额外扣额度。
@@ -51,6 +51,7 @@ public class FollowUpService {
     private final AiGateway aiGateway;
     private final AiCallLogger aiCallLogger;
     private final JsonCodec jsonCodec;
+    private final TransactionTemplate transactionTemplate;
 
     public FollowUpService(
             InterviewSessionRepository sessionRepository,
@@ -58,16 +59,23 @@ public class FollowUpService {
             InterviewAnswerRepository answerRepository,
             AiGateway aiGateway,
             AiCallLogger aiCallLogger,
-            JsonCodec jsonCodec) {
+            JsonCodec jsonCodec,
+            TransactionTemplate transactionTemplate) {
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.aiGateway = aiGateway;
         this.aiCallLogger = aiCallLogger;
         this.jsonCodec = jsonCodec;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional
+    /**
+     * 生成并落库追问。
+     *
+     * <p>模型调用（最长 60s）刻意放在事务外：先做只读校验与生成，再在短事务里写入，
+     * 避免长事务占用 Hikari 连接；写入前的上限与 seq 仍以事务内查询结果为准。</p>
+     */
     public FollowUpQuestion add(long userId, long sessionId, long questionId) {
         InterviewSession session = sessionRepository
                 .findOwned(userId, sessionId)
@@ -90,28 +98,8 @@ public class FollowUpService {
 
         long startedAt = System.nanoTime();
         Draft draft = generate(parent, answer);
-        int seq = questionRepository.maxSeq(sessionId) + 1;
-        long id;
-        try {
-            id = questionRepository.insertFollowUp(
-                    sessionId,
-                    seq,
-                    parent.dimension(),
-                    parent.difficulty(),
-                    draft.text(),
-                    draft.referencePoints(),
-                    draft.whyThisQuestion(),
-                    parent.id());
-        } catch (DataIntegrityViolationException exception) {
-            throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "FOLLOW_UP_CONFLICT"));
-        }
-        if (id == 0) {
-            throw new BizException(ErrorCode.INTERNAL_ERROR);
-        }
-        if (!sessionRepository.incrementQuestionCount(sessionId)) {
-            throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "会话状态已变化"));
-        }
         boolean aiAvailable = aiGateway.available();
+        FollowUpQuestion created = persist(sessionId, parent, draft);
         aiCallLogger.log(
                 userId,
                 "QUESTION_GEN",
@@ -125,9 +113,43 @@ public class FollowUpService {
                 null,
                 sessionId,
                 null);
-        log.info("追问已生成：sessionId={} parentQuestionId={} followUpId={}", sessionId, questionId, id);
-        return new FollowUpQuestion(
-                id, seq, draft.text(), parent.dimension(), parent.difficulty(), draft.referencePoints());
+        log.info("追问已生成：sessionId={} parentQuestionId={} followUpId={}", sessionId, questionId, created.id());
+        return created;
+    }
+
+    /**
+     * 短事务：重新校验上限后写入追问并同步题量，把并发窗口压到最小。
+     * 用 {@link TransactionTemplate} 而非同类内部调 {@code @Transactional}，避免自调用不走代理。
+     */
+    private FollowUpQuestion persist(long sessionId, InterviewQuestion parent, Draft draft) {
+        return transactionTemplate.execute(status -> {
+            if (questionRepository.countFollowUps(sessionId) >= MAX_FOLLOW_UPS) {
+                throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "本场追问次数已用完"));
+            }
+            int seq = questionRepository.maxSeq(sessionId) + 1;
+            long id;
+            try {
+                id = questionRepository.insertFollowUp(
+                        sessionId,
+                        seq,
+                        parent.dimension(),
+                        parent.difficulty(),
+                        draft.text(),
+                        draft.referencePoints(),
+                        draft.whyThisQuestion(),
+                        parent.id());
+            } catch (DataIntegrityViolationException exception) {
+                throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "FOLLOW_UP_CONFLICT"));
+            }
+            if (id == 0) {
+                throw new BizException(ErrorCode.INTERNAL_ERROR);
+            }
+            if (!sessionRepository.incrementQuestionCount(sessionId)) {
+                throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", "会话状态已变化"));
+            }
+            return new FollowUpQuestion(
+                    id, seq, draft.text(), parent.dimension(), parent.difficulty(), draft.referencePoints());
+        });
     }
 
     private Draft generate(InterviewQuestion parent, InterviewAnswer answer) {
