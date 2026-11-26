@@ -1,8 +1,40 @@
 /*
- * 拉丁字符与数字使用 Inter（自托管、只取 latin 子集，约 40KB woff2）；
- * 中文仍走系统字体（PingFang SC / 微软雅黑），避免引入数 MB 的中文字体。
- * 变量字体覆盖 100–900，normal 与 italic 各一份。
+ * 字体分两层：
+ * 1. HarmonyOS Sans SC（自托管，原样分发，未做子集化）——只覆盖中日韩字符，
+ *    因此拉丁字母与数字仍由体积更小的 Inter 承担，不必为 ASCII 下载 8MB 字体。
+ * 2. Inter（自托管 latin 子集，约 50KB）——覆盖拉丁字符与数字。
+ *
+ * 许可：HarmonyOS Sans 使用「HarmonyOS Sans Fonts License Agreement」，
+ * 允许随软件原样分发，但不允许修改字体文件；版权与许可全文见
+ * src/assets/fonts/HarmonyOS_Sans_LICENSE.txt。
  */
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('../assets/fonts/HarmonyOS_Sans_SC_Regular.ttf') format('truetype');
+  unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('../assets/fonts/HarmonyOS_Sans_SC_Medium.ttf') format('truetype');
+  unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('../assets/fonts/HarmonyOS_Sans_SC_Bold.ttf') format('truetype');
+  unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
+}
+
 @font-face {
   font-family: 'Inter Variable';
   font-style: normal;

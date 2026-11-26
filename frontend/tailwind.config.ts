@@ -39,18 +39,37 @@ export default {
         'danger-solid': 'hsl(var(--danger-solid) / <alpha-value>)',
       },
       fontFamily: {
-        // 拉丁字符与数字优先 Inter（自托管 latin 子集），中文回退系统字体。
+        /*
+         * 字体优先级：
+         * 1. Apple 系统字体（SF Pro / 苹方）——授权字体不能打包，仅 Mac/iOS 命中系统自带；
+         * 2. HarmonyOS Sans SC——自托管，仅覆盖中日韩字符（见 styles/fonts.css）；
+         * 3. 自托管 Inter——覆盖所有平台的拉丁字符与数字；
+         * 4. 各平台系统无衬线兜底。
+         */
         sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"SF Pro Text"',
+          '"SF Pro Display"',
+          '"Helvetica Neue"',
+          '"PingFang SC"',
+          '"HarmonyOS Sans SC"',
+          '"HarmonyOS Sans"',
           '"Inter Variable"',
           'Inter',
           'system-ui',
-          '-apple-system',
           '"Segoe UI"',
-          '"PingFang SC"',
           '"Microsoft YaHei"',
           'sans-serif',
         ],
-        mono: ['"Cascadia Mono"', '"SF Mono"', 'Consolas', 'ui-monospace', 'monospace'],
+        mono: [
+          '"SF Mono"',
+          'ui-monospace',
+          '"Cascadia Mono"',
+          'Consolas',
+          '"JetBrains Mono"',
+          'monospace',
+        ],
       },
       fontSize: {
         '2xs': ['12px', '16px'],

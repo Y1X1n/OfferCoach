@@ -62,6 +62,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # 前端字体（*.ttf）由 Git LFS 托管，不拉取会得到指针文件导致构建产物损坏。
+          lfs: true
       - name: Detect frontend changes
         id: filter
         env:
