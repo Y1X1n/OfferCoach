@@ -47,7 +47,8 @@ const degradedMessage = computed(() => {
   }
   const disabled = toolLabels.filter(([key]) => !status.tools[key]).map(([, label]) => label)
   if (disabled.length > 0) {
-    return `未配置模型密钥，且以下能力已关闭：${disabled.join('、')}。`
+    const prefix = status.aiConfigured ? '以下能力当前已关闭' : '未配置模型密钥，且以下能力已关闭'
+    return `${prefix}：${disabled.join('、')}。`
   }
   return '未配置模型密钥：解析、出题与评分将使用模板或启发式结果，结果仍可正常保存。'
 })

@@ -32,6 +32,7 @@ public class AccountDataController {
         String fileName = "offercoach-export-" + userId + "-" + LocalDate.now() + ".json";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body);
     }

@@ -107,7 +107,7 @@ public class AdminMetricsRepositoryImpl implements AdminMetricsRepository {
                 rangeDays);
         Integer ttftP95 = jdbcTemplate.queryForObject(
                 """
-                SELECT ROUND(COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY first_token_ms), 0))::int
+                SELECT ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY first_token_ms))::int
                 FROM ai_call_log
                 WHERE first_token_ms IS NOT NULL AND created_at >= now() - make_interval(days => ?)
                 """,

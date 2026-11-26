@@ -29,7 +29,13 @@ public class PlatformStatusController {
         return new PlatformStatus(
                 snapshot.enabled(),
                 snapshot.hasApiKey(),
-                !snapshot.enabled() || !snapshot.hasApiKey(),
+                !snapshot.enabled()
+                        || !snapshot.hasApiKey()
+                        || !tools.asrEnabled()
+                        || !tools.ttsEnabled()
+                        || !tools.ocrEnabled()
+                        || !tools.searchEnabled()
+                        || !tools.fetchEnabled(),
                 new ToolStatus(
                         tools.asrEnabled(),
                         tools.ttsEnabled(),
