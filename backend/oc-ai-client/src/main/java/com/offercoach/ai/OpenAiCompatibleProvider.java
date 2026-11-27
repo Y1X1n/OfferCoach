@@ -35,11 +35,14 @@ public class OpenAiCompatibleProvider implements AiProvider {
 
     private final AiRuntimeConfigService runtimeConfig;
     private final ObjectMapper objectMapper;
+    private final AiCallGuard guard;
     private final HttpClient httpClient;
 
-    public OpenAiCompatibleProvider(AiRuntimeConfigService runtimeConfig, ObjectMapper objectMapper) {
+    public OpenAiCompatibleProvider(
+            AiRuntimeConfigService runtimeConfig, ObjectMapper objectMapper, AiCallGuard guard) {
         this.runtimeConfig = runtimeConfig;
         this.objectMapper = objectMapper;
+        this.guard = guard;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -64,7 +67,12 @@ public class OpenAiCompatibleProvider implements AiProvider {
             throw new AiUnavailableException("AI 未启用或未配置");
         }
         requireSafeGateway(settings);
-        return execute(settings, modelOf(settings, scene), systemPrompt, userPrompt, settings.timeout());
+        try (AiCallGuard.Permit permit = guard.acquire()) {
+            AiResult result =
+                    execute(settings, modelOf(settings, scene), systemPrompt, userPrompt, settings.timeout(), permit);
+            permit.success();
+            return result;
+        }
     }
 
     @Override
@@ -74,6 +82,19 @@ public class OpenAiCompatibleProvider implements AiProvider {
             throw new AiUnavailableException("AI 未启用或未配置");
         }
         requireSafeGateway(settings);
+        try (AiCallGuard.Permit permit = guard.acquire()) {
+            streamOnce(settings, scene, systemPrompt, userPrompt, onDelta, permit);
+            permit.success();
+        }
+    }
+
+    private void streamOnce(
+            AiRuntimeSettings settings,
+            AiScene scene,
+            String systemPrompt,
+            String userPrompt,
+            Consumer<String> onDelta,
+            AiCallGuard.Permit permit) {
         AtomicBoolean received = new AtomicBoolean(false);
         try {
             HttpResponse<InputStream> response = httpClient.send(
@@ -89,6 +110,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
                     HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 readAndDiscard(response.body());
+                permit.failure();
                 throw new AiUnavailableException("AI 流式请求失败：" + response.statusCode());
             }
             try (BufferedReader reader =
@@ -115,14 +137,17 @@ public class OpenAiCompatibleProvider implements AiProvider {
             }
         } catch (JacksonException ex) {
             // Jackson 3 的解析异常不再继承 IOException；调用方只认 AiUnavailableException 做降级。
+            // 解析失败说明上游有响应但格式不对，不计入熔断（否则一条坏流能熔断全站）。
             throw new AiUnavailableException("AI 流式响应解析失败", ex);
         } catch (IOException ex) {
+            permit.failure();
             throw new AiUnavailableException("AI 流式请求失败", ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new AiUnavailableException("AI 流式请求被中断", ex);
         }
         if (!received.get()) {
+            permit.failure();
             throw new AiUnavailableException("AI 流式响应为空");
         }
     }
@@ -135,6 +160,19 @@ public class OpenAiCompatibleProvider implements AiProvider {
         if (!usable(settings)) {
             throw new AiUnavailableException("AI 未启用或未配置");
         }
+        try (AiCallGuard.Permit permit = guard.acquire()) {
+            AiResult result = probeOnce(settings, systemPrompt, userPrompt, timeout, permit);
+            permit.success();
+            return result;
+        }
+    }
+
+    private AiResult probeOnce(
+            AiRuntimeSettings settings,
+            String systemPrompt,
+            String userPrompt,
+            Duration timeout,
+            AiCallGuard.Permit permit) {
         String model = settings.model();
         long startedAt = System.nanoTime();
         try {
@@ -149,7 +187,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
                             PROBE_TEMPERATURE,
                             timeout),
                     HttpResponse.BodyHandlers.ofString());
-            requireSuccess(response.statusCode(), response.body());
+            requireSuccess(response.statusCode(), response.body(), permit);
             JsonNode root = objectMapper.readTree(response.body());
             String text =
                     root.path("choices").path(0).path("message").path("content").asText("");
@@ -161,6 +199,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
             // Jackson 3 的解析异常不再继承 IOException；调用方只认 AiUnavailableException 做降级。
             throw new AiUnavailableException("AI 响应解析失败", ex);
         } catch (IOException ex) {
+            permit.failure();
             throw new AiUnavailableException("AI 请求失败", ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -169,7 +208,12 @@ public class OpenAiCompatibleProvider implements AiProvider {
     }
 
     private AiResult execute(
-            AiRuntimeSettings settings, String model, String systemPrompt, String userPrompt, Duration timeout) {
+            AiRuntimeSettings settings,
+            String model,
+            String systemPrompt,
+            String userPrompt,
+            Duration timeout,
+            AiCallGuard.Permit permit) {
         long startedAt = System.nanoTime();
         try {
             HttpResponse<String> response = httpClient.send(
@@ -183,7 +227,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
                             settings.temperature(),
                             timeout),
                     HttpResponse.BodyHandlers.ofString());
-            requireSuccess(response.statusCode(), response.body());
+            requireSuccess(response.statusCode(), response.body(), permit);
             JsonNode root = objectMapper.readTree(response.body());
             String text =
                     root.path("choices").path(0).path("message").path("content").asText("");
@@ -195,6 +239,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
             // Jackson 3 的解析异常不再继承 IOException；调用方只认 AiUnavailableException 做降级。
             throw new AiUnavailableException("AI 响应解析失败", ex);
         } catch (IOException ex) {
+            permit.failure();
             throw new AiUnavailableException("AI 请求失败", ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -251,11 +296,18 @@ public class OpenAiCompatibleProvider implements AiProvider {
         };
     }
 
-    private void requireSuccess(int status, String body) {
+    /**
+     * 非 2xx 一律抛 {@link AiUnavailableException}。只有 5xx / 429 计入熔断：
+     * 4xx 通常是请求本身有问题（Prompt 过长、参数不合法），重试或熔断都无济于事。
+     */
+    private void requireSuccess(int status, String body, AiCallGuard.Permit permit) {
         if (status >= 200 && status < 300) {
             return;
         }
         log.warn("AI 供应商返回非 2xx：status={} body={}", status, truncate(body));
+        if (status >= 500 || status == 429) {
+            permit.failure();
+        }
         throw new AiUnavailableException("AI 供应商返回 " + status);
     }
 

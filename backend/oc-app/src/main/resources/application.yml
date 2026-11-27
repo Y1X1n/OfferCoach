@@ -141,6 +141,15 @@ oc:
     sse-enabled: ${AI_SSE_ENABLED:false}
     # 每日全局 token 预算；0 表示不限制，超限后业务自动走模板/启发式降级。
     daily-token-budget: ${AI_DAILY_TOKEN_BUDGET:0}
+    # 同时在途的 AI 调用上限：供应商挂起时最多占这么多请求线程，其余立即降级，
+    # 避免 60s 超时把 Tomcat 线程池占满、连带压垮鉴权/额度/支付回调。
+    max-concurrent-calls: ${AI_MAX_CONCURRENT_CALLS:8}
+    # 申请名额的最长等待；0 表示拿不到名额立即降级。
+    queue-wait: ${AI_QUEUE_WAIT:200ms}
+    # 连续多少次上游失败（IO 异常 / 5xx / 429 / 空响应）后熔断；0 表示不熔断。
+    breaker-failure-threshold: ${AI_BREAKER_FAILURE_THRESHOLD:10}
+    # 熔断后跳过 AI 调用的时长，到点自动放行。
+    breaker-open-duration: ${AI_BREAKER_OPEN_DURATION:30s}
     # 成本看板估算单价：每百万 token 的微元（1 元 = 1,000,000 微元），以供应商账单为准。
     pricing:
       input-micros-per-million: ${AI_PRICE_INPUT_MICROS:2000000}

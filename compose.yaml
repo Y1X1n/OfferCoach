@@ -80,6 +80,11 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-deepseek-chat}
       OC_AI_SECRET: ${OC_AI_SECRET:-}
+      # 并发闸门与熔断：供应商变慢时只占少量请求线程，其余立即降级。
+      AI_MAX_CONCURRENT_CALLS: ${AI_MAX_CONCURRENT_CALLS:-8}
+      AI_QUEUE_WAIT: ${AI_QUEUE_WAIT:-200ms}
+      AI_BREAKER_FAILURE_THRESHOLD: ${AI_BREAKER_FAILURE_THRESHOLD:-10}
+      AI_BREAKER_OPEN_DURATION: ${AI_BREAKER_OPEN_DURATION:-30s}
       OC_AI_INTERNAL_TOKEN: ${OC_AI_INTERNAL_TOKEN:-}
       AI_ASR_BASE_URL: ${AI_ASR_BASE_URL:-http://host.docker.internal:8094}
       AI_TTS_BASE_URL: ${AI_TTS_BASE_URL:-http://host.docker.internal:8095}

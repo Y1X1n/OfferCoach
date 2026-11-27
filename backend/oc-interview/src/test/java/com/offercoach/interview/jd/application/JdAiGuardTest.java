@@ -14,11 +14,10 @@ import static org.mockito.Mockito.when;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.common.time.BusinessDate;
 import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.interview.config.InterviewProperties;
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +31,13 @@ class JdAiGuardTest {
 
     private static final long USER_ID = 7L;
     private static final String TTL_MILLIS = Long.toString(Duration.ofDays(2).toMillis());
-    private static final String DATE = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+    /**
+     * 必须与生产同源（{@link BusinessDate}，Asia/Shanghai）。
+     *
+     * <p>此前这里用 {@code LocalDate.now()}（JVM 默认时区，容器里是 UTC）：UTC 16:00–24:00 期间
+     * 北京时间已跨日，期望键与实际键差一天，约 1/3 的运行会随机失败。</p>
+     */
+    private static final String DATE = BusinessDate.todayKey();
 
     private StringRedisTemplate redis;
     private InterviewProperties properties;
