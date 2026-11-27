@@ -195,9 +195,10 @@ Vite 开发服务器默认把 `/api` 代理到 `http://localhost:8080`（预留 
 
 | 产物 | 位置 | 说明 |
 |---|---|---|
-| 小程序工程 | `miniprogram/` | 4 个页面（首页 / 准备 / 答题 / 报告），设备指纹游客登录，不持有模型密钥 |
+| 小程序工程 | `miniprogram/` | 12 个页面：工作台、简历、岗位（文本/链接/搜索）、面试配置、答题（语音/朗读/追问）、报告与趋势、我的、套餐支付；设备指纹游客登录，不持有模型密钥 |
 | 检测入口 | `agent/` | `agent.py`（Python 3.12 仅标准库），复现「简历 → 岗位 → 出题 → 评分 → 报告」链路 |
 | 本地预览 | `scripts/competition/preview/` | 直接跑真实 axml/acss/js，`my.*` 代理到本地后端 |
+| 小程序支付 | `backend/oc-pay`、`oc-identity` | `payMode=MINI` + `POST /orders/{orderNo}/miniapp-pay`：授权码换买家标识后 `alipay.trade.create`，返回 `tradeNo` 给 `my.tradePay` |
 | 打包与自检 | `scripts/competition/` | `build-product.py` 产出 `product.zip`，`check-package.py` 校验结构/大小/`--version` |
 
 ```bash

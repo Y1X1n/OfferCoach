@@ -42,7 +42,7 @@ oc-app（现有 Spring Boot 模块化单体，零改动）
 
 | 活动要求 | 本项目落点 |
 |---|---|
-| 支付宝小程序 | `miniprogram/`（原生 axml/acss/js，4 个页面） |
+| 支付宝小程序 | `miniprogram/`（原生 axml/acss/js，12 个页面，覆盖除管理端外的全部用户功能） |
 | 千问模型 | 小程序不直连模型，由 `oc-app` 通过 OpenAI 兼容接口调用；检测入口 `agent.py` 直连 `OPENAI_BASE_URL` |
 | 完整源码 | `agent.zip/miniprogram/` 含小程序工程、`oc-*` 后端源码与构建配置 |
 | 独立检测入口 | `agent/agent.py`（纯标准库，无第三方依赖） |
@@ -53,11 +53,11 @@ oc-app（现有 Spring Boot 模块化单体，零改动）
 
 | 变更 | 位置 | 说明 |
 |---|---|---|
-| 新增小程序工程 | `miniprogram/` | 首页、准备页、答题页、报告页；`utils/api.js` 统一封装请求与游客登录 |
+| 新增小程序工程 | `miniprogram/` | 12 个页面：工作台、简历列表/详情、岗位列表/新增/详情、面试配置、答题、报告列表/详情、我的、套餐支付；`utils/api.js` 统一封装请求、上传、语音与支付 |
 | 新增检测入口 | `agent/` | `agent.py` + `agent.json` + `requirements.txt` + `samples/` |
 | 新增打包与自检 | `scripts/competition/build-product.py`、`scripts/competition/check-package.py` | 产出并校验 `product.zip` |
 | 文档 | `docs/competition/**` | 本文件、小程序运行说明、检测入口说明 |
-| 后端 | 无改动 | 复用 `/api/v1/**` 既有契约，避免引入未编译验证的变更 |
+| 后端支付 | `oc-pay` + `oc-identity` | 新增 `payMode=MINI` 与 `POST /orders/{orderNo}/miniapp-pay`：授权码换 `user_id`、`alipay.trade.create` 建单，返回 `tradeNo` 给 `my.tradePay`；其余接口零改动 |
 
 ## 4. 交付清单对照
 
@@ -73,7 +73,7 @@ oc-app（现有 Spring Boot 模块化单体，零改动）
 ## 5. 需要人工完成的事项
 
 1. 千问 AI 平台**实名认证 + 报名**（活动页「立即报名」）。
-2. 支付宝开放平台创建小程序，拿到 `APPID` 并填入 `miniprogram/mini.project.json`。
+2. 支付宝开放平台创建小程序，拿到 `APPID` 并填入 `miniprogram/mini.project.json`；同时把该 `APPID` 与私钥配置到 `oc-pay`（`ALIPAY_APP_ID` / `ALIPAY_PRIVATE_KEY_*`），否则套餐页只显示「渠道未开通」。
 3. 在小程序后台把后端域名加入**服务器域名白名单**（HTTPS + 备案）。
 4. 用支付宝开发者工具上传 → 生成体验版 → 按 `link.md` 描述添加体验成员。
 5. 获奖后须在**支付宝开放平台**完成作品提交。

@@ -19,7 +19,7 @@ const BUILD = path.join(OUT, '.build');
 const SHOTS = process.env.SHOTS_DIR || path.join(OUT, 'shots');
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 
-const NEEDED_SHOTS = ['01-index.png', '03-setup-filled.png', '06-feedback-1.png'];
+const NEEDED_SHOTS = ['01-index.png', '03-resume-detail.png', '08-feedback-1.png'];
 
 function copyShots() {
   const target = path.join(BUILD, 'shots');
