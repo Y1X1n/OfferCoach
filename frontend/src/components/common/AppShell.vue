@@ -67,6 +67,10 @@ const pageTitle = computed(() => {
   return navItems.find((item) => item.to === route.path)?.label ?? 'OfferCoach'
 })
 const isWide = computed(() => route.meta.wide === true)
+/** 一级页面在手机上不需要「返回上一页」，导航由底部 tab 与抽屉承担。 */
+const isTopLevel = computed(() => route.meta.topLevel === true)
+/** 专注页面（面试房间）：< lg 隐藏外壳顶栏与底部导航。 */
+const isFocus = computed(() => route.meta.focus === true)
 const isAdmin = computed(() => store.user?.role === 'ADMIN')
 const initials = computed(() => (store.user?.nickname ?? 'U').slice(0, 2).toUpperCase())
 
@@ -122,9 +126,15 @@ watch(
       <SidebarContent class="sticky top-0 hidden h-screen lg:flex print:hidden" />
 
       <div class="flex min-w-0 flex-1 flex-col">
-        <header class="sticky top-0 z-sticky border-b border-border bg-bg print:hidden">
+        <header
+          :class="[
+            'sticky top-0 z-sticky border-b border-border bg-bg print:hidden',
+            isFocus ? 'max-lg:hidden' : '',
+          ]"
+        >
           <div class="flex h-14 items-center gap-1 px-3 sm:px-5 lg:px-8">
             <button
+              v-if="!isTopLevel"
               type="button"
               class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-2 hover:text-text max-sm:h-11 max-sm:w-11"
               aria-label="返回上一页"
@@ -161,7 +171,7 @@ watch(
             <div ref="userMenuRef" class="relative">
               <button
                 type="button"
-                class="flex h-8 items-center gap-2 rounded-md px-1.5 text-sm text-text-2 transition-colors hover:bg-surface-2 hover:text-text max-sm:h-11"
+                class="flex h-8 items-center gap-2 rounded-md px-1.5 text-sm text-text-2 transition-colors hover:bg-surface-2 hover:text-text max-sm:h-11 max-sm:min-w-11 max-sm:justify-center"
                 aria-label="打开用户菜单"
                 :aria-expanded="userMenuOpen"
                 @click="userMenuOpen = !userMenuOpen"
@@ -231,7 +241,8 @@ watch(
 
         <main
           :class="[
-            'flex-1 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-10 print:px-0 print:pb-0 print:pt-0',
+            'flex-1 pt-6 sm:px-6 lg:px-8 lg:pb-10 print:px-0 print:pb-0 print:pt-0',
+            isFocus ? 'max-lg:pb-safe max-lg:pt-0' : 'pb-nav-safe',
             isWide
               ? 'mx-auto w-full max-w-screen-2xl px-3'
               : 'mx-auto w-full max-w-6xl px-3 sm:px-0',
@@ -269,7 +280,7 @@ watch(
           <DialogClose as-child>
             <button
               type="button"
-              class="absolute -right-12 top-3 flex h-11 w-11 items-center justify-center rounded-md bg-surface text-text shadow-pop"
+              class="absolute right-2 top-1.5 flex h-11 w-11 items-center justify-center rounded-md text-text-2 transition-colors hover:bg-surface-2 hover:text-text"
               aria-label="关闭导航"
             >
               <X class="h-4 w-4" aria-hidden="true" />
@@ -280,7 +291,10 @@ watch(
     </DialogRoot>
 
     <nav
-      class="fixed inset-x-0 bottom-0 z-sticky border-t border-border bg-surface lg:hidden print:hidden"
+      :class="[
+        'pb-safe fixed inset-x-0 bottom-0 z-sticky border-t border-border bg-surface lg:hidden print:hidden',
+        isFocus ? 'max-lg:hidden' : '',
+      ]"
       aria-label="移动端主导航"
     >
       <div :class="['grid', isAdmin ? 'grid-cols-6' : 'grid-cols-5']">
@@ -289,10 +303,15 @@ watch(
           :key="item.to"
           :to="item.to"
           :class="[
-            'flex min-h-11 flex-col items-center justify-center gap-1 py-2 text-3xs transition-colors',
+            'relative flex min-h-11 flex-col items-center justify-center gap-1 py-2 text-3xs transition-colors',
             isActive(item.to, item.exact) ? 'text-text' : 'text-muted',
           ]"
         >
+          <span
+            v-if="isActive(item.to, item.exact)"
+            class="absolute inset-x-5 top-0 h-0.5 rounded-full bg-text"
+            aria-hidden="true"
+          />
           <component :is="item.icon" class="h-4 w-4" aria-hidden="true" />
           <span>{{ item.label }}</span>
         </RouterLink>
@@ -300,10 +319,15 @@ watch(
           v-if="isAdmin"
           :to="adminNavItem.to"
           :class="[
-            'flex min-h-11 flex-col items-center justify-center gap-1 py-2 text-3xs transition-colors',
+            'relative flex min-h-11 flex-col items-center justify-center gap-1 py-2 text-3xs transition-colors',
             isActive(adminNavItem.to) ? 'text-text' : 'text-muted',
           ]"
         >
+          <span
+            v-if="isActive(adminNavItem.to)"
+            class="absolute inset-x-5 top-0 h-0.5 rounded-full bg-text"
+            aria-hidden="true"
+          />
           <component :is="adminNavItem.icon" class="h-4 w-4" aria-hidden="true" />
           <span>{{ adminNavItem.label }}</span>
         </RouterLink>

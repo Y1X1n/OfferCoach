@@ -71,7 +71,7 @@ function onVoiceError(message: string): void {
   </div>
 
   <div
-    class="sticky bottom-16 z-sticky -mx-6 -mb-6 mt-5 rounded-b-lg border-t border-border bg-surface/95 px-6 py-3 backdrop-blur sm:-mx-8 sm:-mb-8 sm:px-8 lg:static lg:bottom-auto lg:mx-0 lg:mb-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
+    class="pb-safe sticky bottom-0 z-sticky -mx-6 -mb-6 mt-5 rounded-b-lg border-t border-border bg-surface/95 px-6 py-3 backdrop-blur sm:-mx-8 sm:-mb-8 sm:px-8 lg:static lg:bottom-auto lg:mx-0 lg:mb-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
   >
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <p class="flex items-center gap-1.5 text-2xs leading-5 text-text-muted">
@@ -86,7 +86,7 @@ function onVoiceError(message: string): void {
         <span v-else-if="trimmedLength < 10">还需 {{ 10 - trimmedLength }} 个字才能提交</span>
         <span v-else>先给结论，再补充证据与取舍</span>
       </p>
-      <div class="flex flex-wrap items-center justify-end gap-2">
+      <div class="flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
         <template v-if="isSessionActive">
           <VoiceRecorder
             v-if="!isAnswered && currentStatus !== 'SKIPPED'"
@@ -113,10 +113,11 @@ function onVoiceError(message: string): void {
             @click="emit('skip')"
           >
             <SkipForward class="h-3.5 w-3.5" aria-hidden="true" />
-            跳过
+            <span class="max-sm:hidden">跳过</span>
           </Button>
           <Button
             v-if="!isAnswered"
+            class="max-sm:flex-1"
             :disabled="!canSubmit"
             :loading="submitting"
             @click="emit('submit')"

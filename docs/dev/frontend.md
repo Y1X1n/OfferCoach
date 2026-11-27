@@ -538,8 +538,11 @@ pnpm test:unit      # vitest run
 pnpm build          # vue-tsc + vite build（体积预算）
 pnpm visual         # 8 题全流程截图冒烟
 pnpm visual:extra   # 注册/上传/JD/12 题/移动端/暗色
+pnpm visual:mobile  # 320/390/430 × 明暗：溢出、底栏遮挡、触控区、专注模式断言
 pnpm check          # typecheck + lint + test + build
 ```
+
+- `visual:mobile` 需要 `MOBILE_ACCOUNT` / `MOBILE_PASSWORD` 指向一个已有简历与岗位的本地账号；截图落在 `frontend/artifacts/mobile/`。
 
 - ESLint 规则：`@typescript-eslint/no-explicit-any: error`、`vue/no-v-html: error`、`vue/component-api-style: script-setup`、`vue/block-order: script→template→style`、`no-console: error`（`scripts/` 除外）。
 - Prettier：单引号、无分号、2 空格、100 列；Tailwind 类名自动排序（`cn()` 视为类名函数）。

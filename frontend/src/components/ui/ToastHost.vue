@@ -17,7 +17,7 @@ const styles: Record<ToastVariant, string> = {
 <template>
   <Teleport to="body">
     <div
-      class="pointer-events-none fixed bottom-20 right-4 z-toast flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2 lg:bottom-4"
+      class="above-nav-safe pointer-events-none fixed right-4 z-toast mb-4 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2 lg:bottom-4 lg:mb-0"
       aria-live="polite"
     >
       <TransitionGroup

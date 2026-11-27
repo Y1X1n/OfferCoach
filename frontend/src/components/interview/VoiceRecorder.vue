@@ -148,7 +148,7 @@ defineExpose({ cancel })
     >
       <Loader2 v-if="busy" class="h-4 w-4 animate-spin" aria-hidden="true" />
       <Mic v-else class="h-4 w-4" aria-hidden="true" />
-      {{ transcribing ? '转写中' : '语音作答' }}
+      <span class="max-sm:hidden">{{ transcribing ? '转写中' : '语音作答' }}</span>
     </Button>
     <template v-else>
       <span class="flex h-4 items-end gap-px" aria-hidden="true">
@@ -161,7 +161,8 @@ defineExpose({ cancel })
       </span>
       <Button variant="outline" size="sm" aria-label="停止录音并提交" @click="finish">
         <Square class="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-        停止 {{ elapsedText }}
+        <span class="max-sm:hidden">停止 {{ elapsedText }}</span>
+        <span class="tabular sm:hidden">{{ elapsedText }}</span>
       </Button>
       <Button variant="ghost" size="sm" aria-label="重录" @click="restart">
         <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />

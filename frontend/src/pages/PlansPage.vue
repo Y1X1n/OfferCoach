@@ -47,6 +47,7 @@ const FEATURE_LABELS: Record<string, string> = {
   fiveDimension: '逐题五维评分',
   resumeParse: '简历结构化解析',
   jdMatch: 'JD 匹配分析',
+  unlimitedResume: '简历无限解析',
 }
 
 const isPro = computed(() => store.quota.planCode === 'PRO')
@@ -63,7 +64,7 @@ function planFeatures(plan: Plan): FeatureRow[] {
   }
   return keys.map((key) => {
     const value = features[key]
-    const label = FEATURE_LABELS[key] ?? key
+    const label = FEATURE_LABELS[key] ?? '更多能力'
     if (value === true) return { label, state: 'included' }
     if (value === false) return { label, state: 'excluded' }
     return { label, state: 'coming', note: typeof value === 'string' ? value : '即将开放' }

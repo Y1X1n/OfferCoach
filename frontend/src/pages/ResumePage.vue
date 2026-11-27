@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
+  ChevronLeft,
+  ChevronRight,
   FileText,
   LayoutTemplate,
   Pencil,
@@ -29,6 +31,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { ApiError, errorMessage } from '@/api/client'
 import * as resumesApi from '@/api/resumes'
 import { usePolling } from '@/composables/usePolling'
+import { useMediaQuery } from '@/composables/useMediaQuery'
 import { useToast } from '@/composables/useToast'
 import { useResumeLayout } from '@/utils/resumeLayout'
 import { exportResumeJson, exportResumeMarkdown, exportResumePdf } from '@/utils/resumeExport'
@@ -48,6 +51,14 @@ const detailError = ref<string | null>(null)
 const uploading = ref(false)
 const uploadError = ref('')
 const uploadFileName = ref('')
+
+/** 已有简历时上传面板默认收起，避免把列表挤到第二屏。 */
+const uploadOpen = ref(false)
+/** < lg：列表与详情是两块互斥面板，手机上进详情再返回列表。 */
+const isDesktop = useMediaQuery('(min-width: 1024px)')
+const mobileDetailOpen = ref(false)
+const showListPane = computed(() => isDesktop.value || !mobileDetailOpen.value)
+const showDetailPane = computed(() => isDesktop.value || mobileDetailOpen.value)
 
 const deleteOpen = ref(false)
 const deleteTarget = ref<ResumeSummary | null>(null)
@@ -170,7 +181,20 @@ watch(selectedId, (id) => {
 })
 
 function scrollToUpload(): void {
-  uploadSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  if (!isDesktop.value) mobileDetailOpen.value = false
+  uploadOpen.value = true
+  void nextTick(() => uploadSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+
+/** 手机端点卡片进入详情；桌面端两侧同时可见，选中即预览。 */
+function selectResume(id: string): void {
+  selectedId.value = id
+  if (!isDesktop.value) mobileDetailOpen.value = true
+}
+
+function backToList(): void {
+  mobileDetailOpen.value = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function handleFile(file: File): Promise<void> {
@@ -186,6 +210,8 @@ async function handleFile(file: File): Promise<void> {
     await loadList()
     selectedId.value = result.id
     void loadDetail(result.id)
+    if (!isDesktop.value) mobileDetailOpen.value = true
+    uploadOpen.value = false
     if (result.parseStatus === 'PARSING') {
       poller.start()
       toast('已上传，正在解析', 'info', '解析完成后会自动展示结构化结果')
@@ -332,6 +358,7 @@ async function confirmDelete(): Promise<void> {
     if (selectedId.value === target.id) {
       selectedId.value = ''
       detail.value = null
+      if (!isDesktop.value) mobileDetailOpen.value = false
     }
     await loadList()
     toast('已删除简历', 'success', target.title)
@@ -394,13 +421,20 @@ onBeforeUnmount(() => {
             · {{ parsingCount }} 份解析中</template
           >
         </Badge>
-        <ExportMenu
+        <div class="hidden sm:block">
+          <ExportMenu
+            :disabled="!selectedReady"
+            @markdown="handleExport('markdown')"
+            @json="handleExport('json')"
+            @pdf="handleExport('pdf')"
+          />
+        </div>
+        <Button
+          variant="outline"
+          class="hidden sm:inline-flex"
           :disabled="!selectedReady"
-          @markdown="handleExport('markdown')"
-          @json="handleExport('json')"
-          @pdf="handleExport('pdf')"
-        />
-        <Button variant="outline" :disabled="!selectedReady" @click="layoutOpen = true">
+          @click="layoutOpen = true"
+        >
           <LayoutTemplate class="h-4 w-4" aria-hidden="true" />
           选择版式
         </Button>
@@ -415,8 +449,27 @@ onBeforeUnmount(() => {
       </template>
     </PageHeader>
 
-    <section ref="uploadSection" class="scroll-mt-20">
-      <Card padding="lg">
+    <section v-show="showListPane" ref="uploadSection" class="scroll-mt-20">
+      <Card
+        v-if="list.length > 0 && !uploadOpen"
+        padding="sm"
+        class="flex cursor-pointer items-center justify-between gap-3"
+        role="button"
+        tabindex="0"
+        aria-label="展开上传面板"
+        @click="uploadOpen = true"
+        @keydown.enter="uploadOpen = true"
+        @keydown.space.prevent="uploadOpen = true"
+      >
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-text">上传新简历</p>
+          <p class="mt-0.5 text-2xs leading-5 text-text-muted">
+            支持 PDF / DOCX / 图片 / PPT，单文件不超过 10MB。
+          </p>
+        </div>
+        <ChevronRight class="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
+      </Card>
+      <Card v-else padding="lg">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 class="text-base font-semibold text-text">上传并解析简历</h2>
@@ -425,7 +478,18 @@ onBeforeUnmount(() => {
               识别。
             </p>
           </div>
-          <Badge v-if="uploading" variant="brand" dot>处理中</Badge>
+          <div class="flex items-center gap-2">
+            <Badge v-if="uploading" variant="brand" dot>处理中</Badge>
+            <Button
+              v-if="list.length > 0"
+              variant="ghost"
+              size="sm"
+              aria-label="收起上传面板"
+              @click="uploadOpen = false"
+            >
+              收起
+            </Button>
+          </div>
         </div>
 
         <div class="mt-4">
@@ -480,17 +544,21 @@ onBeforeUnmount(() => {
 
       <div class="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <aside
-          class="scrollbar-thin lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
+          :class="[
+            'scrollbar-thin lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
+            showListPane ? '' : 'hidden',
+          ]"
         >
           <ResumeListPanel
             :resumes="list"
             :selected-id="selectedId"
-            @select="selectedId = $event"
+            :touch-list="!isDesktop"
+            @select="selectResume"
             @delete="askDelete"
           />
         </aside>
 
-        <section class="min-w-0">
+        <section :class="['min-w-0', showDetailPane ? '' : 'hidden']">
           <AsyncState
             :loading="detailLoading"
             :error="detailError"
@@ -522,16 +590,28 @@ onBeforeUnmount(() => {
                 </div>
               </Card>
               <template v-else-if="detail">
-                <div class="mb-3 flex flex-wrap items-center justify-end gap-2">
-                  <Badge v-if="detail.isDefault" variant="brand" dot> 默认简历 </Badge>
-                  <Button v-if="!detail.isDefault" variant="ghost" size="sm" @click="setDefault">
-                    <Star class="h-3.5 w-3.5" aria-hidden="true" />
-                    设为默认
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2 lg:justify-end">
+                  <Button
+                    v-if="!isDesktop"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="返回简历列表"
+                    @click="backToList"
+                  >
+                    <ChevronLeft class="h-4 w-4" aria-hidden="true" />
+                    返回列表
                   </Button>
-                  <Button variant="outline" size="sm" @click="reparse">
-                    <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
-                    重新解析
-                  </Button>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Badge v-if="detail.isDefault" variant="brand" dot> 默认简历 </Badge>
+                    <Button v-if="!detail.isDefault" variant="ghost" size="sm" @click="setDefault">
+                      <Star class="h-3.5 w-3.5" aria-hidden="true" />
+                      设为默认
+                    </Button>
+                    <Button variant="outline" size="sm" @click="reparse">
+                      <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
+                      重新解析
+                    </Button>
+                  </div>
                 </div>
                 <ResumeDetailPanel
                   :resume="detail"
@@ -544,7 +624,7 @@ onBeforeUnmount(() => {
                 v-else
                 :icon="FileText"
                 title="选择一份简历查看解析结果"
-                description="左侧列表展示全部简历，点击任意一份即可查看结构化信息与字段置信度。"
+                description="在简历列表中点击任意一份，即可查看结构化信息与字段置信度。"
               />
             </div>
           </AsyncState>

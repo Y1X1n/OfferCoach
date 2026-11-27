@@ -5,7 +5,7 @@ import Badge from '@/components/ui/Badge.vue'
 import { cn } from '@/utils/cn'
 import { formatDate, formatRelative, formatScore, scoreTone } from '@/utils/format'
 
-defineProps<{ jds: Jd[]; selectedId: string }>()
+defineProps<{ jds: Jd[]; selectedId: string; touchList?: boolean }>()
 const emit = defineEmits<{ select: [string]; delete: [Jd] }>()
 
 const seniorityLabel: Record<Jd['structured']['seniority'], string> = {
@@ -27,6 +27,7 @@ const seniorityLabel: Record<Jd['structured']['seniority'], string> = {
         <button
           type="button"
           :aria-pressed="jd.id === selectedId"
+          :title="touchList ? undefined : '右键可删除'"
           :class="
             cn(
               'w-full rounded-md border p-3 pr-11 text-left transition-colors focus-visible:border-text/40',
@@ -66,7 +67,7 @@ const seniorityLabel: Record<Jd['structured']['seniority'], string> = {
 
         <button
           type="button"
-          class="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md text-text-muted opacity-70 transition-colors hover:bg-danger/10 hover:text-danger focus-visible:opacity-100"
+          class="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-md text-text-muted opacity-70 transition-colors hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 max-sm:h-11 max-sm:w-11"
           :aria-label="`删除岗位 ${jd.title}`"
           @click="emit('delete', jd)"
         >

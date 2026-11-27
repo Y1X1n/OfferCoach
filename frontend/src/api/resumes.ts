@@ -1,6 +1,8 @@
 import type {
+  ExperienceItem,
   Page,
   PageQuery,
+  ProjectItem,
   Resume,
   ResumeBasic,
   ResumeDetailDto,
@@ -32,6 +34,25 @@ interface ResumeSummaryDto {
 
 const SKILL_LEVELS: SkillLevel[] = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED']
 
+/** 解析器与手工建档的历史数据可能缺嵌套数组，这里统一兜底成 `[]`。 */
+function toTextList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+}
+
+function mapExperience(item: ExperienceItem): ExperienceItem {
+  return { ...item, bullets: toTextList(item.bullets) }
+}
+
+function mapProject(item: ProjectItem & { techStack?: string[] | null | undefined }): ProjectItem {
+  return {
+    ...item,
+    stack: toTextList(item.stack ?? item.techStack),
+    highlights: toTextList(item.highlights),
+    metrics: toTextList(item.metrics),
+  }
+}
+
 function parseStatusOf(raw: string | undefined): ResumeParseStatus {
   if (raw === 'READY' || raw === 'FAILED' || raw === 'PARSING') return raw
   return 'PARSING'
@@ -40,18 +61,19 @@ function parseStatusOf(raw: string | undefined): ResumeParseStatus {
 export function mapStructured(dto: ResumeStructuredDto | null | undefined): ResumeStructured {
   const basic: Partial<ResumeBasic> = dto?.basic ?? {}
   const skills = Array.isArray(dto?.skills) ? dto.skills : []
+  const experiences = Array.isArray(dto?.experiences) ? dto.experiences : []
+  const projects = Array.isArray(dto?.projects) ? dto.projects : []
   return {
     basic: {
       name: basic.name ?? '',
       city: basic.city ?? '',
-      yearsOfExperience:
-        typeof basic.yearsOfExperience === 'number' ? basic.yearsOfExperience : 0,
+      yearsOfExperience: typeof basic.yearsOfExperience === 'number' ? basic.yearsOfExperience : 0,
       phoneMasked: basic.phoneMasked ?? '',
       emailMasked: basic.emailMasked ?? '',
     },
     education: Array.isArray(dto?.education) ? dto.education : [],
-    experiences: Array.isArray(dto?.experiences) ? dto.experiences : [],
-    projects: Array.isArray(dto?.projects) ? dto.projects : [],
+    experiences: experiences.map(mapExperience),
+    projects: projects.map(mapProject),
     skills: skills.map((skill): SkillItem => ({
       name: skill.name ?? '',
       level: SKILL_LEVELS.includes(skill.level) ? skill.level : 'INTERMEDIATE',

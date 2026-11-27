@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ExternalLink, Flag } from 'lucide-vue-next'
+import { ChevronLeft, ExternalLink, Flag } from 'lucide-vue-next'
 import { Pause, Play } from 'lucide-vue-next'
 import type { InterviewerStyle } from '@/types'
 import Button from '@/components/ui/Button.vue'
@@ -39,8 +39,67 @@ const timeLimitText = computed(() => {
 </script>
 
 <template>
+  <!-- 移动端：专注模式下外壳顶栏隐藏，这里承担返回、计时与结束，
+       只保留两行信息，把高度从 ~150px 压到 ~64px。 -->
   <header
-    class="sticky top-14 z-sticky -mx-3 border-b border-border bg-bg/90 px-3 py-3 backdrop-blur sm:-mx-5 sm:px-5 lg:-mx-8 lg:px-8 room:static room:mx-0 room:border-0 room:bg-transparent room:px-0 room:py-0 room:backdrop-blur-none"
+    class="sticky top-0 z-sticky -mx-3 border-b border-border bg-bg/95 px-3 py-2 backdrop-blur lg:hidden"
+  >
+    <div class="flex items-center gap-1.5">
+      <button
+        type="button"
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-text-2 transition-colors hover:bg-surface-2 hover:text-text"
+        aria-label="退出面试"
+        @click="emit('end')"
+      >
+        <ChevronLeft class="h-5 w-5" aria-hidden="true" />
+      </button>
+
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium text-text">{{ jdTitle }}</p>
+        <div class="mt-1 flex items-center gap-2">
+          <Progress class="flex-1" :value="progressPercent" label="面试进度" />
+          <span class="tabular shrink-0 text-2xs text-text-muted">
+            {{ answeredCount }}/{{ totalQuestions }}
+          </span>
+        </div>
+      </div>
+
+      <TimerRing v-if="timerVisible" :remaining="remaining" :total="timeLimit" :size="40" />
+
+      <button
+        v-if="active !== false && !paused"
+        type="button"
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-text-2 transition-colors hover:bg-surface-2 hover:text-text"
+        aria-label="暂停面试并停止计时"
+        :disabled="pausing"
+        @click="emit('pause')"
+      >
+        <Pause class="h-4 w-4" aria-hidden="true" />
+      </button>
+      <button
+        v-else
+        type="button"
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-surface-2 text-text transition-colors hover:bg-surface-2/80"
+        aria-label="恢复面试并继续计时"
+        :disabled="pausing"
+        @click="emit('resume')"
+      >
+        <Play class="h-4 w-4" aria-hidden="true" />
+      </button>
+
+      <button
+        type="button"
+        class="flex h-11 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-danger-strong transition-colors hover:bg-danger/10"
+        @click="emit('end')"
+      >
+        <Flag class="h-3.5 w-3.5" aria-hidden="true" />
+        结束
+      </button>
+    </div>
+  </header>
+
+  <header
+    class="sticky top-14 z-sticky -mx-3 hidden border-b border-border bg-bg/90 px-3 py-3 backdrop-blur sm:-mx-5 sm:px-5 lg:-mx-8 lg:block lg:px-8 room:static room:mx-0 room:border-0 room:bg-transparent room:px-0 room:py-0 room:backdrop-blur-none"
   >
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
