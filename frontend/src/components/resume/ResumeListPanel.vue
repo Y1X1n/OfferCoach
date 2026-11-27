@@ -5,7 +5,7 @@ import Badge from '@/components/ui/Badge.vue'
 import { cn } from '@/utils/cn'
 import { formatDate, formatRelative } from '@/utils/format'
 
-defineProps<{ resumes: ResumeSummary[]; selectedId: string }>()
+defineProps<{ resumes: ResumeSummary[]; selectedId: string; touchList?: boolean }>()
 const emit = defineEmits<{ select: [string]; delete: [ResumeSummary] }>()
 
 const statusMeta: Record<
@@ -34,7 +34,11 @@ function selectedClass(selected: boolean): string {
         <button
           type="button"
           :aria-pressed="resume.id === selectedId"
-          :title="`右键可删除 · 更新于 ${formatDate(resume.updatedAt, true)}`"
+          :title="
+            touchList
+              ? `更新于 ${formatDate(resume.updatedAt, true)}`
+              : `右键可删除 · 更新于 ${formatDate(resume.updatedAt, true)}`
+          "
           :class="
             cn(
               'w-full rounded-md border p-3 pr-11 text-left transition-colors focus-visible:border-text/40',
@@ -61,16 +65,20 @@ function selectedClass(selected: boolean): string {
             </span>
             <span class="min-w-0 flex-1">
               <span class="block truncate text-sm font-medium text-text">{{ resume.title }}</span>
-              <span class="mt-0.5 block truncate text-2xs text-text-muted">{{
-                resume.fileName
-              }}</span>
+              <span
+                v-if="resume.fileName && resume.fileName !== resume.title"
+                class="mt-0.5 block truncate text-2xs text-text-muted"
+                >{{ resume.fileName }}</span
+              >
               <span class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <Badge :variant="statusMeta[resume.status].variant" dot>
                   {{ statusMeta[resume.status].label }}
                 </Badge>
                 <span class="text-2xs text-text-muted">{{ formatRelative(resume.updatedAt) }}</span>
-                <span class="text-2xs text-text-muted">·</span>
-                <span class="text-2xs text-text-muted">{{ resume.skillCount }} 项技能</span>
+                <template v-if="resume.skillCount > 0">
+                  <span class="text-2xs text-text-muted">·</span>
+                  <span class="text-2xs text-text-muted">{{ resume.skillCount }} 项技能</span>
+                </template>
               </span>
             </span>
           </div>
@@ -78,7 +86,7 @@ function selectedClass(selected: boolean): string {
 
         <button
           type="button"
-          class="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md text-text-muted opacity-70 transition-colors hover:bg-danger/10 hover:text-danger focus-visible:opacity-100"
+          class="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-md text-text-muted opacity-70 transition-colors hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 max-sm:h-11 max-sm:w-11"
           :aria-label="`删除简历 ${resume.title}`"
           @click="emit('delete', resume)"
         >

@@ -298,7 +298,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 pb-20 lg:pb-0">
     <PageHeader
       title="创建模拟面试"
       description="基于简历与目标岗位生成针对性题目。默认 8 道题约 10 分钟，可按需调整题量、难度与面试官风格。"
@@ -427,6 +427,31 @@ onBeforeUnmount(() => {
           :loading="starting"
           @start="startInterview"
         />
+      </div>
+
+      <!-- 手机上摘要卡片在页面末尾，开始按钮太远；这里给一条常驻操作条。 -->
+      <div
+        class="above-nav-safe fixed inset-x-0 z-sticky border-t border-border bg-surface/95 px-3 py-2 backdrop-blur lg:hidden"
+      >
+        <div class="mx-auto flex max-w-6xl items-center gap-3">
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-2xs text-text-muted">
+              预计 {{ estimatedMinutes }} 分钟 · 剩余 {{ credits }} 次面试额度
+            </p>
+            <p v-if="!canStart && missing.length" class="truncate text-xs text-warning-strong">
+              {{ missing.join('；') }}
+            </p>
+            <p v-else class="truncate text-xs text-text">配置已就绪</p>
+          </div>
+          <Button
+            class="shrink-0"
+            :disabled="!canStart"
+            :loading="starting"
+            @click="startInterview"
+          >
+            开始面试
+          </Button>
+        </div>
       </div>
     </AsyncState>
 

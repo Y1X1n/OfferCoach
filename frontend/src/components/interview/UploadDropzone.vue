@@ -57,7 +57,7 @@ function onDrop(event: DragEvent) {
   <div>
     <div
       :class="[
-        'flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-5 py-10 text-center transition-colors',
+        'flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-5 py-6 text-center transition-colors sm:py-10',
         dragging ? 'border-text/30 bg-surface-2' : 'border-border bg-surface hover:bg-surface-2/60',
       ]"
       role="button"
@@ -74,10 +74,15 @@ function onDrop(event: DragEvent) {
       <div class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-2">
         <UploadCloud class="h-5 w-5" aria-hidden="true" />
       </div>
-      <p class="mt-4 text-sm font-medium text-text">拖拽简历到这里，或点击选择文件</p>
-      <p class="mt-1 text-xs text-text-muted">支持 PDF / DOCX，单文件不超过 {{ maxSizeMb }}MB</p>
+      <p class="mt-4 text-sm font-medium text-text">
+        <span class="sm:hidden">点击选择文件上传</span>
+        <span class="hidden sm:inline">拖拽简历到这里，或点击选择文件</span>
+      </p>
+      <p class="mt-1 text-xs text-text-muted">
+        支持 PDF / DOCX / 图片 / PPT，单文件不超过 {{ maxSizeMb }}MB
+      </p>
       <span
-        class="mt-4 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-text"
+        class="mt-4 hidden h-8 items-center justify-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-text sm:inline-flex"
       >
         <FileText class="h-3.5 w-3.5" />
         选择文件

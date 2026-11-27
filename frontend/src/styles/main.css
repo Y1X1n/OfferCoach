@@ -79,12 +79,43 @@
     contain: layout;
   }
 
+  /* 安全区：iPhone 底部横条、刘海屏左右内边距统一走这三个工具类，
+     避免组件里散落 env() 与任意值。 */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 底部导航占位：6rem 导航 + 安全区，页面内容到此为止。 */
+  .pb-nav-safe {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 固定在底部导航之上（底部操作条）。 */
+  .above-nav-safe {
+    bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 固定在视口底部（面试器等无底部导航的场景）。 */
+  .bottom-safe {
+    bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   /* Signature detail: every number reads like an instrument readout. */
   .figure {
     @apply font-mono;
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
     letter-spacing: -0.01em;
+  }
+}
+
+/* iOS 在字号 < 16px 的输入框聚焦时会自动放大页面；手机端表单控件统一 16px。 */
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: 1rem;
+    line-height: 1.5rem;
   }
 }
 

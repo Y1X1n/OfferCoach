@@ -11,6 +11,10 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     requiresAdmin?: boolean
     wide?: boolean
+    /** 一级页面：移动端不显示「返回上一页」，导航交给底部 tab 与抽屉。 */
+    topLevel?: boolean
+    /** 专注页面：< lg 下隐藏外壳顶栏与底部导航，由页面自身承担返回与操作。 */
+    focus?: boolean
   }
 }
 
@@ -36,37 +40,37 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'dashboard',
         component: () => import('@/pages/DashboardPage.vue'),
-        meta: { title: '工作台' },
+        meta: { title: '工作台', topLevel: true },
       },
       {
         path: 'resumes',
         name: 'resumes',
         component: () => import('@/pages/ResumePage.vue'),
-        meta: { title: '简历管理' },
+        meta: { title: '简历管理', topLevel: true },
       },
       {
         path: 'jds',
         name: 'jds',
         component: () => import('@/pages/JdPage.vue'),
-        meta: { title: '目标岗位' },
+        meta: { title: '目标岗位', topLevel: true },
       },
       {
         path: 'interview/new',
         name: 'interview-setup',
         component: () => import('@/pages/InterviewSetupPage.vue'),
-        meta: { title: '创建模拟面试' },
+        meta: { title: '创建模拟面试', topLevel: true },
       },
       {
         path: 'interview/:id',
         name: 'interview-room',
         component: () => import('@/pages/InterviewRoomPage.vue'),
-        meta: { title: '模拟面试', wide: true },
+        meta: { title: '模拟面试', wide: true, focus: true },
       },
       {
         path: 'reports',
         name: 'reports',
         component: () => import('@/pages/ReportListPage.vue'),
-        meta: { title: '面试报告' },
+        meta: { title: '面试报告', topLevel: true },
       },
       {
         path: 'reports/:id',
@@ -78,13 +82,13 @@ const routes: RouteRecordRaw[] = [
         path: 'plans',
         name: 'plans',
         component: () => import('@/pages/PlansPage.vue'),
-        meta: { title: '套餐' },
+        meta: { title: '套餐', topLevel: true },
       },
       {
         path: 'settings',
         name: 'settings',
         component: () => import('@/pages/SettingsPage.vue'),
-        meta: { title: '设置' },
+        meta: { title: '设置', topLevel: true },
       },
       {
         path: 'admin',

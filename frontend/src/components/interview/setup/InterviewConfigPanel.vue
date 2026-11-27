@@ -74,7 +74,7 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
             <h3 class="text-sm font-medium text-text">题量</h3>
             <span class="tabular text-2xs text-text-muted">约 {{ estimatedMinutes }} 分钟</span>
           </div>
-          <div class="mt-2 grid grid-cols-4 gap-2" role="group" aria-label="题量">
+          <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="题量">
             <button
               v-for="count in questionCountOptions"
               :key="count"
@@ -174,7 +174,11 @@ function chooseAnswerMode(option: { value: AnswerMode; disabled: boolean }) {
         <div class="grid gap-5 sm:grid-cols-2">
           <div>
             <h3 class="text-sm font-medium text-text">单题时限</h3>
-            <div class="mt-2 grid grid-cols-4 gap-2" role="group" aria-label="单题时限">
+            <div
+              class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"
+              role="group"
+              aria-label="单题时限"
+            >
               <button
                 v-for="option in timeLimitOptions"
                 :key="option.value"

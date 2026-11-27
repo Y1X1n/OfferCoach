@@ -18,6 +18,7 @@
     "visual": "node scripts/visual-check.mjs",
     "visual:extra": "node scripts/visual-extra.mjs",
     "visual:resume": "node scripts/visual-resume.mjs",
+    "visual:mobile": "node scripts/visual-mobile.mjs",
     "visual:dashboard": "node scripts/check-dashboard.mjs"
   },
   "dependencies": {

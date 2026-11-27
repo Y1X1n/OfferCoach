@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { BriefcaseBusiness, ExternalLink, ClipboardPaste, Target, Trash2, Wand2 } from 'lucide-vue-next'
+import {
+  BriefcaseBusiness,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardPaste,
+  ExternalLink,
+  Target,
+  Trash2,
+  Wand2,
+} from 'lucide-vue-next'
 import type { Jd, JdMatch, ResumeSummary } from '@/types'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AsyncState from '@/components/common/AsyncState.vue'
@@ -18,6 +27,7 @@ import Spinner from '@/components/ui/Spinner.vue'
 import { ApiError, errorMessage } from '@/api/client'
 import * as jdsApi from '@/api/jds'
 import * as resumesApi from '@/api/resumes'
+import { useMediaQuery } from '@/composables/useMediaQuery'
 import { useToast } from '@/composables/useToast'
 import { formatScore } from '@/utils/format'
 
@@ -30,8 +40,26 @@ const listLoading = ref(true)
 const listError = ref<string | null>(null)
 const selectedId = ref('')
 const detail = ref<Jd | null>(null)
+/** 已有岗位时粘贴表单默认收起，避免把列表挤到第二屏。 */
+const formOpen = ref(false)
 const detailLoading = ref(false)
 const detailError = ref<string | null>(null)
+
+/** < lg：岗位列表与详情是两块互斥面板。 */
+const isDesktop = useMediaQuery('(min-width: 1024px)')
+const mobileDetailOpen = ref(false)
+const showListPane = computed(() => isDesktop.value || !mobileDetailOpen.value)
+const showDetailPane = computed(() => isDesktop.value || mobileDetailOpen.value)
+
+function selectJd(id: string): void {
+  selectedId.value = id
+  if (!isDesktop.value) mobileDetailOpen.value = true
+}
+
+function backToList(): void {
+  mobileDetailOpen.value = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
 const resumes = ref<ResumeSummary[]>([])
 const selectedResumeId = ref('')
@@ -104,7 +132,8 @@ watch(selectedId, (id) => {
 })
 
 function scrollToForm(): void {
-  formSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  formOpen.value = true
+  void nextTick(() => formSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
 /**
@@ -113,7 +142,7 @@ function scrollToForm(): void {
 async function openExistingJd(id: string): Promise<void> {
   submitError.value = ''
   await loadList()
-  selectedId.value = id
+  selectJd(id)
 }
 
 async function handleSubmit(payload: {
@@ -128,7 +157,8 @@ async function handleSubmit(payload: {
     selectedId.value = jd.id
     detail.value = jd
     await loadList()
-    selectedId.value = jd.id
+    selectJd(jd.id)
+    formOpen.value = false
     detail.value = jd
     toast('岗位已保存', 'success', jd.title)
     if (selectedResumeId.value) {
@@ -136,7 +166,8 @@ async function handleSubmit(payload: {
     }
   } catch (cause) {
     if (cause instanceof ApiError && cause.code === 'STATE_CONFLICT') {
-      const existing = typeof cause.details.existingJdId === 'string' ? cause.details.existingJdId : ''
+      const existing =
+        typeof cause.details.existingJdId === 'string' ? cause.details.existingJdId : ''
       if (existing) {
         await openExistingJd(existing)
         toast('该 JD 已存在', 'info', '已为你打开已有岗位，不会重复保存')
@@ -222,7 +253,7 @@ onMounted(() => {
         <Badge variant="neutral" class="hidden sm:inline-flex">
           已分析 {{ analyzedCount }} / {{ list.length }}
         </Badge>
-        <Button variant="outline" @click="scrollToForm">
+        <Button variant="outline" class="hidden sm:inline-flex" @click="scrollToForm">
           <ClipboardPaste class="h-4 w-4" aria-hidden="true" />
           粘贴新 JD
         </Button>
@@ -230,10 +261,40 @@ onMounted(() => {
     </PageHeader>
 
     <section ref="formSection" class="scroll-mt-20">
-      <JdFormPanel :submitting="submitting" :error-message="submitError" @submit="handleSubmit" />
+      <Card
+        v-if="list.length > 0 && !formOpen"
+        padding="sm"
+        class="flex cursor-pointer items-center justify-between gap-3"
+        role="button"
+        tabindex="0"
+        aria-label="展开粘贴表单"
+        @click="formOpen = true"
+        @keydown.enter="formOpen = true"
+        @keydown.space.prevent="formOpen = true"
+      >
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-text">添加新的目标岗位</p>
+          <p class="mt-0.5 text-2xs leading-5 text-text-muted">
+            粘贴 JD 原文，自动提取技能要求并计算匹配度。
+          </p>
+        </div>
+        <ChevronRight class="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
+      </Card>
+      <div v-else>
+        <div v-if="list.length > 0" class="mb-2 flex justify-end">
+          <Button variant="ghost" size="sm" aria-label="收起粘贴表单" @click="formOpen = false">
+            收起
+          </Button>
+        </div>
+        <JdFormPanel :submitting="submitting" :error-message="submitError" @submit="handleSubmit" />
+      </div>
     </section>
 
-    <Card padding="md" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <Card
+      v-show="showListPane"
+      padding="md"
+      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+    >
       <div class="min-w-0">
         <h2 class="text-sm font-semibold text-text">用于匹配的简历</h2>
         <p class="mt-0.5 text-xs text-text-muted">
@@ -281,16 +342,33 @@ onMounted(() => {
       </template>
 
       <div class="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <aside class="scrollbar-thin lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+        <aside
+          :class="[
+            'scrollbar-thin lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
+            showListPane ? '' : 'hidden',
+          ]"
+        >
           <JdListPanel
             :jds="list"
             :selected-id="selectedId"
-            @select="selectedId = $event"
+            :touch-list="!isDesktop"
+            @select="selectJd"
             @delete="askDelete"
           />
         </aside>
 
-        <section class="min-w-0">
+        <section :class="['min-w-0', showDetailPane ? '' : 'hidden']">
+          <Button
+            v-if="!isDesktop && selectedId"
+            variant="ghost"
+            size="sm"
+            class="mb-3"
+            aria-label="返回岗位列表"
+            @click="backToList"
+          >
+            <ChevronLeft class="h-4 w-4" aria-hidden="true" />
+            返回列表
+          </Button>
           <AsyncState
             :loading="detailLoading"
             :error="detailError"
@@ -311,12 +389,28 @@ onMounted(() => {
             </Card>
 
             <template v-else-if="selectedJd && selectedMatch">
-              <Alert v-if="matchError" variant="danger" title="匹配分析失败" :description="matchError" class="mb-4" />
-              <MatchPanel :jd="selectedJd" :match="selectedMatch" @start="startInterview(selectedId)" />
+              <Alert
+                v-if="matchError"
+                variant="danger"
+                title="匹配分析失败"
+                :description="matchError"
+                class="mb-4"
+              />
+              <MatchPanel
+                :jd="selectedJd"
+                :match="selectedMatch"
+                @start="startInterview(selectedId)"
+              />
             </template>
 
             <Card v-else-if="selectedJd" padding="lg">
-              <Alert v-if="matchError" variant="danger" title="匹配分析失败" :description="matchError" class="mb-4" />
+              <Alert
+                v-if="matchError"
+                variant="danger"
+                title="匹配分析失败"
+                :description="matchError"
+                class="mb-4"
+              />
               <div class="flex items-start gap-3">
                 <span
                   class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-2 text-text-muted"

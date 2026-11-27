@@ -58,7 +58,7 @@ async function copyRewrite() {
 
 <template>
   <section
-    class="flex h-full min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-card"
+    class="flex h-full min-h-[260px] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-card sm:min-h-[420px]"
   >
     <header class="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
       <div class="flex items-center gap-2">
@@ -79,14 +79,16 @@ async function copyRewrite() {
     <div ref="scrollRef" class="scrollbar-thin flex-1 overflow-y-auto p-4">
       <div
         v-if="state === 'idle'"
-        class="flex h-full min-h-[320px] flex-col items-center justify-center text-center"
+        class="flex h-full min-h-[180px] flex-col items-center justify-center text-center sm:min-h-[320px]"
       >
         <div
           class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-muted"
         >
           <Sparkles class="h-5 w-5" aria-hidden="true" />
         </div>
-        <h3 class="mt-4 text-sm font-medium text-text">提交回答后，AI 会完成分析并一次性展示反馈</h3>
+        <h3 class="mt-4 text-sm font-medium text-text">
+          提交回答后，AI 会完成分析并一次性展示反馈
+        </h3>
         <p class="mt-1 max-w-xs text-xs leading-5 text-text-muted">
           评分包含五个维度、原文证据与一条可执行的改进建议。
         </p>
@@ -94,15 +96,19 @@ async function copyRewrite() {
 
       <div
         v-else-if="state === 'connecting'"
-        class="flex h-full min-h-[320px] flex-col items-center justify-center text-center"
+        class="flex h-full min-h-[180px] flex-col items-center justify-center text-center sm:min-h-[320px]"
       >
         <div
           class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-text-2"
         >
           <span class="flex items-center gap-1" aria-hidden="true">
             <span class="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-brand" />
-            <span class="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-brand [animation-delay:120ms]" />
-            <span class="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-brand [animation-delay:240ms]" />
+            <span
+              class="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-brand [animation-delay:120ms]"
+            />
+            <span
+              class="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-brand [animation-delay:240ms]"
+            />
           </span>
         </div>
         <h3 class="mt-4 text-sm font-medium text-text">正在分析你的回答…</h3>

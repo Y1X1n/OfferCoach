@@ -137,25 +137,27 @@ function timeLimitText(seconds: number): string {
       class="mt-3"
     />
 
-    <Button
-      class="mt-4"
-      block
-      size="lg"
-      :loading="loading"
-      :disabled="!canStart"
-      @click="emit('start')"
-    >
-      开始模拟面试
-      <ArrowRight class="h-4 w-4" aria-hidden="true" />
-    </Button>
-    <p
-      v-if="!canStart && missing.length"
-      class="mt-2 text-center text-2xs leading-5 text-text-muted"
-    >
-      {{ missing.join('；') }}
-    </p>
-    <p v-else class="mt-2 text-center text-2xs leading-5 text-text-muted">
-      开始后可随时结束，至少完成 1 题即可生成报告。
-    </p>
+    <div class="max-lg:hidden">
+      <Button
+        class="mt-4"
+        block
+        size="lg"
+        :loading="loading"
+        :disabled="!canStart"
+        @click="emit('start')"
+      >
+        开始模拟面试
+        <ArrowRight class="h-4 w-4" aria-hidden="true" />
+      </Button>
+      <p
+        v-if="!canStart && missing.length"
+        class="mt-2 text-center text-2xs leading-5 text-text-muted"
+      >
+        {{ missing.join('；') }}
+      </p>
+      <p v-else class="mt-2 text-center text-2xs leading-5 text-text-muted">
+        开始后可随时结束，至少完成 1 题即可生成报告。
+      </p>
+    </div>
   </Card>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, FileText, Flag, Loader2, RotateCcw } from 'lucide-vue-next'
 import Alert from '@/components/ui/Alert.vue'
@@ -15,6 +15,7 @@ import QuestionPanel from '@/components/interview/QuestionPanel.vue'
 import RoomHeader from '@/components/interview/RoomHeader.vue'
 import StreamingFeedback from '@/components/interview/StreamingFeedback.vue'
 import { useInterviewRoom } from '@/composables/useInterviewRoom'
+import { useMediaQuery } from '@/composables/useMediaQuery'
 import { usePolling } from '@/composables/usePolling'
 import { useToast } from '@/composables/useToast'
 
@@ -92,6 +93,15 @@ const {
 
 const endDialogOpen = ref(false)
 const abandonDialogOpen = ref(false)
+/** 手机上反馈卡在作答栏下方，提交后自动带用户看过去。 */
+const isWideRoom = useMediaQuery('(min-width: 1024px)')
+
+async function handleSubmit(): Promise<void> {
+  await submitAnswer()
+  if (isWideRoom.value) return
+  await nextTick()
+  feedbackRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 const poller = usePolling(async () => {
   await reload(true, true)
@@ -380,7 +390,7 @@ onBeforeRouteLeave(() => {
               :stream-state="streamState"
               :has-report="Boolean(completedReportId)"
               :voice-transcribing="voiceTranscribing"
-              @submit="submitAnswer"
+              @submit="handleSubmit"
               @skip="skipCurrent(false)"
               @next="goNext"
               @follow-up="requestFollowUp"

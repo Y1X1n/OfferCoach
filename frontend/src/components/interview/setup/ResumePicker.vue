@@ -98,7 +98,7 @@ const emptyDescription = computed(() =>
             <span
               class="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-2xs text-text-muted"
             >
-              <span class="inline-flex items-center gap-1">
+              <span v-if="resume.skillCount > 0" class="inline-flex items-center gap-1">
                 <Layers class="h-3 w-3" aria-hidden="true" />
                 {{ resume.skillCount }} 项技能
               </span>

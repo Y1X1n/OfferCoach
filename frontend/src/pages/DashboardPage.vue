@@ -13,12 +13,7 @@ import { errorMessage } from '@/api/client'
 import * as dashboardApi from '@/api/dashboard'
 import { DEFAULT_INTERVIEW_CONFIG } from '@/api/interviews'
 import { useAppStore } from '@/stores/app'
-import type {
-  DashboardActiveSession,
-  InterviewSession,
-  Quota,
-  ReportSummary,
-} from '@/types'
+import type { DashboardActiveSession, InterviewSession, Quota, ReportSummary } from '@/types'
 import { formatDate, formatScore } from '@/utils/format'
 
 interface QuickStep {
@@ -44,9 +39,9 @@ const averageScore = ref<number | null>(null)
 const scoredReportCount = ref(0)
 
 const primaryLinkClass =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90'
+  'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90 max-sm:h-11'
 const secondaryLinkClass =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium text-text transition-colors hover:bg-surface-2'
+  'inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium text-text transition-colors hover:bg-surface-2 max-sm:h-11'
 const smallPrimaryLinkClass =
   'inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-brand px-3 text-xs font-medium text-brand-foreground transition-colors hover:bg-brand/90 max-sm:h-11'
 
@@ -84,13 +79,12 @@ const activeSession = computed<InterviewSession | null>(() => {
   return (
     [...open].sort(
       (a, b) =>
-        Date.parse(b.lastActiveAt ?? b.startedAt ?? '') - Date.parse(a.lastActiveAt ?? a.startedAt ?? ''),
+        Date.parse(b.lastActiveAt ?? b.startedAt ?? '') -
+        Date.parse(a.lastActiveAt ?? a.startedAt ?? ''),
     )[0] ?? null
   )
 })
-const activeResumeTitle = computed(
-  () => activeSession.value?.resumeTitle ?? '未选择简历',
-)
+const activeResumeTitle = computed(() => activeSession.value?.resumeTitle ?? '未选择简历')
 const answeredCount = computed(() => activeSession.value?.progress?.answered ?? 0)
 const questionTotal = computed(
   () => activeSession.value?.progress?.total ?? activeSession.value?.questionCount ?? 0,
@@ -140,9 +134,7 @@ const quickSteps = computed<QuickStep[]>(() => [
 ])
 
 const recentReports = computed(() =>
-  [...reports.value]
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 4),
+  [...reports.value].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 4),
 )
 const latestReport = computed(() => recentReports.value[0] ?? null)
 const weeklyTip = computed(() => {
@@ -204,11 +196,11 @@ onMounted(() => {
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <PageHeader :title="periodTitle" description="先确认简历与目标岗位，再进行一场限时模拟面试">
       <template #actions>
-        <RouterLink to="/resumes" :class="secondaryLinkClass">
+        <RouterLink to="/resumes" :class="[secondaryLinkClass, 'max-sm:flex-1']">
           <Upload class="h-4 w-4" aria-hidden="true" />
           上传简历
         </RouterLink>
-        <RouterLink to="/interview/new" :class="primaryLinkClass">
+        <RouterLink to="/interview/new" :class="[primaryLinkClass, 'max-sm:flex-1']">
           <Mic class="h-4 w-4" aria-hidden="true" />
           开始模拟面试
         </RouterLink>
@@ -281,7 +273,7 @@ onMounted(() => {
                 <h2 class="text-sm font-medium text-text">最近报告</h2>
                 <RouterLink
                   to="/reports"
-                  class="text-xs text-text-muted transition-colors hover:text-text"
+                  class="inline-flex min-h-8 items-center text-xs text-text-muted transition-colors hover:text-text max-sm:min-h-11"
                 >
                   查看全部
                 </RouterLink>

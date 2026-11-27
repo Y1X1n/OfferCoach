@@ -11,10 +11,10 @@ const low = computed(() => remaining.value <= 2)
 <template>
   <RouterLink
     to="/plans"
-    class="inline-flex h-8 items-center gap-2 rounded-md px-2 text-xs text-text-muted transition-colors hover:bg-surface-2 hover:text-text max-sm:min-h-11"
+    class="inline-flex h-8 min-w-8 items-center justify-center gap-2 rounded-md px-2 text-xs text-text-muted transition-colors hover:bg-surface-2 hover:text-text max-sm:min-h-11 max-sm:min-w-11 max-sm:bg-surface-2"
     :aria-label="`剩余 ${remaining} 次面试额度，查看套餐`"
   >
-    <span>面试额度</span>
+    <span class="hidden sm:inline">面试额度</span>
     <span :class="['figure text-sm', low ? 'text-warning-strong' : 'text-text']">
       {{ remaining }}
     </span>
