@@ -151,6 +151,19 @@ Schema 校验（数量/维度/难度/来源）
 写入题库引用与检索证据
 ```
 
+> **实现口径（2026-11-28）**：出题已改为「联网搜索优先」，上面的 Milvus 检索是设计基线；实际落地为
+> PostgreSQL trigram 题库检索，且**只做兜底**：
+>
+> 1. 用「岗位标题 + 前 3 个技能 + 面试题 面经」调用 `oc-ai-search` 取 6 条公开面经线索
+>    （`oc.interview.question-search-enabled`，无 Key / 工具不可用时自动跳过，不影响出题）；
+> 2. 模型基于「简历 + JD + 线索」一次性生成全部题目；提示词行业无关，非技术岗位使用该行业术语；
+> 3. 模型没覆盖的槽位按维度用题库补齐，仍不足用模板，保证会话一定进入 `READY`；
+> 4. 本次生成题沉淀进 `question_bank` 草稿（`source=GENERATED`、`source_repo=ai-search`、按岗位族分组、按题干去重），
+>    审核发布后即可被后续同行业会话复用；
+> 5. 检索证据写入 `interview_question.retrieval_json`：`source=SEARCH_AI`、`searchQuery`、`searchRefs`。
+>
+> 题库不再是「必须 60%」的配比来源，`QuestionPlan.BANK_RATIO` 仅保留为历史常量。
+
 ### 6.1 查询构造
 
 ```python
@@ -172,7 +185,7 @@ def build_queries(jd: JdStructured, resume: ResumeSummary, gaps: list[str]) -> l
 
 - 固定配比：专业深度 3、项目 2、行为 2、岗位匹配 1（可按题量等比缩放）。
 - 难度阶梯：首题 `EASY`；`EASY:MEDIUM:HARD = 2:4:2`（8 题）。
-- 至少 60% 来自题库；不足时生成题必须标注 `source=GENERATED` 并给出生成理由。
+- 题库配比不再是硬约束（见上方实现口径）；生成题标注 `source=GENERATED` 并给出生成理由。
 - 禁止出以下题目：脑筋急转弯、与 JD 无关的算法题、要求披露前公司机密、涉及隐私与歧视。
 - 每题输出：题干、维度、难度、考察点（3–5 条）、评分要点、来源、`whyThisQuestion`（≤ 50 字）。
 - 同一场不得出现语义重复题（题干 embedding 相似度 > 0.9 视为重复）。

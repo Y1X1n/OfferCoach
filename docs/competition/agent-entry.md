@@ -46,8 +46,10 @@ python agent.py --prompt "请执行一次完整业务流程，完成简历解析
 | `samples/resume.md` | 虚构候选人简历（三年后端，含量化结果） |
 | `samples/jd.md` | 高级后端工程师 JD（订单/交易方向） |
 | `samples/answers.json` | 按维度（DEPTH / PROJECT / BEHAVIOR / FIT / DEFAULT）准备的示例回答 |
+| `samples/nursing/` | 非 IT 行业样例（护理岗简历 / JD / 回答），用于证明「各行各业」不是口号 |
 
 出题后按维度为每题匹配示例回答，因此不依赖人工输入即可完成评分与报告。
+`--prompt` 命中「护理 / 护士 / 医疗 / 临床 / nursing」等关键词时自动切换到护理样例，其余走技术岗样例。
 
 ## 5. 稳定性设计
 
