@@ -138,7 +138,8 @@ public class OrderService {
         }
         PaymentChannel channel = registry.require(order.channel());
         if (!channel.available()) {
-            throw new PayException(PayErrorKind.NOT_CONFIGURED, "支付渠道未启用：" + order.channel().code());
+            throw new PayException(
+                    PayErrorKind.NOT_CONFIGURED, "支付渠道未启用：" + order.channel().code());
         }
         if (!(channel instanceof MiniAppPaymentChannel miniChannel)) {
             throw new PayException(PayErrorKind.NOT_CONFIGURED, "该渠道不支持小程序内支付");

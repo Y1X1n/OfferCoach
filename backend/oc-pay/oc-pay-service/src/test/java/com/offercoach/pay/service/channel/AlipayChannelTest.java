@@ -9,10 +9,10 @@ import com.offercoach.pay.service.config.PayChannelProperties;
 import com.offercoach.pay.service.config.PayOpsProperties;
 import com.offercoach.pay.service.crypto.Pem;
 import com.offercoach.pay.service.crypto.RsaSigner;
-import com.offercoach.pay.service.error.PayException;
 import com.offercoach.pay.service.domain.ChannelCode;
 import com.offercoach.pay.service.domain.OrderStatus;
 import com.offercoach.pay.service.domain.PaymentOrder;
+import com.offercoach.pay.service.error.PayException;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
@@ -99,8 +99,7 @@ class AlipayChannelTest {
                         + "\"user_id\":\"2088000000000001\"}}";
             } else {
                 createBody.set(body);
-                response =
-                        "{\"alipay_trade_create_response\":{\"code\":\"10000\",\"trade_no\":\"2026111722001\"}}";
+                response = "{\"alipay_trade_create_response\":{\"code\":\"10000\",\"trade_no\":\"2026111722001\"}}";
             }
             byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
