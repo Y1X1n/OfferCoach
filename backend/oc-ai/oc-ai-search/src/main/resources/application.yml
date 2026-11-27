@@ -21,9 +21,14 @@ spring:
       connection-timeout: 3000
   flyway:
     enabled: false
-  jackson:
+  # Boot 4 默认 JSON 栈是 Jackson 3；本服务仍用 Jackson 2，故配置键是 spring.jackson2.*。
+  jackson2:
     serialization:
       write-dates-as-timestamps: false
+  # HTTP 转换器默认优先 Jackson 3；显式选 jackson2，保持与上面的 ObjectMapper 一致。
+  http:
+    converters:
+      preferred-json-mapper: jackson2
 
 management:
   endpoints:

@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.5.16</version>
+    <version>4.2.0</version>
     <relativePath/>
   </parent>
 
@@ -32,12 +32,18 @@
 
   <properties>
     <java.version>21</java.version>
-    <spring-cloud.version>2025.0.3</spring-cloud.version>
-    <mybatis-plus.version>3.5.16</mybatis-plus.version>
-    <springdoc.version>2.8.16</springdoc.version>
+    <spring-cloud.version>2026.0.0</spring-cloud.version>
+    <mybatis-plus.version>3.5.18</mybatis-plus.version>
+    <springdoc.version>3.2.1</springdoc.version>
     <archunit.version>1.3.0</archunit.version>
-    <logstash-encoder.version>7.4</logstash-encoder.version>
-    <testcontainers.version>1.21.3</testcontainers.version>
+    <logstash-encoder.version>8.1</logstash-encoder.version>
+    <!--
+      Boot 4 的 spring-boot-starter-parent 不再定义 spring-boot.version 属性，
+      ${project.parent.version} 在子模块里又会解析成本项目的 0.1.0-SNAPSHOT，
+      所以 Jackson 2 过渡桥的版本只能在这里显式写死；升 Boot 时同步改这一处。
+    -->
+    <boot4-jackson2-bridge.version>4.2.0</boot4-jackson2-bridge.version>
+    <testcontainers.version>2.0.5</testcontainers.version>
     <spotless.version>3.11.0</spotless.version>
     <palantir-java-format.version>2.50.0</palantir-java-format.version>
     <checkstyle-plugin.version>3.6.0</checkstyle-plugin.version>
@@ -57,8 +63,20 @@
       </dependency>
       <dependency>
         <groupId>com.baomidou</groupId>
-        <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
         <version>${mybatis-plus.version}</version>
+      </dependency>
+      <!--
+        Boot 4 的默认 JSON 栈是 Jackson 3（tools.jackson.*），而本仓库代码仍用 Jackson 2
+        （com.fasterxml.jackson.*）。spring-boot-jackson2 是官方过渡桥：它提供
+        com.fasterxml.jackson.databind.ObjectMapper bean 与 spring.jackson2.* 配置，
+        配合 spring.http.converters.preferred-json-mapper=jackson2 让 HTTP 转换器也走 Jackson 2，
+        这样升级 Boot 4 不需要同时改 50 个文件的 import。下一轮再整体迁到 Jackson 3 并删掉它。
+      -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-jackson2</artifactId>
+        <version>${boot4-jackson2-bridge.version}</version>
       </dependency>
       <dependency>
         <groupId>org.springdoc</groupId>
@@ -88,6 +106,18 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
+  <dependencies>
+    <!--
+      全模块统一带 Jackson 2 桥（版本见上面的 boot4-jackson2-bridge.version）。
+      代码里到处是 com.fasterxml.jackson.databind.ObjectMapper，逐个模块加依赖容易漏；
+      统一在父 POM 引入，等整体迁到 Jackson 3 时在这里删一处即可。
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-jackson2</artifactId>
+    </dependency>
+  </dependencies>
 
   <build>
     <pluginManagement>
