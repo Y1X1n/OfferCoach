@@ -244,8 +244,10 @@ public class WechatPayChannel implements PaymentChannel {
 
     /**
      * 校验响应签名；未配置平台证书时跳过并告警（生产应配置）。
+     *
+     * <p>包级可见是为了让测试能直接喂构造出来的响应，不必起 HTTP 服务。</p>
      */
-    private void verifyResponseSignature(HttpResponse<String> response) {
+    void verifyResponseSignature(HttpResponse<String> response) {
         PublicKey key = platformKey();
         if (key == null) {
             log.warn("未配置微信平台证书，跳过响应验签");
@@ -255,7 +257,10 @@ public class WechatPayChannel implements PaymentChannel {
         String nonce = response.headers().firstValue("Wechatpay-Nonce").orElse(null);
         String signature = response.headers().firstValue("Wechatpay-Signature").orElse(null);
         if (timestamp == null || nonce == null || signature == null) {
-            return;
+            // 已配置平台证书却收到无签名头的响应：无法证明它来自微信。
+            // 不能"缺头就放行"——对账路径会拿这条响应去 markPaid 并发额度，
+            // 等于给伪造的 trade_state=SUCCESS 开了口子。按上游异常拒绝，留下轮重查。
+            throw new PayException(PayErrorKind.UPSTREAM_FAILED, "微信响应缺少签名头，无法验证来源");
         }
         if (!RsaSigner.verify(key, timestamp + "\n" + nonce + "\n" + response.body() + "\n", signature)) {
             throw new PayException(PayErrorKind.UPSTREAM_FAILED, "微信响应验签失败");

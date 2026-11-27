@@ -1,7 +1,10 @@
 package com.offercoach.pay.service.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.offercoach.pay.config.PayProperties;
 import com.offercoach.pay.service.TestKeys;
@@ -9,8 +12,11 @@ import com.offercoach.pay.service.config.PayChannelProperties;
 import com.offercoach.pay.service.config.PayOpsProperties;
 import com.offercoach.pay.service.crypto.RsaSigner;
 import com.offercoach.pay.service.error.PayException;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpResponse;
 import java.security.PrivateKey;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -107,5 +113,40 @@ class WechatPayChannelTest {
         headers.put("Wechatpay-Nonce", nonce);
         headers.put("Wechatpay-Signature", signature);
         return headers;
+    }
+
+    /**
+     * 配了平台证书却收到无签名头的响应：不能"缺头就放行"。
+     *
+     * <p>对账路径（PaymentSweeper.reconcile）会拿这条响应去 markPaid 并发额度，
+     * 放行等于给伪造的 trade_state=SUCCESS 开口子。</p>
+     */
+    @Test
+    void rejectsResponseWithoutSignatureHeaders() {
+        HttpResponse<String> response = response(Map.of(), "{\"trade_state\":\"SUCCESS\"}");
+
+        assertThatThrownBy(() -> channel.verifyResponseSignature(response))
+                .isInstanceOf(PayException.class)
+                .hasMessageContaining("签名头");
+    }
+
+    @Test
+    void acceptsCorrectlySignedResponse() {
+        String body = "{\"trade_state\":\"SUCCESS\"}";
+        Map<String, String> headers = signedHeaders(body, freshTimestamp(), "nonce-resp");
+
+        assertThatCode(() -> channel.verifyResponseSignature(response(headers, body)))
+                .doesNotThrowAnyException();
+    }
+
+    private static HttpResponse<String> response(Map<String, String> headers, String body) {
+        Map<String, List<String>> headerMap = new HashMap<>();
+        headers.forEach((name, value) -> headerMap.put(name, List.of(value)));
+        HttpHeaders httpHeaders = HttpHeaders.of(headerMap, (name, value) -> true);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.headers()).thenReturn(httpHeaders);
+        when(response.body()).thenReturn(body);
+        when(response.statusCode()).thenReturn(200);
+        return response;
     }
 }

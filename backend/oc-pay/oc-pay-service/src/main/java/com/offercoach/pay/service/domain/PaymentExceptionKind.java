@@ -10,6 +10,13 @@ public enum PaymentExceptionKind {
     PAID_ON_INACTIVE_ORDER,
     /** 回调或对账金额与订单金额不一致。 */
     AMOUNT_MISMATCH,
+    /**
+     * 渠道返回「已支付」，但响应里缺少金额或渠道流水号，不足以作为资金到账的凭据。
+     *
+     * <p>对账路径不接受这种结果：宁可留在待支付等下一轮再查，也不能凭一条缺字段的响应
+     * 把订单置为已支付并发额度。</p>
+     */
+    PAID_UNVERIFIED,
     /** 回调渠道与订单渠道不一致。 */
     CHANNEL_MISMATCH,
     /** 回调携带的订单号在本地不存在。 */
