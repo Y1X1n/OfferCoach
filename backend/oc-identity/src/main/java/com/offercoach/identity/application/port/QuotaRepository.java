@@ -50,6 +50,13 @@ public interface QuotaRepository {
             long userId, String planCode, int interviewAdd, int resumeAdd, LocalDate today, LocalDate nextPeriodEnd);
 
     /**
+     * 找出周期已到期（{@code period_end <= today}）的用户，供定时任务分批结算。
+     *
+     * <p>这些用户可能长期不登录，只靠 {@code snapshot} 懒续发会让周期与套餐长期停留在陈旧值。</p>
+     */
+    List<Long> findExpiredPeriodUserIds(LocalDate today, int limit);
+
+    /**
      * 购买成功后切换套餐并刷新有效期；不影响余额（额度由调用方单独追加）。
      * 行不存在时影响 0 行。
      */

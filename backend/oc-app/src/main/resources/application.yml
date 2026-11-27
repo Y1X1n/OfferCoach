@@ -100,6 +100,9 @@ oc:
     free-monthly-interviews: 3
     free-monthly-resumes: 3
     daily-session-cap: 3
+  # 订阅与额度周期到期结算：每天低峰兜底扫描，用户长期不登录也能正确降级。
+  identity:
+    subscription-expiry-cron: "${SUBSCRIPTION_EXPIRY_CRON:0 10 3 * * *}"
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5174,http://127.0.0.1:5174}
   demo:

@@ -313,6 +313,7 @@ spec:
 - 生产验证（0.8.9 / 0.7.6）：报告生成租约、Access Token 版本、隐私开关（关闭时跳过模型解析）、索引迁移与 Redis `volatile-lru` 已上线；计时器刷新/暂停修正；登录、工作台聚合与登出冒烟通过；`index-DticHyIO.js` 已上线。
 - 生产验证（0.8.11 / 0.7.7）：Spring Boot 3.5.16、可信代理密钥、审计 append-only 与 `V202611090002` 已上线；无 `X-Proxy-Secret` 时伪造 `X-Real-IP` 被忽略，携带正确密钥才采信；生产 profile 缺失代理密钥将启动失败；审计日志 UPDATE 被数据库拒绝；登录、工作台、登出冒烟通过；`index-BBFFZso-.js` 已上线。
 - 可选加固环境变量：`AUTH_PROXY_SECRET`（Nginx 同步发送 `X-Proxy-Secret`，**生产必填**）、`ADMIN_ALLOWED_IPS`（逗号分隔）、`METRICS_TOKEN`（Prometheus Bearer）、`RETENTION_AI_CALL_DAYS`（默认 90）、`RETENTION_AUDIT_DAYS`（默认 1095）、`RETENTION_PAYMENT_NOTIFY_DAYS`（默认 180）、`SCHEDULING_POOL_SIZE`（默认 4）。
+- 订阅与额度到期结算：`SubscriptionExpiryJob` 每天 03:10（北京时间，`oc.identity.subscription-expiry-cron`）把过期 ACTIVE 订阅置 `EXPIRED` 并结算到期额度周期。业务时区固定为 `Asia/Shanghai`（`com.offercoach.common.time.BusinessDate`），与容器 `TZ` 无关——日额度、每日上限、周期边界都按北京时间滚动。
 - 代理头采信规则：只有「直连地址为回环/私网」且「`X-Proxy-Secret` 匹配」时才读 `X-Real-IP`；未配置密钥时忽略全部代理头、按直连地址识别并每分钟告警一次。Nginx 需 `proxy_set_header X-Real-IP $remote_addr;` 与 `proxy_set_header X-Proxy-Secret $AUTH_PROXY_SECRET;`。
 - 本地排障端点：`/actuator/metrics`、`/actuator/loggers` 只在 `local` profile 暴露，且要求 `ADMIN` 角色（`loggers` 支持 POST 改写，不能对匿名开放）。
 - 已知：单实例、无异地备份/监控告警；每日 dump 只在本机；AI 未配置密钥时走启发式；题库已剔除 NC/ND/GPL/UNLICENSED 来源。

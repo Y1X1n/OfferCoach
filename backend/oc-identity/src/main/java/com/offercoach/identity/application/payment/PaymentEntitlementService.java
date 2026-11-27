@@ -2,6 +2,7 @@ package com.offercoach.identity.application.payment;
 
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.common.time.BusinessDate;
 import com.offercoach.identity.application.port.PaymentEntitlementRepository;
 import com.offercoach.identity.application.port.PaymentOrderFactsPort;
 import com.offercoach.identity.application.port.QuotaRepository;
@@ -63,7 +64,7 @@ public class PaymentEntitlementService {
                 .orElseThrow(
                         () -> new BizException(ErrorCode.VALIDATION_FAILED, Map.of("planCode", notice.planCode())));
         int periodDays = plan.periodDays() > 0 ? plan.periodDays() : DEFAULT_PERIOD_DAYS;
-        LocalDate today = LocalDate.now();
+        LocalDate today = BusinessDate.today();
         boolean hasQuota = quotaRepository.findQuota(notice.userId()).isPresent();
         if (!hasQuota) {
             // 新用户：直接按购买套餐初始化（含 PLAN_GRANT 流水），避免先发 FREE 再叠加。

@@ -5,11 +5,11 @@ import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.common.cache.RedisKeys;
+import com.offercoach.common.time.BusinessDate;
 import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.interview.document.OcrTextCleaner;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -65,7 +65,7 @@ public class ResumeOcrFallback {
             return null;
         }
         int limit = platformSettings.snapshot().ocrDailyLimit();
-        String counterKey = RedisKeys.dailyOcr(userId, LocalDate.now().toString());
+        String counterKey = RedisKeys.dailyOcr(userId, BusinessDate.todayIso());
         boolean counted = limit > 0;
         if (counted && !counterGuard.tryAcquire(counterKey, limit, DAILY_TTL)) {
             log.warn("简历 OCR 达到每日上限，跳过识别：userId={}", userId);

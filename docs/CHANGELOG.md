@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.32 ｜ 更新：2026-11-27
+> 状态：生效 ｜ 版本：v2.33 ｜ 更新：2026-11-27
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -37,6 +37,14 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.33（2026-11-27）——订阅到期结算与业务时区统一
+
+- **新增 `SubscriptionExpiryJob`**（每天 03:10 北京时间）：此前额度周期到期只靠 `QuotaService.snapshot` 懒触发，用户不登录就不结算；`user_subscription` 的 ACTIVE 行更是从没人扫过——PRO 订阅到期后订阅表仍为 ACTIVE、额度表已降级 FREE，两张表长期矛盾。现在每天兜底把过期 ACTIVE 置 `EXPIRED` 并结算到期额度周期。
+- **单用户独立事务**：`SubscriptionExpirySettlement` 拆成独立 Bean，避免同类自调用让 `@Transactional` 失效；单条失败只影响自己，下一轮重试。
+- **业务时区统一为 `Asia/Shanghai`**：新增 `com.offercoach.common.time.BusinessDate`。此前 `QuotaService`/`AuthAttemptService`/`JdAiGuard`/`JdSearchCacheService`/`JdWebFetchService`/`ResumeOcrFallback` 都用 `LocalDate.now()`（容器里是 UTC），日额度在早上 8 点才重置；而 `InviteService` 的每日上限按 `Asia/Shanghai` 算，同一用户有两套「今天」。现已全部收敛到同一时区。
+- **新增索引**（`V202611270002`）：`user_subscription(expires_at) WHERE status='ACTIVE'` 与 `user_quota(period_end) WHERE period_end IS NOT NULL`，到期扫描不再全表。
+- 补 `SubscriptionExpiryJobTest`（分批扫描、单用户失败隔离、无进展退出）。
 
 ### v2.32（2026-11-27）——全维度复审修复
 

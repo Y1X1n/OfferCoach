@@ -72,6 +72,11 @@ public class QuotaRepositoryImpl implements QuotaRepository {
     }
 
     @Override
+    public List<Long> findExpiredPeriodUserIds(LocalDate today, int limit) {
+        return quotaMapper.findExpiredPeriodUserIds(today, limit);
+    }
+
+    @Override
     public boolean updatePlanPeriod(long userId, String planCode, LocalDate periodStart, LocalDate periodEnd) {
         return quotaMapper.updatePlanPeriod(userId, planCode, periodStart, periodEnd) > 0;
     }

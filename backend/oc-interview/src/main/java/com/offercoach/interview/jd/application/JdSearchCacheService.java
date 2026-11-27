@@ -11,12 +11,12 @@ import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.digest.Sha256;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.common.time.BusinessDate;
 import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.support.JsonCodec;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -93,7 +93,7 @@ public class JdSearchCacheService {
         } catch (RuntimeException exception) {
             log.warn("检索缓存读取失败：reason={}", exception.getClass().getSimpleName());
         }
-        String counterKey = RedisKeys.dailySearch(userId, LocalDate.now().toString());
+        String counterKey = RedisKeys.dailySearch(userId, BusinessDate.todayIso());
         counterGuard.tryAcquireOrThrow(
                 counterKey, platformSettings.snapshot().searchDailyLimit(), Duration.ofDays(1), "SEARCH");
         List<ToolDtos.SearchResult> results;

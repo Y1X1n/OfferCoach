@@ -3,10 +3,10 @@ package com.offercoach.identity.application;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.common.time.BusinessDate;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.identity.config.RateLimitProperties;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -66,7 +66,7 @@ public class AuthAttemptService {
      */
     public void checkRegistrationDailyCaps(String ip, String deviceHash) {
         PlatformSettingsService.Snapshot settings = settingsService.snapshot();
-        String date = LocalDate.now().format(DAY_KEY);
+        String date = BusinessDate.today().format(DAY_KEY);
         if (settings.registrationIpDailyCap() > 0) {
             Long used = readCounter(RedisKeys.registerIpDaily(ip, date));
             if (used != null && used >= settings.registrationIpDailyCap()) {
@@ -103,7 +103,7 @@ public class AuthAttemptService {
      * 注册成功后累加单 IP / 单设备日计数；仅用于风控，失败不阻断注册。
      */
     public void onRegistrationSuccess(String ip, String deviceHash) {
-        String date = LocalDate.now().format(DAY_KEY);
+        String date = BusinessDate.today().format(DAY_KEY);
         incrementDaily(RedisKeys.registerIpDaily(ip, date));
         if (deviceHash != null && !deviceHash.isBlank()) {
             incrementDaily(RedisKeys.registerDeviceDaily(deviceHash, date));

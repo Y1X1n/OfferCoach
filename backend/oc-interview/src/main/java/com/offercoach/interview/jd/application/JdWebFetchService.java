@@ -10,12 +10,12 @@ import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.gateway.AiToolGateway;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.digest.Sha256;
+import com.offercoach.common.time.BusinessDate;
 import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.interview.ai.AiCallLogger;
 import com.offercoach.interview.document.WebContentCleaner;
 import java.time.Duration;
-import java.time.LocalDate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -82,7 +82,7 @@ public class JdWebFetchService {
                     "CACHE_HIT");
             return new Outcome(cached.cleaned(), cached.title(), cached.reason());
         }
-        String counterKey = RedisKeys.dailyFetch(userId, LocalDate.now().toString());
+        String counterKey = RedisKeys.dailyFetch(userId, BusinessDate.todayIso());
         counterGuard.tryAcquireOrThrow(
                 counterKey, platformSettings.snapshot().fetchDailyLimit(), Duration.ofDays(1), "FETCH");
         try {
