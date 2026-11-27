@@ -7,7 +7,7 @@
 
 - **阶段**：M1–M4 全链路完成并上线；真实前端已接真实后端。
 - **前端**：登录/简历/JD/面试/SSE 评分/报告/套餐/设置全部走 `/api/v1`；简历编辑支持 Markdown/JSON/打印 PDF 导出；全站页头、卡片、按钮与空态统一。
-- **文档**：35 份，覆盖产品、架构、数据、接口、AI、前端、UI、后端、测试、部署、CI/CD、可观测性、排期与复查。
+- **文档**：38 份，覆盖产品、架构、数据、接口、AI、前端、UI、后端、测试、部署、CI/CD、可观测性、排期与复查。
 - **前端质量**：ESLint + Prettier + Vitest + `pnpm check` 通过（26 单测、typecheck 0、lint 0、build 成功）。
 - **后端规范**：阿里 Java 手册、Spring Cloud 实践与 CSDN REST 规范融合生效；Palantir 4 空格、Checkstyle、JaCoCo、Enforcer 均通过。
 - **M1–M4**：简历上传/手录/解析/修正/软删/重解析、JD 结构化/匹配、题库导入与检索、会话状态机、RAG 出题、答题、SSE 五维评分、异步报告与重试、每日额度与流水全部实现；单元测试与生产全链路冒烟通过。
@@ -19,6 +19,7 @@
 - **AI 工具第四轮整改（2026-11-15）**：配额守卫改 Lua 原子计数并区分"限流 vs 计费额度"（ADR-012）；能力关闭/上游失败不再扣次数；朗读上限恢复"每题"语义；跨服务 Trace 透传 + 可重试错误退避重试；`AiScene` 补齐工具场景；补 oc-ai 单测与 ArchUnit 隔离规则。
 - **支付服务 oc-pay（2026-11-17）**：新增聚合模块 `oc-pay`（`oc-pay-core` 共享库 + 独立部署的 `oc-pay-service`，8099）。实现微信支付 v3（Native 扫码）与支付宝（`alipay.trade.precreate` 扫码）下单 / 回调验签 / 退款 / 对账，以及仅本地联调的 `MOCK` 渠道；`oc-app` 新增 `POST/GET /api/v1/orders` 与内部发放接口，支付成功后由 `oc-pay` 幂等回调发放套餐与额度（`payment_entitlement.order_no` 唯一）。详见 [payment.md](design/payment.md)、[architecture.md](design/architecture.md) ADR-013。前端套餐页接入下单与二维码展示为待办。
 - **一键部署（2026-11-27）**：新增根级 `compose.yaml`，一条命令启动 PostgreSQL + Redis + oc-app + Nginx 前端；前后端镜像改为多阶段构建（无需宿主机 JDK / Maven / Node / pnpm），前端容器内反代 `/api` 并透传 `X-Proxy-Secret`（由 `AUTH_PROXY_SECRET` 经 nginx 模板注入）；运维参数（调度线程池、日志保留、订阅到期 cron、`METRICS_TOKEN`）可从 `.env` 透传；AI 工具服务与 oc-pay 仍按宿主机方式运行。
+- **支付宝小程序参赛版（2026-11-27）**：新增 `miniprogram/`（4 个页面：首页 / 准备 / 答题 / 报告）、`agent/`（`agent.py` 独立功能检测入口，Python 3.12 仅标准库，8 次模型调用产出复盘报告）、`scripts/competition/`（真机同源预览运行时、封面与 PDF 生成、`product.zip` 打包与结构自检）；后端零改动，全部复用 `/api/v1` 既有契约。产物已通过 `check-package.py` 校验（结构、命名、大小、`--version`）。详见 [competition/alipay-agents-emerge.md](competition/alipay-agents-emerge.md)。
 - **下一步**：配置真实模型密钥、Git/CI 发布基线、异地备份与监控告警、管理端 MFA 与 Prompt 注入防护、题库检索召回优化。
 - **未决**：见 [README.md](README.md) §4。
 

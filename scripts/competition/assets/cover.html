@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>OfferCoach 封面</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 1440px;
+        height: 810px;
+        background: #0f172a;
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+        color: #ffffff;
+        overflow: hidden;
+        position: relative;
+      }
+      .glow {
+        position: absolute;
+        width: 720px;
+        height: 720px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(163, 74, 42, 0.55) 0%, rgba(163, 74, 42, 0) 68%);
+        right: -120px;
+        top: -180px;
+      }
+      .grid {
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 72px 72px;
+      }
+      .content {
+        position: relative;
+        padding: 76px 80px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      .kicker {
+        font-size: 22px;
+        letter-spacing: 5px;
+        color: #f0b49a;
+        font-weight: 600;
+      }
+      h1 {
+        font-size: 96px;
+        line-height: 1.1;
+        margin-top: 30px;
+        letter-spacing: -1px;
+      }
+      .sub {
+        font-size: 30px;
+        line-height: 1.6;
+        color: #c7cdd6;
+        margin-top: 26px;
+        max-width: 760px;
+      }
+      .tags {
+        display: flex;
+        gap: 14px;
+        margin-top: 34px;
+      }
+      .tag {
+        font-size: 20px;
+        color: #e2e8f0;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 999px;
+        padding: 10px 22px;
+      }
+      .steps {
+        margin-top: auto;
+        display: flex;
+        gap: 48px;
+        max-width: 800px;
+      }
+      .step {
+        max-width: 300px;
+      }
+      .step .no {
+        font-size: 20px;
+        color: #f0b49a;
+        font-weight: 700;
+        letter-spacing: 2px;
+      }
+      .step .name {
+        font-size: 26px;
+        font-weight: 600;
+        margin-top: 10px;
+      }
+      .step .desc {
+        font-size: 19px;
+        color: #9aa3af;
+        margin-top: 10px;
+        line-height: 1.6;
+      }
+      .footer {
+        margin-top: 54px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-size: 19px;
+        color: #9aa3af;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #a34a2a;
+      }
+      .phone {
+        position: absolute;
+        right: 72px;
+        bottom: -140px;
+        width: 318px;
+        height: 700px;
+        border-radius: 46px;
+        background: #f5f6f8;
+        border: 12px solid #1f2937;
+        box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55);
+        overflow: hidden;
+        transform: rotate(-4deg);
+      }
+      .phone .bar {
+        height: 54px;
+        background: #0f172a;
+        color: #fff;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .phone .body {
+        padding: 22px 20px;
+      }
+      .phone .ph {
+        font-size: 11px;
+        letter-spacing: 2px;
+        color: #a34a2a;
+        font-weight: 700;
+      }
+      .phone .t {
+        font-size: 24px;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.35;
+        margin-top: 8px;
+      }
+      .phone .s {
+        font-size: 13px;
+        color: #6b7280;
+        margin-top: 10px;
+      }
+      .phone .quota {
+        margin-top: 16px;
+        background: #0f172a;
+        border-radius: 14px;
+        padding: 14px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .phone .quota b {
+        font-size: 26px;
+      }
+      .phone .quota span {
+        font-size: 11px;
+        color: #9aa3af;
+      }
+      .phone .card {
+        margin-top: 14px;
+        background: #fff;
+        border-radius: 14px;
+        padding: 14px 16px;
+        font-size: 13px;
+        color: #0f172a;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+      }
+      .phone .card .n {
+        color: #a34a2a;
+        font-weight: 700;
+        margin-right: 8px;
+      }
+      .phone .card .d {
+        font-size: 11px;
+        color: #9aa3af;
+        margin-top: 4px;
+      }
+      .phone .cta {
+        margin-top: 16px;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="glow"></div>
+    <div class="grid"></div>
+    <div class="content">
+      <div class="kicker">支付宝 · 智能体涌现奖 · 第一赛季</div>
+      <h1>OfferCoach<br />面试教练</h1>
+      <div class="sub">把你的简历和目标岗位交给它，练一场按你经历出题、逐题给证据的模拟面试。</div>
+      <div class="tags">
+        <div class="tag">支付宝小程序</div>
+        <div class="tag">千问模型</div>
+        <div class="tag">求职 · 生活好帮手</div>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="no">01</div>
+          <div class="name">粘贴简历与 JD</div>
+          <div class="desc">不用上传文件，文本即可开始。</div>
+        </div>
+        <div class="step">
+          <div class="no">02</div>
+          <div class="name">按经历出题</div>
+          <div class="desc">题目绑定项目细节与岗位必备技能。</div>
+        </div>
+        <div class="step">
+          <div class="no">03</div>
+          <div class="name">评分与复盘</div>
+          <div class="desc">五维评分、原文证据、改进计划。</div>
+        </div>
+      </div>
+      <div class="footer">
+        <span class="dot"></span>
+        <span>AI 模拟面试与简历诊断 · 评分仅用于练习参考</span>
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="bar">OfferCoach 面试教练</div>
+      <div class="body">
+        <div class="ph">OFFERCOACH · 面试教练</div>
+        <div class="t">把简历和目标岗位交给它，练一场真面试</div>
+        <div class="s">按你的经历出题，答完立刻拿到证据与改写建议。</div>
+        <div class="quota">
+          <b>3</b><span>场今日可练</span>
+        </div>
+        <div class="card"><span class="n">1</span>粘贴简历与岗位<div class="d">支持直接粘贴文本</div></div>
+        <div class="card"><span class="n">2</span>按你的经历出题<div class="d">绑定项目与 JD 技能</div></div>
+        <div class="cta">开始一次模拟面试</div>
+      </div>
+    </div>
+  </body>
+</html>

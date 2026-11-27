@@ -37,6 +37,7 @@
 | 改 CI/CD / 打 tag / 灰度发布 | [ops/ci-cd.md](ops/ci-cd.md) |
 | 查监控指标 / 告警 / 故障处置 | [ops/observability.md](ops/observability.md) |
 | 看排期、里程碑、任务依赖 | [dev/roadmap.md](dev/roadmap.md) |
+| 做支付宝小程序参赛版 / 千问检测入口 | [competition/alipay-agents-emerge.md](competition/alipay-agents-emerge.md)（要求对照 + [小程序](competition/miniprogram.md) + [检测入口](competition/agent-entry.md)） |
 | 看做到哪了、还剩什么 | [CHANGELOG.md](CHANGELOG.md) |
 | 查借鉴来源与取舍依据 | [reference.md](reference.md) |
 | 追溯某次复查 / 改造 | [reviews/](reviews/)（只作留档，结论已回写正文） |

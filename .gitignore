@@ -12,6 +12,9 @@
 *.key
 *.p12
 
+# build artifacts
+/dist/
+
 # node
 node_modules/
 frontend/dist/

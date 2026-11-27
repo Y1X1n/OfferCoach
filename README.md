@@ -13,6 +13,7 @@ AI 模拟面试与简历诊断平台：上传简历与目标岗位 JD，自动�
 - [架构](#架构)
 - [目录结构](#目录结构)
 - [快速开始](#快速开始)
+- [支付宝小程序（参赛版）](#支付宝小程序参赛版)
 - [测试与质量门禁](#测试与质量门禁)
 - [规模](#规模)
 - [题库](#题库)
@@ -121,6 +122,8 @@ frontend/
   src/components/    业务组件与 UI 原子件（含 admin / interview / settings 等域）
   src/composables/   会话、语音朗读、设置等组合式逻辑
   src/stores/        Pinia 会话与额度
+miniprogram/         支付宝小程序工程（首页 / 准备 / 答题 / 报告）
+agent/               千问平台独立功能检测入口（agent.py + 样例）
 data/
   test-resumes/      虚构测试简历与 JD
   question-bank/     题库审计报告与许可证说明
@@ -185,6 +188,30 @@ pnpm dev                         # http://localhost:5174
 ```
 
 Vite 开发服务器默认把 `/api` 代理到 `http://localhost:8080`（预留 gateway）；直接连 `oc-app` 时设置 `VITE_PROXY_TARGET=http://localhost:8081`。也可用 `VITE_API_BASE_URL` 指向其他环境。
+
+## 支付宝小程序（参赛版）
+
+面向「支付宝·智能体涌现奖」的交付形态：同一套后端，外加一个原生支付宝小程序与一个可独立运行的检测入口。
+
+| 产物 | 位置 | 说明 |
+|---|---|---|
+| 小程序工程 | `miniprogram/` | 4 个页面（首页 / 准备 / 答题 / 报告），设备指纹游客登录，不持有模型密钥 |
+| 检测入口 | `agent/` | `agent.py`（Python 3.12 仅标准库），复现「简历 → 岗位 → 出题 → 评分 → 报告」链路 |
+| 本地预览 | `scripts/competition/preview/` | 直接跑真实 axml/acss/js，`my.*` 代理到本地后端 |
+| 打包与自检 | `scripts/competition/` | `build-product.py` 产出 `product.zip`，`check-package.py` 校验结构/大小/`--version` |
+
+```bash
+# 本地预览（需先启动 oc-app，默认 127.0.0.1:8081）
+node scripts/competition/preview/server.js
+# → http://127.0.0.1:5180/preview/?page=pages/index/index&code=123456
+
+# 组装并校验参赛包
+python scripts/competition/build-product.py
+python scripts/competition/check-package.py
+```
+
+部署配置（后端域名、体验码、服务器域名白名单）见 [docs/competition/miniprogram.md](docs/competition/miniprogram.md)；
+检测入口的环境变量与输出约定见 [docs/competition/agent-entry.md](docs/competition/agent-entry.md)。
 
 ## 测试与质量门禁
 
