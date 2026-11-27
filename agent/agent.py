@@ -8,7 +8,7 @@ OpenAI 兼容的 Chat Completions 接口。
 运行约束（与赛事检测环境一致）：
 - 仅标准库；不读取本地文件作为模型输入；不依赖外部检索、数据库或小程序页面。
 - 模型地址与密钥只从 DASHSCOPE_API_KEY / DASHSCOPE_BASE_URL / OPENAI_BASE_URL 读取。
-- 业务样例随包提供（samples/），日志写入 $AGENT_LOG_DIR/agent.log。
+- 业务样例随包提供（samples/ 技术岗、samples/nursing/ 护理岗），日志写入 $AGENT_LOG_DIR/agent.log。
 - 支持 `--prompt "..."` 与 `--version`；正常完成退出码 0。
 """
 
@@ -257,17 +257,33 @@ class Case:
     answers: Dict[str, str]
 
 
-def load_case() -> Case:
-    resume = read_sample("resume.md")
-    jd = read_sample("jd.md")
-    answers_path = SAMPLES_DIR / "answers.json"
+NURSING_KEYWORDS = ("护理", "护士", "医疗", "临床", "医学", "nursing", "nurse")
+
+
+def sample_dir(prompt: str) -> Path:
+    """按指令关键词选择行业样例：默认技术岗，命中护理/医疗关键词用护理样例。"""
+    text = (prompt or "").lower()
+    if any(keyword in text for keyword in NURSING_KEYWORDS):
+        return SAMPLES_DIR / "nursing"
+    return SAMPLES_DIR
+
+
+def load_case(prompt: str = "") -> Case:
+    directory = sample_dir(prompt)
+    resume = read_sample("resume.md", directory)
+    jd = read_sample("jd.md", directory)
+    answers_path = directory / "answers.json"
+    if not answers_path.exists():
+        raise ModelError(f"缺少随包业务样例：{answers_path}")
     with answers_path.open("r", encoding="utf-8") as handle:
         answers = json.load(handle)
+    LOGGER.info("使用行业样例：%s", directory.name)
     return Case(resume=resume, jd=jd, answers=answers)
 
 
-def read_sample(name: str) -> str:
-    path = SAMPLES_DIR / name
+def read_sample(name: str, directory: Path = None) -> str:
+    base = directory or SAMPLES_DIR
+    path = base / name
     if not path.exists():
         raise ModelError(f"缺少随包业务样例：{path}")
     return path.read_text(encoding="utf-8").strip()
@@ -550,7 +566,7 @@ def write_outputs(report_markdown: str, payload: Dict[str, Any]) -> List[Path]:
 def run(prompt: str) -> int:
     LOGGER.info("收到检测指令：%s", prompt[:300])
     client = ModelClient.from_env()
-    case = load_case()
+    case = load_case(prompt)
     pipeline = Pipeline(client=client, case=case)
 
     resume = pipeline.parse_resume()
