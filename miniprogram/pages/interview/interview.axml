@@ -1,0 +1,115 @@
+<view class="container">
+  <view a:if="{{loading}}" class="empty">正在准备题目…</view>
+
+  <block a:if="{{!loading && current}}">
+    <view class="progress">
+      <view class="progress-meta">
+        <text class="tiny muted">第 {{current.seq}} / {{total}} 题</text>
+        <text class="tiny muted">已答 {{answeredCount}} 题</text>
+      </view>
+      <view class="bar">
+        <view class="bar-fill" style="width: {{progressPercent}}%"></view>
+      </view>
+    </view>
+
+    <view class="question">
+      <view class="row">
+        <text class="tag">{{current.dimensionLabel}}</text>
+        <text class="tag tag-ember">{{current.difficultyLabel}}</text>
+      </view>
+      <view class="question-text">{{current.text}}</view>
+      <view class="why" a:if="{{current.whyThisQuestion}}">
+        <text class="why-label">为什么问这题</text>
+        <text class="why-text">{{current.whyThisQuestion}}</text>
+      </view>
+    </view>
+
+    <view class="card" a:if="{{!feedback}}">
+      <view class="row-between">
+        <text class="card-title">你的回答</text>
+        <text class="tiny muted">{{answerText.length}} / {{maxLength}}</text>
+      </view>
+      <textarea
+        class="field answer"
+        value="{{answerText}}"
+        placeholder="先给结论，再讲背景、做法和结果。有数字就写数字。"
+        placeholder-class="placeholder"
+        maxlength="{{maxLength}}"
+        onInput="onAnswerInput"
+      />
+      <view class="row gap">
+        <button class="btn btn-ghost btn-mini" onTap="skipQuestion" disabled="{{submitting}}">跳过</button>
+        <button class="btn grow" onTap="submitAnswer" disabled="{{submitting}}">
+          {{submitting ? phase : '提交并评分'}}
+        </button>
+      </view>
+    </view>
+
+    <view class="card" a:if="{{feedback}}">
+      <view class="row-between">
+        <text class="card-title">本题评分</text>
+        <text class="score">{{feedback.overallScore}}</text>
+      </view>
+      <view class="degraded tiny muted" a:if="{{feedback.degraded}}">
+        本次评分使用启发式规则（AI 服务繁忙），结论仅供参考。
+      </view>
+
+      <view class="dim" a:for="{{feedback.dimensions}}" a:key="key">
+        <view class="row-between dim-head">
+          <text class="tiny muted">{{item.label}}</text>
+          <text class="tiny strong">{{item.score}}</text>
+        </view>
+        <view class="bar">
+          <view class="bar-fill" style="width: {{item.percent}}%"></view>
+        </view>
+      </view>
+
+      <view class="block" a:if="{{feedback.strengths.length}}">
+        <view class="block-title">做到的地方</view>
+        <view class="block-item" a:for="{{feedback.strengths}}" a:key="*this">
+          <text class="dot dot-ok">·</text>
+          <text class="block-text">{{item}}</text>
+        </view>
+      </view>
+
+      <view class="block" a:if="{{feedback.improvements.length}}">
+        <view class="block-title">可以更好的地方</view>
+        <view class="block-item" a:for="{{feedback.improvements}}" a:key="*this">
+          <text class="dot dot-warn">·</text>
+          <text class="block-text">{{item}}</text>
+        </view>
+      </view>
+
+      <view class="block" a:if="{{feedback.evidence.length}}">
+        <view class="block-title">原文证据</view>
+        <view class="evidence" a:for="{{feedback.evidence}}" a:key="quote">
+          <view class="evidence-quote">“{{item.quote}}”</view>
+          <view class="tiny muted">{{item.reason}}</view>
+        </view>
+      </view>
+
+      <view class="block" a:if="{{feedback.rewrittenAnswer}}">
+        <view class="block-title">改写示例（PRO）</view>
+        <view class="rewrite">{{feedback.rewrittenAnswer}}</view>
+      </view>
+
+      <button class="btn next" onTap="nextQuestion" disabled="{{submitting}}">
+        {{isLast ? '生成复盘报告' : '下一题'}}
+      </button>
+    </view>
+
+    <view class="footnote tiny muted" a:if="{{feedback}}">评分来源：{{modelText}}</view>
+  </block>
+
+  <block a:if="{{!loading && finished}}">
+    <view class="card done">
+      <view class="done-title">这场面试已经答完</view>
+      <view class="muted small">可以生成复盘报告，回看每题的证据与改进建议。</view>
+      <button class="btn next" onTap="finishInterview" disabled="{{submitting}}">
+        {{submitting ? phase : '生成复盘报告'}}
+      </button>
+    </view>
+  </block>
+
+  <view class="safe-bottom"></view>
+</view>

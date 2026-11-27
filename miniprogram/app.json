@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/setup/setup",
+    "pages/interview/interview",
+    "pages/report/report"
+  ],
+  "window": {
+    "defaultTitle": "OfferCoach 面试教练",
+    "titleBarColor": "#0f172a",
+    "backgroundColor": "#f5f6f8",
+    "pullRefresh": false,
+    "allowsBounceVertical": "NO"
+  }
+}

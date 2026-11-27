@@ -1,0 +1,13 @@
+{
+  "format": 2,
+  "compileOptions": {
+    "component2": true,
+    "enableNodeModuleBabelTransform": true,
+    "enableParallelLoader": true,
+    "enableHMR": true
+  },
+  "developOptions": {
+    "hotReload": true
+  },
+  "miniprogramRoot": "./"
+}

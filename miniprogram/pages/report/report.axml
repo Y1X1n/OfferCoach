@@ -1,0 +1,88 @@
+<view class="container">
+  <view a:if="{{phase === 'loading'}}" class="empty">正在生成复盘报告…</view>
+
+  <view a:if="{{phase === 'failed'}}" class="card done">
+    <view class="done-title">报告生成失败</view>
+    <view class="muted small">可能是模型服务繁忙，重试不会扣减额度。</view>
+    <button class="btn next" onTap="retry" disabled="{{retrying}}">
+      {{retrying ? '正在重试…' : '重新生成'}}
+    </button>
+  </view>
+
+  <block a:if="{{phase === 'ready'}}">
+    <view class="hero">
+      <view class="hero-kicker">{{report.company || '面试复盘'}}</view>
+      <view class="hero-title">{{report.role || report.title}}</view>
+      <view class="hero-sub tiny">{{report.questionCount}} 题 · {{report.dateText}}</view>
+      <view class="overall">
+        <text class="overall-num">{{report.overallScore}}</text>
+        <text class="overall-unit">/ 100</text>
+      </view>
+      <view class="overall-note tiny">{{report.summary}}</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">五维评分</view>
+      <view class="dim" a:for="{{report.radar}}" a:key="dimension">
+        <view class="row-between dim-head">
+          <text class="tiny muted">{{item.label}}</text>
+          <text class="tiny strong">{{item.score}}</text>
+        </view>
+        <view class="bar">
+          <view class="bar-fill" style="width: {{item.percent}}%"></view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card" a:if="{{report.highlights.length}}">
+      <view class="card-title">亮点</view>
+      <view class="item" a:for="{{report.highlights}}" a:key="*this">
+        <text class="dot dot-ok">·</text>
+        <text class="item-text">{{item}}</text>
+      </view>
+    </view>
+
+    <view class="card" a:if="{{report.risks.length}}">
+      <view class="card-title">风险</view>
+      <view class="item" a:for="{{report.risks}}" a:key="*this">
+        <text class="dot dot-warn">·</text>
+        <text class="item-text">{{item}}</text>
+      </view>
+    </view>
+
+    <view class="card" a:if="{{report.improvementPlan.length}}">
+      <view class="card-title">改进计划</view>
+      <view class="plan" a:for="{{report.improvementPlan}}" a:key="priority">
+        <view class="plan-head">
+          <text class="plan-priority">P{{item.priority}}</text>
+          <text class="plan-action">{{item.action}}</text>
+        </view>
+        <view class="tiny muted">{{item.reason}}</view>
+        <view class="tiny muted" a:if="{{item.resource}}">参考：{{item.resource}}</view>
+      </view>
+    </view>
+
+    <view class="card" a:if="{{report.breakdown.length}}">
+      <view class="card-title">逐题拆解</view>
+      <view class="qa" a:for="{{report.breakdown}}" a:key="seq">
+        <view class="row-between qa-head">
+          <text class="tiny muted">第 {{item.seq}} 题 · {{item.dimensionLabel}}</text>
+          <text class="tiny strong">{{item.score}}</text>
+        </view>
+        <view class="qa-question">{{item.question}}</view>
+        <view class="qa-answer tiny muted" a:if="{{item.answer}}">{{item.answer}}</view>
+        <view class="qa-summary tiny" a:if="{{item.summary}}">{{item.summary}}</view>
+      </view>
+    </view>
+
+    <button class="btn" onTap="practiceAgain">再练一次</button>
+    <button class="btn btn-ghost back" onTap="backHome">回到首页</button>
+
+    <view class="notice">
+      <view class="notice-title">结果说明</view>
+      <view class="tiny muted">分数由图上的回答质量与岗位匹配度综合得出，用于练习参考，不代表任何企业的真实录用结论。完整报告与历史记录同步保存在你的账号下。</view>
+    </view>
+  </block>
+
+  <view class="safe-bottom"></view>
+</view>

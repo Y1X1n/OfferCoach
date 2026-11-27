@@ -1,0 +1,79 @@
+<view class="container">
+  <view class="hero">
+    <view class="hero-kicker">OFFERCOACH · 面试教练</view>
+    <view class="hero-title">把简历和目标岗位交给它，练一场真面试</view>
+    <view class="hero-sub">按你的经历出题，答完立刻拿到证据与改写建议。</view>
+  </view>
+
+  <view class="quota" a:if="{{quota}}">
+    <view class="quota-main">
+      <text class="quota-num">{{quota.daily.sessionsLimit - quota.daily.sessionsUsed}}</text>
+      <text class="quota-unit">场今日可练</text>
+    </view>
+    <view class="quota-side">
+      <text class="tiny muted">{{quota.planName}} · 每日上限 {{quota.daily.sessionsLimit}} 场</text>
+      <text class="tiny muted">额度周期至 {{quota.periodEnd}}</text>
+    </view>
+  </view>
+
+  <view class="card steps">
+    <view class="step">
+      <view class="step-index">1</view>
+      <view class="step-body">
+        <view class="step-title">粘贴简历与岗位</view>
+        <view class="step-desc muted small">支持直接粘贴文本，或一键填入示例。</view>
+      </view>
+    </view>
+    <view class="step">
+      <view class="step-index">2</view>
+      <view class="step-body">
+        <view class="step-title">按你的经历出题</view>
+        <view class="step-desc muted small">题目绑定简历里的项目与 JD 里的必备技能。</view>
+      </view>
+    </view>
+    <view class="step">
+      <view class="step-index">3</view>
+      <view class="step-body">
+        <view class="step-title">逐题评分 + 复盘报告</view>
+        <view class="step-desc muted small">五维评分、原文证据、改进计划与改写示例。</view>
+      </view>
+    </view>
+  </view>
+
+  <button class="btn" onTap="startInterview" disabled="{{loading}}">
+    {{loading ? '正在准备…' : '开始一次模拟面试'}}
+  </button>
+
+  <view class="card recent" a:if="{{sessions.length}}">
+    <view class="row-between">
+      <text class="card-title">最近的面试</text>
+      <text class="tiny muted">仅本人可见</text>
+    </view>
+    <view
+      class="session"
+      a:for="{{sessions}}"
+      a:key="id"
+      data-id="{{item.id}}"
+      data-report="{{item.reportId}}"
+      onTap="openSession"
+    >
+      <view class="session-main">
+        <view class="session-title">{{item.title}}</view>
+        <view class="tiny muted">{{item.dateText}} · {{item.statusText}}</view>
+      </view>
+      <view class="session-score" a:if="{{item.totalScore !== null && item.totalScore !== undefined}}">
+        {{item.totalScore}}
+      </view>
+      <view class="session-arrow" a:else>›</view>
+    </view>
+  </view>
+
+  <view class="empty" a:if="{{!loading && !sessions.length}}">还没有面试记录，从上面开始第一场。</view>
+
+  <view class="notice">
+    <view class="notice-title">关于这份练习</view>
+    <view class="tiny muted">评分只用于练习参考，不代表任何企业的真实录用结论。简历仅用于本次练习的结构化与出题，可随时删除；我们不会将其用于训练或对外提供。</view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>
