@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.38 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.39 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,13 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.39（2026-11-28）——支付对账补上凭据校验，渠道响应不再"缺字段就当真"
+
+- **对账不再容忍缺字段的"已支付"响应**：`PaymentSweeper.reconcile` 原先只在 `amountCents != null` 时才比对金额，也不校验 `providerTxnId`；渠道（或被中间人伪造成渠道）只回一条 `trade_state=SUCCESS` 就能进入 `markPaid` 并触发额度发放。现在金额必须可比、渠道流水号必须非空，缺失时写 `payment_exception(PAID_UNVERIFIED)` 并留在待支付等下一轮重查——与回调路径（`NotifyService`）的要求对齐。
+- **微信响应验签不再"缺签名头就放行"**：`verifyResponseSignature` 在已配置平台证书、但响应缺少 `Wechatpay-Signature/Timestamp/Nonce` 时直接 `return`，等于接受无法验证来源的响应。现在按上游异常拒绝（`UPSTREAM_FAILED`），留下轮重查。未配置平台证书时仍告警跳过（本地/未接入证书的部署不受影响）。
+- **`PaySafetyValidator` 改为「默认校验、显式豁免」**：原先只有 profile 恰好为 `prod` 才校验，漏设 `SPRING_PROFILES_ACTIVE` 就整套跳过。现在只有 `local`/`test` 豁免，其余环境必须满足：模拟渠道关闭、内部令牌已配、oc-app 地址已配、真实渠道启用时回调基地址已配，且**渠道地址必须是 https**（对账会拿渠道响应当资金凭据，http 等于去掉 TLS 屏障）。
+- 新增异常类型 `PAID_UNVERIFIED`（`kind` 列为 VARCHAR，无需迁移），`docs/design/payment.md` 补说明与处置建议。
 
 ### v2.38（2026-11-28）——AI 调用加并发闸门与熔断，避免一次上游抖动拖垮整站
 

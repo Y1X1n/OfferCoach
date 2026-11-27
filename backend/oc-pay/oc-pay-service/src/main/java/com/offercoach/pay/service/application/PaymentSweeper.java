@@ -136,7 +136,21 @@ public class PaymentSweeper {
         if (!state.paid()) {
             return CloseDecision.UNPAID;
         }
-        if (state.amountCents() != null && state.amountCents() != order.amountCents()) {
+        // 金额必须可与订单比对：渠道没返回金额时不能默认"一致"。
+        // 否则一条只带 trade_state=SUCCESS 的残缺响应（或伪造响应）就能把订单置为已支付并发额度。
+        // 回调路径（NotifyService）是同样的要求，两条路径不能一个严一个松。
+        if (state.amountCents() == null) {
+            exceptions.record(
+                    order.orderNo(),
+                    order.userId(),
+                    PaymentExceptionKind.PAID_UNVERIFIED,
+                    "渠道已支付但未返回金额，无法核对",
+                    null,
+                    order.channel(),
+                    state.providerTxnId());
+            return CloseDecision.UNKNOWN;
+        }
+        if (state.amountCents() != order.amountCents()) {
             exceptions.record(
                     order.orderNo(),
                     order.userId(),
@@ -147,7 +161,20 @@ public class PaymentSweeper {
                     state.providerTxnId());
             return CloseDecision.UNKNOWN;
         }
-        boolean transitioned = orderRepository.markPaid(order.orderNo(), state.providerTxnId(), state.paidAt());
+        // 渠道流水号是"这笔钱确实到账"的唯一外部凭据，缺失时同样不补记。
+        if (state.providerTxnId() == null || state.providerTxnId().isBlank()) {
+            exceptions.record(
+                    order.orderNo(),
+                    order.userId(),
+                    PaymentExceptionKind.PAID_UNVERIFIED,
+                    "渠道已支付但未返回流水号，无法核对",
+                    state.amountCents(),
+                    order.channel(),
+                    null);
+            return CloseDecision.UNKNOWN;
+        }
+        Instant paidAt = state.paidAt() == null ? Instant.now() : state.paidAt();
+        boolean transitioned = orderRepository.markPaid(order.orderNo(), state.providerTxnId(), paidAt);
         if (transitioned) {
             log.info("订单对账补记已支付：orderNo={}", order.orderNo());
             orderRepository.findByOrderNo(order.orderNo()).ifPresent(notifier::notify);

@@ -3,6 +3,7 @@ package com.offercoach.pay.service.application;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -146,6 +147,56 @@ class PaymentSweeperTest {
                         eq(1),
                         eq(ChannelCode.WECHAT),
                         eq("WX-1"));
+    }
+
+    /**
+     * 渠道说"已支付"但没返回金额：不能默认金额一致，更不能补记已支付并发额度。
+     */
+    @Test
+    void keepsOrderWhenChannelOmitsAmount() {
+        PaymentOrder order = order(Instant.now().minus(1, ChronoUnit.MINUTES));
+        when(orderRepository.findExpired(100)).thenReturn(List.of(order));
+        when(channel.query(order))
+                .thenReturn(new PaymentChannel.ChannelOrderState(true, "WX-1", Instant.now(), "SUCCESS", null));
+
+        sweeper.sweep();
+
+        verify(orderRepository, never()).markPaid(anyString(), anyString(), any());
+        verify(notifier, never()).notify(any());
+        verify(exceptions)
+                .record(
+                        eq("OC-TEST"),
+                        eq(1L),
+                        eq(PaymentExceptionKind.PAID_UNVERIFIED),
+                        anyString(),
+                        isNull(),
+                        eq(ChannelCode.WECHAT),
+                        eq("WX-1"));
+    }
+
+    /**
+     * 渠道流水号是资金到账的唯一外部凭据，缺失时不补记。
+     */
+    @Test
+    void keepsOrderWhenChannelOmitsTransactionId() {
+        PaymentOrder order = order(Instant.now().minus(1, ChronoUnit.MINUTES));
+        when(orderRepository.findExpired(100)).thenReturn(List.of(order));
+        when(channel.query(order))
+                .thenReturn(new PaymentChannel.ChannelOrderState(true, "  ", Instant.now(), "SUCCESS", 3900));
+
+        sweeper.sweep();
+
+        verify(orderRepository, never()).markPaid(anyString(), anyString(), any());
+        verify(notifier, never()).notify(any());
+        verify(exceptions)
+                .record(
+                        eq("OC-TEST"),
+                        eq(1L),
+                        eq(PaymentExceptionKind.PAID_UNVERIFIED),
+                        anyString(),
+                        eq(3900),
+                        eq(ChannelCode.WECHAT),
+                        isNull());
     }
 
     private static PaymentOrder order(Instant expiresAt) {
