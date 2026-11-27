@@ -75,16 +75,15 @@ Nginx ──▶ Spring Boot oc-app（模块化单体，端口 8081）
 
 | 模块 | 文件 / 行数 | 职责 |
 |---|---:|---|
-| `oc-interview` | 144 / 14,771 | 简历解析与编辑、JD 匹配、题库检索、会话状态机、答题、反馈、报告、异步 Worker |
-| `oc-identity` | 61 / 4,624 | 注册 / 登录 / Refresh 轮换、额度与流水、邀请奖励、验证码、注册风控、平台策略 |
-| `oc-admin` | 54 / 4,689 | 题库、用户、指标、AI 日志、Prompt、实验、平台策略、审计 |
-| `oc-ai` | 23 / 2,046 | `oc-ai-core`（1,197 行：工具客户端、内部鉴权、并发限流、`ai_call_log` 写入、DTO）+ asr / tts / ocr / search / fetch 五个独立服务 |
-| `oc-pay` | 46 / 3,529 | `oc-pay-core`（契约 DTO、配置、内部令牌工具、`PayGateway`）+ `oc-pay-service`（订单生命周期、微信 v3 / 支付宝渠道适配与验签、退款、对账扫描、额度发放通知） |
-| `oc-ai-client` | 8 / 1,013 | OpenAI 兼容调用、AES-GCM 密钥、URL 安全校验、运行时配置 |
-| `oc-app` | 8 / 413 | Spring Boot 聚合启动、安全配置、管理员 / 演示账号引导 |
-| `oc-common` | 6 / 313 | 错误码、异常、Trace、Redis Key、SHA-256 摘要 |
+| `oc-interview` | 150 / 15,870 | 简历解析与编辑、JD 匹配、题库检索、会话状态机、答题、反馈、报告生成（进程内调度） |
+| `oc-identity` | 85 / 5,906 | 注册 / 登录 / Refresh 轮换、额度与流水、邀请奖励、验证码、注册风控、平台策略 |
+| `oc-admin` | 61 / 5,354 | 题库、用户、指标、AI 日志、Prompt、实验、平台策略、审计 |
+| `oc-pay` | 52 / 4,156 | `oc-pay-core`（契约 DTO、配置、内部令牌工具、`PayGateway`）+ `oc-pay-service`（订单生命周期、微信 v3 / 支付宝渠道适配与验签、退款、对账扫描、额度发放通知） |
+| `oc-ai` | 24 / 2,288 | `oc-ai-core`（1,437 行：工具客户端、内部鉴权、并发限流、`ai_call_log` 写入、DTO）+ asr / tts / ocr / search / fetch 五个独立服务 |
+| `oc-ai-client` | 8 / 1,059 | OpenAI 兼容调用、AES-GCM 密钥、URL 安全校验、运行时配置 |
+| `oc-app` | 13 / 895 | Spring Boot 聚合启动、安全配置、管理员 / 演示账号引导 |
+| `oc-common` | 8 / 444 | 错误码、异常、Trace、Redis Key、SHA-256 摘要 |
 | `oc-gateway` | 2 / 104 | 预留网关模块；当前生产由 Nginx 直接反代 `oc-app` |
-| `oc-report-worker` | 1 / 4 | 预留独立 Worker；当前报告由 `oc-interview` 内调度器生成 |
 
 **关键链路**
 
@@ -112,8 +111,7 @@ backend/
   oc-pay/            支付域（oc-pay-core + oc-pay-service）
   oc-common/         通用错误、Trace、缓存 Key
   oc-gateway/        预留网关
-  oc-report-worker/  预留报告 Worker
-  compose.yaml       本地 PostgreSQL / Redis / RabbitMQ / MinIO
+  compose.yaml       本地 PostgreSQL / Redis / oc-app / Nginx
   scripts/           冒烟与验证脚本
 frontend/
   src/api/           API 客户端（401 刷新重放、轮询、幂等）
@@ -205,15 +203,17 @@ CI 对每个 PR 运行 `Backend verify` 与 `Frontend check`。其中：
 
 | 范围 | 文件 | 行数 |
 |---|---:|---:|
-| 后端主代码（10 个模块） | 353 | 31,506 |
-| 后端测试 | 37 | 3,339 |
-| 前端 Vue | 96 | 14,697 |
-| 前端 TypeScript（含 6 个单测） | 42 | 6,129 |
-| SQL 迁移 | 17 | 793 |
-| 文档 | 38 | 11,283 |
-| 脚本（题库 / 冒烟 / 验证） | 5 | 1,878 |
+| 后端主代码（17 个 Maven 模块） | 403 | 36,076 |
+| 后端测试 | 58 | 5,486 |
+| 前端 Vue | 98 | 15,914 |
+| 前端 TypeScript（含 6 个单测） | 43 | 6,791 |
+| SQL 迁移 | 21 | 875 |
+| 文档 | 46 | 12,012 |
+| 脚本（题库 / 冒烟 / 验证） | 15 | 3,219 |
 
-其他规模：24 个 Controller、84 个 HTTP 端点、23 张业务表、22,409 条题库（MIT 来源，不在仓库内）。
+其他规模：35 个 Controller、101 个 HTTP 端点、28 张业务表、22,409 条题库（MIT 来源，不在仓库内）。
+
+> 统计于 2026-11-27（`main`）。行数为物理行，含空行与注释。
 
 ## 题库
 

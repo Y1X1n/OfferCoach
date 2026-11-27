@@ -1,8 +1,17 @@
 # 后端服务实现
 
-> 状态：生效 ｜ 版本：v1.3 ｜ 更新：2026-11-07
-> 技术栈：JDK 21、Spring Boot 3.3.5、Spring Cloud 2023.0.3（Leyton）、MyBatis-Plus、Flyway、LangChain4j 1.0
+> 状态：生效 ｜ 版本：v1.5 ｜ 更新：2026-11-27
+> 技术栈：JDK 21、Spring Boot 4.2.0、Spring Cloud 2026.0.0、MyBatis-Plus 3.5.18、Flyway、Jackson 3
 > 关联：[架构](../design/architecture.md)、[数据模型](../design/data-model.md)、[API](../design/api.md)
+
+> **本文混有两类内容，阅读时请区分**：
+>
+> - **当前实现**（§1 工程结构、Maven 约束、分层与命名规范）：与代码一致，可直接照做。
+> - **目标架构**（§8.3 LangChain4j、§9 RabbitMQ + Outbox、以及文中提到的 Python 服务）：**尚未实现**。
+>   仓库里没有 AMQP 依赖、没有 Python 服务、也没有 LangChain4j（AI 调用走自研的 OpenAI 兼容客户端）。
+>   这些章节保留的是拆分微服务后的设计意图，不是现状。
+>
+> 当前 AI 调用见 `oc-ai-client`；报告生成为 `oc-interview` 内的进程内调度器（`ReportGenerationWorker`）。
 
 ## 1. 工程结构
 
@@ -10,23 +19,26 @@
 backend/
 ├── pom.xml                       # dependencyManagement 锁定版本
 ├── oc-common/                    # Result、ErrorCode、BizException、Trace、RedisKeys
-├── oc-ai-client/                 # AI 服务客户端 + LangChain4j 配置
+├── oc-ai-client/                 # OpenAI 兼容客户端 + 运行时配置
+├── oc-ai/                        # oc-ai-core + asr / tts / ocr / search / fetch 五个独立服务
+├── oc-pay/                       # oc-pay-core + 独立部署的 oc-pay-service
 ├── oc-identity/                  # 账号、JWT、订阅、额度
-├── oc-interview/                 # 简历、JD、会话、回答、报告
+├── oc-interview/                 # 简历、JD、会话、回答、报告（报告生成在本模块内调度）
 ├── oc-admin/                     # 题库、Prompt、实验、日志查询
-├── oc-report-worker/             # RabbitMQ 消费者 + 报告编排
-├── oc-gateway/                   # Spring Cloud Gateway（WebFlux）
-└── oc-app/                       # 聚合启动（MVP 单体部署）
+├── oc-gateway/                   # Spring Cloud Gateway（WebFlux）；当前生产由 Nginx 直连 oc-app
+└── oc-app/                       # 聚合启动（单体部署）
 ```
 
 **模块依赖**：
 
 ```
-oc-app → oc-identity / oc-interview / oc-admin / oc-report-worker
+oc-app → oc-identity / oc-interview / oc-admin / oc-ai-client
 oc-interview → oc-ai-client, oc-common
 oc-identity  → oc-common
 oc-admin     → oc-ai-client, oc-common
 oc-ai-client → oc-common
+oc-ai        → oc-common（五个工具服务彼此零依赖，由 Maven enforcer 强制）
+oc-pay       → oc-common（不得依赖任何业务模块，由 Maven enforcer 强制）
 oc-gateway   → oc-common
 ```
 

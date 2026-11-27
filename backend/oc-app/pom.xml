@@ -30,11 +30,6 @@
     </dependency>
     <dependency>
       <groupId>com.offercoach</groupId>
-      <artifactId>oc-report-worker</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.offercoach</groupId>
       <artifactId>oc-ai-client</artifactId>
       <version>${project.version}</version>
     </dependency>

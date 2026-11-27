@@ -1,7 +1,21 @@
 # 系统架构
 
-> 状态：生效 ｜ 版本：v1.2 ｜ 更新：2026-11-07
+> 状态：生效 ｜ 版本：v1.3 ｜ 更新：2026-11-27
 > 关联：[数据模型](./data-model.md)、[后端规范](../dev/backend.md)
+
+> **关于本文中的 `ai-orchestrator`（Python）、`report-worker`、RabbitMQ、Milvus**
+>
+> 这些是**目标架构**，当前仓库**均未实现**：
+>
+> | 目标组件 | 当前实现 |
+> |---|---|
+> | `ai-orchestrator`（Python / FastAPI） | `oc-ai` 模块下五个 Java 工具服务（asr/tts/ocr/search/fetch） |
+> | `report-worker`（独立进程 + MQ） | `oc-interview` 内 `ReportGenerationWorker`，进程内 `@Scheduled` 领取 |
+> | RabbitMQ（异步消息 + Outbox） | Redis + 进程内调度；无 AMQP 依赖 |
+> | Milvus（向量检索） | PostgreSQL `pg_trgm` + 关键词打分 |
+>
+> 保留这些章节是为了记录拆分路径的设计意图。**判断某能力是否已实现，以代码为准**，
+> 或看 [部署文档](../ops/deployment.md) §2.2 的状态列。
 
 ## 1. 架构目标
 
