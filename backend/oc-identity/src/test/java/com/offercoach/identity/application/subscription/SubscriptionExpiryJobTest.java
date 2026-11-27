@@ -89,8 +89,8 @@ class SubscriptionExpiryJobTest {
     void settlementExpireDelegatesToRepository() {
         SubscriptionRepository repo = mock(SubscriptionRepository.class);
         when(repo.expireOverdue(eq(7L), any())).thenReturn(true);
-        SubscriptionExpirySettlement real = new SubscriptionExpirySettlement(repo, mock(
-                com.offercoach.identity.application.quota.QuotaService.class));
+        SubscriptionExpirySettlement real = new SubscriptionExpirySettlement(
+                repo, mock(com.offercoach.identity.application.quota.QuotaService.class));
 
         assertThat(real.expireSubscription(7L)).isTrue();
         verify(repo, never()).expireActive(anyLong());
