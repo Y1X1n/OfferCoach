@@ -67,4 +67,33 @@ public interface QuestionBankMapper {
             @Param("sourceLicense") String sourceLicense,
             @Param("company") String company,
             @Param("language") String language);
+    /**
+     * 写入模型生成的行业题：落 DRAFT 等待人工审核，按 (来源, 岗位族, 题干) 去重。
+     */
+    @Insert(
+            """
+            INSERT INTO question_bank
+                (title, job_family, dimension, difficulty, tags, stem, reference_answer, scoring_points,
+                 source, source_repo, source_path, source_url, language, status, embedding_status,
+                 created_by, created_at, updated_at)
+            VALUES
+                (#{title}, #{jobFamily}, #{dimension}, #{difficulty},
+                 CASE WHEN #{tagsJoined} = '' THEN '{}'::text[] ELSE string_to_array(#{tagsJoined}, chr(31)) END,
+                 #{stem}, NULL, CAST(#{scoringPoints} AS jsonb),
+                 'GENERATED', #{sourceRepo}, #{sourcePath}, #{sourceUrl}, 'zh-CN', 'DRAFT', 'READY',
+                 #{createdBy}, now(), now())
+            ON CONFLICT (source_repo, source_path, stem_hash) DO NOTHING
+            """)
+    int insertGenerated(
+            @Param("title") String title,
+            @Param("jobFamily") String jobFamily,
+            @Param("dimension") String dimension,
+            @Param("difficulty") String difficulty,
+            @Param("tagsJoined") String tagsJoined,
+            @Param("stem") String stem,
+            @Param("scoringPoints") String scoringPoints,
+            @Param("sourceRepo") String sourceRepo,
+            @Param("sourcePath") String sourcePath,
+            @Param("sourceUrl") String sourceUrl,
+            @Param("createdBy") long createdBy);
 }

@@ -175,6 +175,9 @@ oc:
     max-answer-length: 4000
     session-idle-abandon: 24h
     report-max-attempts: 6
+    # 出题前是否用「JD 标题 + 技能」联网检索行业面经/题库线索；无 Key 或工具服务不可用时自动跳过。
+    question-search-enabled: ${QUESTION_SEARCH_ENABLED:true}
+    question-search-count: ${QUESTION_SEARCH_COUNT:6}
     # 语音作答音频保留天数（定时清理，0 表示不自动删除）。
     voice-retention-days: ${VOICE_RETENTION_DAYS:7}
     voice-retention-cron: ${VOICE_RETENTION_CRON:0 0 4 * * *}

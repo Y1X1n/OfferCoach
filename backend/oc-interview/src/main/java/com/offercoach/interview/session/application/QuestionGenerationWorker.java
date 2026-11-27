@@ -44,15 +44,18 @@ public class QuestionGenerationWorker {
     private static final String FAILURE_REASON = "QUESTION_GEN_FAILED";
     private static final String SOURCE_BANK = "BANK";
     private static final String SOURCE_GENERATED = "GENERATED";
+    private static final String SOURCE_SEARCH_AI = "SEARCH_AI";
 
     private static final String SYSTEM_PROMPT =
             """
-            你是资深技术面试官。根据岗位要求与候选人简历摘要，生成结构化面试题。
+            你是熟悉多个行业的资深面试官，覆盖技术、医疗、教育、销售、财务、法务、运营、设计、生产等岗位。
+            根据岗位要求、候选人简历摘要与可选的公开面经线索，生成结构化面试题。
             只输出一个 JSON 对象，不要输出解释或 Markdown。JSON 结构：
             {"questions":[{"dimension":"DEPTH|PROJECT|BEHAVIOR|FIT","difficulty":"EASY|MEDIUM|HARD",
             "text":string,"referencePoints":[string],"whyThisQuestion":string}]}
             题目必须具体、可回答，referencePoints 为 3-5 个评分要点，whyThisQuestion 说明与简历/JD 的关联。
-            禁止编造简历中不存在的信息。
+            若岗位不属于技术类，请使用该行业的专业术语与典型场景，不要生搬硬套编程题。
+            面经线索只用于确定出题方向，不要照抄题干；禁止编造简历中不存在的信息。
             """;
 
     private final InterviewSessionRepository sessionRepository;
@@ -65,6 +68,8 @@ public class QuestionGenerationWorker {
     private final AiGateway aiGateway;
     private final AiCallLogger aiCallLogger;
     private final JsonCodec jsonCodec;
+    private final IndustryQuestionSearchService searchService;
+    private final QuestionBankSeeder questionBankSeeder;
 
     public QuestionGenerationWorker(
             InterviewSessionRepository sessionRepository,
@@ -76,7 +81,9 @@ public class QuestionGenerationWorker {
             InterviewSessionService sessionService,
             AiGateway aiGateway,
             AiCallLogger aiCallLogger,
-            JsonCodec jsonCodec) {
+            JsonCodec jsonCodec,
+            IndustryQuestionSearchService searchService,
+            QuestionBankSeeder questionBankSeeder) {
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.resumeRepository = resumeRepository;
@@ -87,6 +94,8 @@ public class QuestionGenerationWorker {
         this.aiGateway = aiGateway;
         this.aiCallLogger = aiCallLogger;
         this.jsonCodec = jsonCodec;
+        this.searchService = searchService;
+        this.questionBankSeeder = questionBankSeeder;
     }
 
     /**
@@ -130,24 +139,21 @@ public class QuestionGenerationWorker {
         int count = Math.min(Math.max(config.questionCount(), MIN_QUESTION_COUNT), 20);
         QuestionPlan plan = QuestionPlan.of(count, config.difficulty());
 
-        List<RetrievedQuestion> candidates = retrieve(context, count);
-        List<QuestionSelection.Selected> selected = QuestionSelection.select(plan.slots(), candidates);
+        // 题库来源改为「实时联网搜索」：先用招聘面经线索引导模型出题，题库与模板只做兜底。
+        Optional<IndustryQuestionSearchService.SearchContext> search = searchService.lookup(session.userId(), context);
         List<PendingDraft> drafts = new ArrayList<>();
-        for (QuestionSelection.Selected item : selected) {
-            drafts.add(
-                    item.fromBank()
-                            ? PendingDraft.fromBank(item.slot(), item.question(), context)
-                            : PendingDraft.missing(item.slot()));
+        for (QuestionPlan.Slot slot : plan.slots()) {
+            drafts.add(PendingDraft.missing(slot));
         }
-        int bankCount = (int) drafts.stream().filter(PendingDraft::fromBank).count();
-        if (bankCount < plan.bankMinimum()) {
-            log.info("题库候选不足目标配比：sessionId={} bank={} minimum={}", session.id(), bankCount, plan.bankMinimum());
+        TokenUsage aiUsage = fillWithAi(drafts, context, search.orElse(null));
+        if (drafts.stream().anyMatch(draft -> !draft.isResolved())) {
+            fillFromBank(drafts, context);
         }
-        TokenUsage aiUsage = TokenUsage.EMPTY;
-        if (drafts.stream().anyMatch(draft -> !draft.fromBank())) {
-            aiUsage = fillWithAi(drafts, context);
+        if (drafts.stream().anyMatch(draft -> !draft.isResolved())) {
+            fillWithTemplate(drafts, context);
         }
-        persist(session.id(), drafts);
+        persist(session.id(), drafts, search.orElse(null));
+        seedIndustryBank(session.userId(), context, drafts, search.orElse(null));
         sessionService.markReady(session.id());
         boolean aiAvailable = aiGateway.available();
         aiCallLogger.log(
@@ -165,11 +171,12 @@ public class QuestionGenerationWorker {
                 session.id(),
                 null);
         log.info(
-                "出题完成：sessionId={} count={} bank={} generated={}",
+                "出题完成：sessionId={} count={} bank={} generated={} search={}",
                 session.id(),
                 drafts.size(),
                 drafts.stream().filter(PendingDraft::fromBank).count(),
-                drafts.stream().filter(draft -> !draft.fromBank()).count());
+                drafts.stream().filter(draft -> !draft.fromBank()).count(),
+                search.map(value -> value.items().size()).orElse(0));
     }
 
     private List<RetrievedQuestion> retrieve(QuestionContext context, int count) {
@@ -190,13 +197,14 @@ public class QuestionGenerationWorker {
     /**
      * 用 AI 补齐题库未覆盖的槽位，返回本次消耗的 token 数（供 ai_call_log 记录）。
      */
-    private TokenUsage fillWithAi(List<PendingDraft> drafts, QuestionContext context) {
+    private TokenUsage fillWithAi(
+            List<PendingDraft> drafts, QuestionContext context, IndustryQuestionSearchService.SearchContext search) {
         List<PendingDraft> missing =
-                drafts.stream().filter(draft -> !draft.fromBank()).toList();
+                drafts.stream().filter(draft -> !draft.isResolved()).toList();
         if (missing.isEmpty()) {
             return TokenUsage.EMPTY;
         }
-        AiCall aiCall = callAi(missing, context);
+        AiCall aiCall = callAi(missing, context, search);
         List<AiDraft> aiDrafts = aiCall.drafts();
         int cursor = 0;
         for (PendingDraft draft : missing) {
@@ -214,15 +222,81 @@ public class QuestionGenerationWorker {
             }
             if (chosen != null) {
                 draft.fill(chosen);
-            } else {
-                draft.fill(TemplateQuestionFactory.create(draft.slot, missing.indexOf(draft) + 1, context));
             }
             cursor = Math.min(cursor + 1, aiDrafts.size());
         }
         return aiCall.usage();
     }
 
-    private AiCall callAi(List<PendingDraft> missing, QuestionContext context) {
+    /**
+     * 模型没覆盖到的槽位用题库补齐（行业题库未命中时会回落到通用题）。
+     */
+    private void fillFromBank(List<PendingDraft> drafts, QuestionContext context) {
+        List<QuestionPlan.Slot> slots = drafts.stream()
+                .filter(draft -> !draft.isResolved())
+                .map(draft -> draft.slot)
+                .toList();
+        if (slots.isEmpty()) {
+            return;
+        }
+        List<RetrievedQuestion> candidates = retrieve(context, slots.size());
+        List<QuestionSelection.Selected> selected = QuestionSelection.select(slots, candidates);
+        int cursor = 0;
+        for (PendingDraft draft : drafts) {
+            if (draft.isResolved()) {
+                continue;
+            }
+            QuestionSelection.Selected pick = selected.get(cursor++);
+            if (pick.fromBank()) {
+                draft.useBank(pick.question(), context);
+            }
+        }
+    }
+
+    /**
+     * 仍为空的槽位用模板兜底，保证会话一定能进入 READY。
+     */
+    private void fillWithTemplate(List<PendingDraft> drafts, QuestionContext context) {
+        int seq = 1;
+        for (PendingDraft draft : drafts) {
+            if (draft.isResolved()) {
+                seq++;
+                continue;
+            }
+            draft.fill(TemplateQuestionFactory.create(draft.slot, seq, context));
+            seq++;
+        }
+    }
+
+    /**
+     * 把本次「搜索线索 + 模型」产出的题沉淀为行业题库草稿，供后台审核后复用。
+     */
+    private void seedIndustryBank(
+            long userId,
+            QuestionContext context,
+            List<PendingDraft> drafts,
+            IndustryQuestionSearchService.SearchContext search) {
+        if (search == null) {
+            return;
+        }
+        String sourceUrl =
+                search.items().isEmpty() ? null : search.items().get(0).url();
+        List<QuestionBankSeeder.SeedQuestion> questions = drafts.stream()
+                .filter(draft -> !draft.fromBank())
+                .filter(PendingDraft::isResolved)
+                .map(draft -> new QuestionBankSeeder.SeedQuestion(
+                        draft.slot.dimension(),
+                        draft.slot.difficulty(),
+                        draft.resolved().text(),
+                        draft.resolved().referencePoints(),
+                        draft.resolved().whyThisQuestion(),
+                        sourceUrl))
+                .toList();
+        questionBankSeeder.seed(userId, context, questions);
+    }
+
+    private AiCall callAi(
+            List<PendingDraft> missing, QuestionContext context, IndustryQuestionSearchService.SearchContext search) {
         if (!aiGateway.available()) {
             return AiCall.EMPTY;
         }
@@ -235,10 +309,12 @@ public class QuestionGenerationWorker {
                         .append(draft.slot.difficulty())
                         .append('\n');
             }
-            String prompt = "岗位：" + safe(context.jdTitle())
+            String prompt = "行业/岗位族：" + safe(context.jobFamily())
+                    + "\n岗位：" + safe(context.jdTitle())
                     + "\n简历摘要：" + truncate(safe(context.resumeSummary()), MAX_PROMPT_SUMMARY)
                     + "\n技能：" + String.join("、", context.skills())
                     + "\nJD 关键词：" + String.join("、", context.keywords())
+                    + (search == null ? "" : "\n公开面经线索（仅作方向参考，不要照抄）：\n" + search.brief())
                     + "\n需要生成 " + missing.size() + " 道题，槽位：\n" + slots;
             Optional<AiProvider.AiResult> result = aiGateway.complete(
                     AiScene.QUESTION_GEN, aiGateway.systemPrompt(AiScene.QUESTION_GEN, SYSTEM_PROMPT), prompt);
@@ -290,15 +366,30 @@ public class QuestionGenerationWorker {
         return result;
     }
 
-    private void persist(long sessionId, List<PendingDraft> drafts) {
+    private void persist(
+            long sessionId, List<PendingDraft> drafts, IndustryQuestionSearchService.SearchContext search) {
         int seq = 1;
         for (PendingDraft draft : drafts) {
             QuestionDraft content = draft.resolved();
             Map<String, Object> retrieval = new LinkedHashMap<>();
-            retrieval.put("source", draft.fromBank() ? SOURCE_BANK : SOURCE_GENERATED);
+            boolean fromSearch = !draft.fromBank() && search != null;
+            retrieval.put(
+                    "source", draft.fromBank() ? SOURCE_BANK : (fromSearch ? SOURCE_SEARCH_AI : SOURCE_GENERATED));
             retrieval.put("queryLimit", MAX_CANDIDATES);
             retrieval.put("bankQuestionId", draft.bankQuestionId());
             retrieval.put("score", draft.score());
+            if (fromSearch) {
+                retrieval.put("searchQuery", search.query());
+                retrieval.put(
+                        "searchRefs",
+                        search.items().stream()
+                                .limit(3)
+                                .map(item -> Map.of(
+                                        "title", item.title(),
+                                        "site", item.site(),
+                                        "url", item.url()))
+                                .toList());
+            }
             questionRepository.insert(new InterviewQuestion(
                     0,
                     sessionId,
@@ -349,7 +440,7 @@ public class QuestionGenerationWorker {
     private static final class PendingDraft {
 
         private final QuestionPlan.Slot slot;
-        private final RetrievedQuestion bank;
+        private RetrievedQuestion bank;
         private QuestionDraft resolved;
 
         private PendingDraft(QuestionPlan.Slot slot, RetrievedQuestion bank) {
@@ -359,6 +450,12 @@ public class QuestionGenerationWorker {
 
         static PendingDraft fromBank(QuestionPlan.Slot slot, RetrievedQuestion question, QuestionContext context) {
             PendingDraft draft = new PendingDraft(slot, question);
+            draft.resolved = resolveFromBank(slot, question, context);
+            return draft;
+        }
+
+        private static QuestionDraft resolveFromBank(
+                QuestionPlan.Slot slot, RetrievedQuestion question, QuestionContext context) {
             List<String> points = question.referencePoints().isEmpty()
                     ? List.of("背景与目标", "关键行动", "量化结果")
                     : question.referencePoints();
@@ -366,8 +463,16 @@ public class QuestionGenerationWorker {
                     + (context.keywords().isEmpty()
                             ? ""
                             : "，与 JD/简历中的「" + context.keywords().get(0) + "」相关");
-            draft.resolved = new QuestionDraft(question.stem(), points, why);
-            return draft;
+            return new QuestionDraft(question.stem(), points, why);
+        }
+
+        void useBank(RetrievedQuestion question, QuestionContext context) {
+            this.bank = question;
+            this.resolved = resolveFromBank(slot, question, context);
+        }
+
+        boolean isResolved() {
+            return resolved != null;
         }
 
         static PendingDraft missing(QuestionPlan.Slot slot) {
