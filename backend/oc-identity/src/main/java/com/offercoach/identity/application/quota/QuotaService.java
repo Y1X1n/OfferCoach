@@ -13,6 +13,7 @@ import com.offercoach.identity.config.QuotaProperties;
 import com.offercoach.identity.domain.quota.QuotaAccount;
 import com.offercoach.identity.domain.quota.QuotaLedgerEntry;
 import com.offercoach.identity.domain.quota.QuotaType;
+import com.offercoach.identity.domain.quota.SubscriptionPlan;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
