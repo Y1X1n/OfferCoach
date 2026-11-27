@@ -1,6 +1,7 @@
 package com.offercoach.interview.session.application;
 
 import com.offercoach.common.trace.JobTrace;
+import com.offercoach.interview.resume.application.ResumeParseFinalizer;
 import com.offercoach.interview.resume.application.port.ResumeRepository;
 import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
 import com.offercoach.interview.session.application.port.InterviewSessionRepository;
@@ -14,8 +15,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * 状态看门狗：异步任务丢失时，超时的 PREPARING 会话置失败并退款、卡住的简历解析置失败、
- * 超时的 SCORING 回答标记失败，避免用户永久等待。
+ * 状态看门狗：异步任务丢失时，超时的 PREPARING 会话置失败并退款、卡住的简历解析置失败并退款、
+ * 超时的 SCORING 回答标记失败，避免用户永久等待或白白损失额度。
  */
 @Service
 public class StaleStateWatchdog {
@@ -30,16 +31,19 @@ public class StaleStateWatchdog {
     private final InterviewSessionRepository sessionRepository;
     private final InterviewSessionService sessionService;
     private final ResumeRepository resumeRepository;
+    private final ResumeParseFinalizer resumeParseFinalizer;
     private final InterviewAnswerRepository answerRepository;
 
     public StaleStateWatchdog(
             InterviewSessionRepository sessionRepository,
             InterviewSessionService sessionService,
             ResumeRepository resumeRepository,
+            ResumeParseFinalizer resumeParseFinalizer,
             InterviewAnswerRepository answerRepository) {
         this.sessionRepository = sessionRepository;
         this.sessionService = sessionService;
         this.resumeRepository = resumeRepository;
+        this.resumeParseFinalizer = resumeParseFinalizer;
         this.answerRepository = answerRepository;
     }
 
@@ -70,10 +74,24 @@ public class StaleStateWatchdog {
         }
     }
 
+    /**
+     * 卡住的简历：置 FAILED 并按幂等键退还本次解析额度。
+     *
+     * <p>必须走 {@link ResumeParseFinalizer#markFailedAndRefund} 而不是裸 {@code failIfParsing}：
+     * 解析任务可能根本没跑起来（重启、线程池拒绝），退款逻辑只存在于异步执行器里，
+     * 看门狗若不补退款，用户会永久损失一次额度。单条失败不中断整批，下一轮再试。</p>
+     */
     private void recoverResumes(OffsetDateTime cutoff) {
         for (Long resumeId : resumeRepository.findStaleParsingIds(cutoff, BATCH_SIZE)) {
-            if (resumeRepository.failIfParsing(resumeId, RESUME_TIMEOUT_REASON)) {
-                log.warn("超时简历解析置失败：resumeId={}", resumeId);
+            try {
+                if (resumeParseFinalizer.markFailedAndRefund(resumeId, RESUME_TIMEOUT_REASON)) {
+                    log.warn("超时简历解析置失败并退款：resumeId={}", resumeId);
+                }
+            } catch (RuntimeException exception) {
+                log.warn(
+                        "超时简历处理失败，等待下轮重试：resumeId={} reason={}",
+                        resumeId,
+                        exception.getClass().getSimpleName());
             }
         }
     }

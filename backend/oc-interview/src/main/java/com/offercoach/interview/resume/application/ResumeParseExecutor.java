@@ -1,8 +1,6 @@
 package com.offercoach.interview.resume.application;
 
 import com.offercoach.identity.application.port.UserRepository;
-import com.offercoach.identity.application.quota.QuotaService;
-import com.offercoach.identity.domain.quota.QuotaType;
 import com.offercoach.interview.document.DocumentExtractionException;
 import com.offercoach.interview.document.DocumentTextExtractor;
 import com.offercoach.interview.document.ExtractedDocument;
@@ -37,7 +35,6 @@ public class ResumeParseExecutor {
     private final ResumeStructurer resumeStructurer;
     private final ResumeParseFinalizer finalizer;
     private final ResumeOcrFallback ocrFallback;
-    private final QuotaService quotaService;
     private final UserRepository userRepository;
 
     public ResumeParseExecutor(
@@ -47,7 +44,6 @@ public class ResumeParseExecutor {
             ResumeStructurer resumeStructurer,
             ResumeParseFinalizer finalizer,
             ResumeOcrFallback ocrFallback,
-            QuotaService quotaService,
             UserRepository userRepository) {
         this.resumeRepository = resumeRepository;
         this.fileStorage = fileStorage;
@@ -55,7 +51,6 @@ public class ResumeParseExecutor {
         this.resumeStructurer = resumeStructurer;
         this.finalizer = finalizer;
         this.ocrFallback = ocrFallback;
-        this.quotaService = quotaService;
         this.userRepository = userRepository;
     }
 
@@ -164,30 +159,12 @@ public class ResumeParseExecutor {
     }
 
     private void fail(Resume resume, String parseError) {
+        // 状态迁移与退款同事务；失败时整体回滚，由看门狗在下一轮重试而不是把额度吞掉。
         try {
-            finalizer.markFailed(resume.id(), parseError);
+            finalizer.markFailedAndRefund(resume.id(), parseError);
         } catch (RuntimeException exception) {
             log.warn(
-                    "简历解析状态置 FAILED 失败：resumeId={} reason={}",
-                    resume.id(),
-                    exception.getClass().getSimpleName());
-        }
-        // 已成功解析过的简历重解析失败不退款；首次解析失败按幂等键退回当次扣减。
-        if (resume.structuredJson() != null) {
-            return;
-        }
-        try {
-            quotaService.refund(
-                    resume.userId(),
-                    QuotaType.RESUME,
-                    1,
-                    "PARSE_REFUND",
-                    "RESUME",
-                    resume.id(),
-                    "resume-parse-refund:" + resume.id());
-        } catch (RuntimeException exception) {
-            log.warn(
-                    "简历解析失败退款未完成：resumeId={} reason={}",
+                    "简历解析失败落库与退款未完成，等待看门狗重试：resumeId={} reason={}",
                     resume.id(),
                     exception.getClass().getSimpleName());
         }

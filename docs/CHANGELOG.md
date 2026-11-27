@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.36 ｜ 更新：2026-11-27
+> 状态：生效 ｜ 版本：v2.37 ｜ 更新：2026-11-27
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,14 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.37（2026-11-27）——解析失败退额度、安全默认值收紧
+
+- **简历解析失败不再吞额度（P0）**：解析任务的退款只存在于异步执行器里，看门狗兜底路径（`StaleStateWatchdog.recoverResumes`）只把简历置 FAILED、不退款。异步任务丢失（进程重启、`aiExecutor` 拒绝、`markParsing` 抛错）时，用户扣 1 次额度、拿不到结果、无任何补偿。现在两条路径统一走 `ResumeParseFinalizer.markFailedAndRefund`：状态迁移与退款在**同一事务**内，退款失败整体回滚由下一轮看门狗重试；幂等键 `resume-parse-refund:{resumeId}` 保证只退一次；已成功解析过的简历（重解析不额外扣费）仍然不退款。
+- **固定验证码改为默认关闭**：`oc.auth.dev-verify-code.enabled` 基础配置由 `true` 改 `false`，仅 `application-local.yml` 默认打开。它能让注册绕过算术验证码与注册开关，不能作为缺省值。
+- **启动安全校验改为「默认校验、显式豁免」**：`ProductionSafetyValidator` 原先挂 `@Profile("prod")`——只有 profile 恰好为 prod 才校验，漏设 `SPRING_PROFILES_ACTIVE`（或缺省成 local）就整套静默跳过。现在只有 `local`/`test` 豁免，其余任何 profile 都要通过（演示账号关闭、固定验证码关闭、代理密钥已配、Cookie Secure、CORS 无本地地址），否则启动失败并提示如何显式进入本机模式。
+- **一键部署不再默认暴露到全网卡**：`compose.yaml` 的前端端口由 `${WEB_PORT}:80` 改为 `127.0.0.1:${WEB_PORT}:80`，与 postgres/redis/oc-app 保持一致；要对局域网或公网暴露需显式改动并切到 prod profile。
+- 新增测试：`ResumeParseFinalizerTest`（4 条，钉住"首次失败退款 / 已解析不退款 / 并发完成不退不改 / 退款失败冒泡"）、`ProductionSafetyValidatorTest`（8 条，含"staging 也必须校验"这条本次修复的核心语义）。
 
 ### v2.36（2026-11-27）——删除空模块 oc-report-worker，文档与实现对齐
 
