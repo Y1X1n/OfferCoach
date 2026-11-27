@@ -1,6 +1,6 @@
 # 部署与环境
 
-> 状态：生效 ｜ 版本：v1.6 ｜ 更新：2026-11-27
+> 状态：生效 ｜ 版本：v1.7 ｜ 更新：2026-11-27
 > 开发：Docker Compose ｜ 生产：Kubernetes + Helm
 > 关联：[架构](../design/architecture.md)、[后端规范](../dev/backend.md)、[CI/CD](ci-cd.md)、[可观测性](observability.md)
 
@@ -31,7 +31,12 @@ docker compose up -d --build   # 前端 http://localhost:8082
 - 前后端镜像均为多阶段构建，无需宿主机 JDK / Maven / Node / pnpm。
 - `oc-app` 数据落在 `appdata` 卷；`docker compose down -v` 会同时删除数据库与上传文件。
 - AI 工具服务（8094–8098）与 oc-pay（8099）暂未纳入该 compose，按 §2.2 在宿主机启动；容器默认通过 `host.docker.internal` 访问。
-- 该 compose 使用 local profile 与临时 JWT 密钥，仅用于本地/演示；生产按 §4 与 §8 部署。
+- **前端端口默认只绑 `127.0.0.1`**：该 compose 用 local profile 与临时 JWT 密钥，仅供本机。
+  要对局域网/公网暴露，必须显式改 `compose.yaml` 的端口绑定，并同时切到 `prod` profile
+  配齐 JWT 密钥、`AUTH_PROXY_SECRET`、`CORS_ORIGINS` 与 `STORAGE_ROOT`；否则
+  `ProductionSafetyValidator` 会拒绝启动。
+- **固定验证码默认关闭**：`.env.example` 里 `DEV_VERIFY_CODE_ENABLED=true` 只为本机演示方便；
+  非 local/test profile 打开它会被启动校验拦下。
 
 ### 2.2 服务清单
 

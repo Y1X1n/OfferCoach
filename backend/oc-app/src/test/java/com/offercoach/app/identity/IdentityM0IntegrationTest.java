@@ -30,6 +30,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,7 +44,16 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(properties = {"oc.rate-limit.register-per-minute=100", "oc.rate-limit.login-per-minute=100"})
+@SpringBootTest(
+        properties = {
+            "oc.rate-limit.register-per-minute=100",
+            "oc.rate-limit.login-per-minute=100",
+            // 注册用例走固定验证码；基础配置默认关闭，这里显式打开，避免依赖 profile 文件是否加载。
+            "oc.auth.dev-verify-code.enabled=true",
+            "oc.auth.dev-verify-code.code=123456"
+        })
+// 显式钉住 local profile：ProductionSafetyValidator 只豁免 local/test，不靠 spring.profiles.default 隐式生效。
+@ActiveProfiles("local")
 @AutoConfigureMockMvc
 class IdentityM0IntegrationTest {
 

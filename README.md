@@ -139,6 +139,11 @@ docker compose up -d --build
 
 启动后访问 `http://localhost:8082`，`/api` 由前端容器反代到 `oc-app`。首次构建需拉取 Maven / Node / Nginx 基础镜像。
 
+> 该 compose 用 `local` profile 与临时 JWT 密钥，前端端口默认只绑 `127.0.0.1`，仅供本机。
+> 要对局域网/公网提供服务，需切到 `prod` profile 并配齐 JWT PEM、`AUTH_PROXY_SECRET`、
+> `CORS_ORIGINS`、`STORAGE_ROOT`，同时改掉 `compose.yaml` 的端口绑定——否则
+> `ProductionSafetyValidator` 会拒绝启动（详见 [ops/deployment.md](docs/ops/deployment.md) §2.1）。
+
 - 停止 `docker compose down`；连数据卷一起清空 `docker compose down -v`。
 - 本地默认开启固定验证码 `123456`，可直接注册；管理端需在 `.env` 中设置 `ADMIN_*`。
 - AI 工具服务与支付服务暂未纳入该 compose，按下方步骤在宿主机启动即可（容器默认经 `host.docker.internal` 访问）。

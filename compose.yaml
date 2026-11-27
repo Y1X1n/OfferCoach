@@ -70,7 +70,8 @@ services:
       DEMO_ENABLED: ${DEMO_ENABLED:-false}
       DEMO_EMAIL: ${DEMO_EMAIL:-demo@offercoach.dev}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
-      DEV_VERIFY_CODE_ENABLED: ${DEV_VERIFY_CODE_ENABLED:-true}
+      # 固定验证码默认关闭；本机演示需要的话在 .env 里显式设 DEV_VERIFY_CODE_ENABLED=true。
+      DEV_VERIFY_CODE_ENABLED: ${DEV_VERIFY_CODE_ENABLED:-false}
       ADMIN_ENABLED: ${ADMIN_ENABLED:-false}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
@@ -123,7 +124,10 @@ services:
       # 透传给 Nginx 模板，由它作为 X-Proxy-Secret 发给 oc-app（见 docker/default.conf.template）。
       AUTH_PROXY_SECRET: ${AUTH_PROXY_SECRET:-}
     ports:
-      - "${WEB_PORT:-8082}:80"
+      # 默认只绑回环：本 compose 是 local profile + 临时 JWT 密钥，仅供本机/演示。
+      # 要对局域网或公网暴露必须显式改这一行（并同时切到 prod profile 配齐密钥与代理密钥），
+      # 否则一个 `docker compose up -d` 就会把「用固定验证码 123456 注册」的入口开到网上。
+      - "127.0.0.1:${WEB_PORT:-8082}:80"
     depends_on:
       oc-app:
         condition: service_healthy

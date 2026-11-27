@@ -4,3 +4,10 @@ management:
       exposure:
         # 本地排障额外开放 metrics/loggers；生产只走 application.yml 的 health,info,prometheus。
         include: health,info,prometheus,metrics,loggers
+
+oc:
+  auth:
+    dev-verify-code:
+      # 仅 local profile 默认打开固定验证码（123456），方便本机注册与自动化冒烟；
+      # 基础配置里是 false，非 local/test profile 启用会被 ProductionSafetyValidator 拦下。
+      enabled: ${DEV_VERIFY_CODE_ENABLED:true}

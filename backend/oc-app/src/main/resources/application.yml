@@ -95,7 +95,10 @@ oc:
     device-salt: ${DEVICE_SALT:}
     proxy-secret: ${AUTH_PROXY_SECRET:}
     dev-verify-code:
-      enabled: ${DEV_VERIFY_CODE_ENABLED:true}
+      # 基础配置默认关闭：固定验证码能绕过注册开关与算术验证码，绝不能作为缺省值。
+      # 本机开发由 application-local.yml 显式打开；任何非 local/test profile 下启用都会被
+      # ProductionSafetyValidator 拦下。CI 的启动冒烟也依赖这里的 false。
+      enabled: ${DEV_VERIFY_CODE_ENABLED:false}
       code: ${DEV_VERIFY_CODE:123456}
     invite-code:
       enabled: ${REGISTER_INVITE_ENABLED:false}
