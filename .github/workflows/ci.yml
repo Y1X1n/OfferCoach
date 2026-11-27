@@ -17,7 +17,33 @@ jobs:
   backend:
     name: Backend verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
+    # 启动冒烟需要真实的 PostgreSQL 与 Redis：光靠 mvn verify 只证明「能编译 + 单测过」，
+    # 证明不了「进程能起来」。oc-pay-service 曾因 bean 构造器歧义无法启动，潜伏 9 天
+    # 而 CI 全绿（PR #61）。service 容器只多约 10s 启动时间。
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: offercoach
+          POSTGRES_USER: oc
+          POSTGRES_PASSWORD: oc_dev_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oc -d offercoach"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -45,6 +71,18 @@ jobs:
         if: steps.filter.outputs.changed == 'true'
         working-directory: backend
         run: mvn -B -ntp -T 1C verify
+      # 复用 verify 阶段已产出的可执行 jar，不再重新构建；只验证「Spring 上下文能起来」。
+      - name: Boot smoke
+        if: steps.filter.outputs.changed == 'true'
+        working-directory: backend
+        env:
+          DB_URL: jdbc:postgresql://127.0.0.1:5432/offercoach
+          DB_USER: oc
+          DB_PASSWORD: oc_dev_password
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: '6379'
+          BOOT_TIMEOUT: '120'
+        run: bash ../.github/scripts/boot-smoke.sh
       - name: Upload surefire reports
         if: failure()
         uses: actions/upload-artifact@v4
