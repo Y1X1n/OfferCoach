@@ -41,6 +41,10 @@
         <view class="tile-title">重命名</view>
         <view class="tile-sub">只改标题，不影响内容</view>
       </view>
+      <view class="tile" onTap="editBasics">
+        <view class="tile-title">修正基本信息</view>
+        <view class="tile-sub">姓名 / 城市 / 经验年限</view>
+      </view>
       <view class="tile" onTap="setDefault">
         <view class="tile-title">设为默认</view>
         <view class="tile-sub">创建面试时优先选中</view>

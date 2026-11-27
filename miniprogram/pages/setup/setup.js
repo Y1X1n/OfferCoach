@@ -15,6 +15,9 @@ Page({
 
   onLoad: function (query) {
     this.query = query || {};
+    if (query && (query.difficulty === 'HARD' || query.difficulty === 'MIXED')) {
+      this.setData({ difficulty: query.difficulty });
+    }
     if (my.setNavigationBar) {
       my.setNavigationBar({ title: '准备面试' });
     }

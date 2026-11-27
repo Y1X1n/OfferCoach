@@ -83,6 +83,52 @@ Page({
     });
   },
 
+  editBasics: function () {
+    const self = this;
+    const structured = self.data.resume.structured || {};
+    const basic = structured.basic || {};
+    my.showActionSheet({
+      items: [
+        '姓名：' + (basic.name || '未填写'),
+        '城市：' + (basic.city || '未填写'),
+        '经验年限：' + (basic.yearsOfExperience || '未填写')
+      ],
+      success: function (res) {
+        const fields = ['name', 'city', 'yearsOfExperience'];
+        const field = fields[res.tapIndex];
+        if (!field) {
+          return;
+        }
+        my.prompt({
+          title: '修改' + ['姓名', '城市', '经验年限'][res.tapIndex],
+          value: basic[field] === undefined || basic[field] === null ? '' : String(basic[field]),
+          success: function (input) {
+            if (!input.ok) {
+              return;
+            }
+            const value = (input.inputValue || '').trim();
+            const nextBasic = Object.assign({}, basic);
+            nextBasic[field] = field === 'yearsOfExperience' ? Number(value) || 0 : value;
+            api
+              .request('/resumes/' + self.resumeId, {
+                method: 'PATCH',
+                data: { structured: Object.assign({}, structured, { basic: nextBasic }) }
+              })
+              .then(function () {
+                api.toast('已更新，正在重建摘要', 'success');
+                setTimeout(function () {
+                  self.load();
+                }, 1500);
+              })
+              .catch(function (error) {
+                api.toast(error.message || '更新失败', 'fail');
+              });
+          }
+        });
+      }
+    });
+  },
+
   setDefault: function () {
     const self = this;
     api

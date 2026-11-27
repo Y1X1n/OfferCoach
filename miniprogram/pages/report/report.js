@@ -124,6 +124,11 @@ Page({
     my.redirectTo({ url: '/pages/setup/setup' });
   },
 
+  practiceWeak: function () {
+    // 用更难的难度重练，聚焦报告里的风险项
+    my.redirectTo({ url: '/pages/setup/setup?difficulty=HARD' });
+  },
+
   backHome: function () {
     my.reLaunch({ url: '/pages/index/index' });
   },

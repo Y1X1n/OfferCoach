@@ -82,6 +82,7 @@
     </view>
 
     <button class="btn" onTap="practiceAgain">再练一次</button>
+    <button class="btn btn-ghost back" onTap="practiceWeak">针对弱项再练一次</button>
     <button class="btn btn-ghost back" onTap="exportMarkdown">复制报告为 Markdown</button>
     <button class="btn btn-ghost back" onTap="backHome">回到首页</button>
 
