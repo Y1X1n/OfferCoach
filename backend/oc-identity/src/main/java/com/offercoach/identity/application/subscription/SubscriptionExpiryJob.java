@@ -55,8 +55,7 @@ public class SubscriptionExpiryJob {
             int expiredSubscriptions = expireSubscriptions();
             int renewedQuotas = renewQuotas();
             if (expiredSubscriptions > 0 || renewedQuotas > 0) {
-                log.info(
-                        "订阅到期结算完成：expiredSubscriptions={} renewedQuotas={}", expiredSubscriptions, renewedQuotas);
+                log.info("订阅到期结算完成：expiredSubscriptions={} renewedQuotas={}", expiredSubscriptions, renewedQuotas);
             }
         }
     }
