@@ -4,6 +4,7 @@ import com.offercoach.pay.api.PayDtos;
 import com.offercoach.pay.service.application.port.PaymentOrderRepository;
 import com.offercoach.pay.service.application.port.PaymentRefundRepository;
 import com.offercoach.pay.service.channel.ChannelRegistry;
+import com.offercoach.pay.service.channel.MiniAppPaymentChannel;
 import com.offercoach.pay.service.channel.PaymentChannel;
 import com.offercoach.pay.service.config.PayOpsProperties;
 import com.offercoach.pay.service.domain.ChannelCode;
@@ -71,6 +72,10 @@ public class OrderService {
         if (!channel.available()) {
             throw new PayException(PayErrorKind.NOT_CONFIGURED, "支付渠道未启用：" + channelCode.code());
         }
+        boolean miniMode = isMiniMode(request.payMode());
+        if (miniMode && !(channel instanceof MiniAppPaymentChannel)) {
+            throw new PayException(PayErrorKind.NOT_CONFIGURED, "该渠道不支持小程序内支付：" + channelCode.code());
+        }
         Instant now = Instant.now();
         PaymentOrder order = new PaymentOrder(
                 0L,
@@ -102,17 +107,45 @@ public class OrderService {
                     .orElseThrow(() -> new PayException(PayErrorKind.STATE_CONFLICT, "下单冲突，请重试"));
             return OrderViews.of(concurrent);
         }
-        try {
-            PaymentChannel.Prepay prepay = channel.prepay(order, request.clientIp());
-            orderRepository.attachPrepay(order.orderNo(), prepay.codeUrl(), prepay.prepayId());
-        } catch (PayException exception) {
-            orderRepository.markFailed(order.orderNo());
-            throw exception;
-        } catch (RuntimeException exception) {
-            orderRepository.markFailed(order.orderNo());
-            throw new PayException(PayErrorKind.UPSTREAM_FAILED, "渠道下单失败", exception);
+        if (!miniMode) {
+            try {
+                PaymentChannel.Prepay prepay = channel.prepay(order, request.clientIp());
+                orderRepository.attachPrepay(order.orderNo(), prepay.codeUrl(), prepay.prepayId());
+            } catch (PayException exception) {
+                orderRepository.markFailed(order.orderNo());
+                throw exception;
+            } catch (RuntimeException exception) {
+                orderRepository.markFailed(order.orderNo());
+                throw new PayException(PayErrorKind.UPSTREAM_FAILED, "渠道下单失败", exception);
+            }
         }
         return OrderViews.of(orderRepository.findByOrderNo(order.orderNo()).orElse(order));
+    }
+
+    /**
+     * 小程序内支付：用授权码换买家标识并创建交易。
+     *
+     * <p>不改变订单状态，支付结果仍以渠道异步回调为准；同一订单在支付宝侧只允许一笔交易，
+     * 已生成扫码交易的订单拒绝重复创建。</p>
+     */
+    public PayDtos.MiniPayView miniPrepay(long userId, String orderNo, String authCode) {
+        PaymentOrder order = loadOwned(userId, orderNo);
+        if (order.status() != OrderStatus.CREATED) {
+            throw new PayException(PayErrorKind.STATE_CONFLICT, "订单当前状态不支持支付");
+        }
+        if (order.codeUrl() != null && !order.codeUrl().isBlank()) {
+            throw new PayException(PayErrorKind.STATE_CONFLICT, "订单已生成扫码交易，请改用扫码支付");
+        }
+        PaymentChannel channel = registry.require(order.channel());
+        if (!channel.available()) {
+            throw new PayException(PayErrorKind.NOT_CONFIGURED, "支付渠道未启用：" + order.channel().code());
+        }
+        if (!(channel instanceof MiniAppPaymentChannel miniChannel)) {
+            throw new PayException(PayErrorKind.NOT_CONFIGURED, "该渠道不支持小程序内支付");
+        }
+        String tradeNo = miniChannel.miniPrepay(order, authCode);
+        orderRepository.attachPrepay(order.orderNo(), null, tradeNo);
+        return new PayDtos.MiniPayView(order.orderNo(), tradeNo, order.status().name());
     }
 
     /**
@@ -213,6 +246,16 @@ public class OrderService {
         if (request.idempotencyKey() == null || request.idempotencyKey().isBlank()) {
             throw new PayException(PayErrorKind.VALIDATION_FAILED, "缺少幂等键");
         }
+        if (request.payMode() != null
+                && !request.payMode().isBlank()
+                && !"MINI".equalsIgnoreCase(request.payMode().strip())
+                && !"QR".equalsIgnoreCase(request.payMode().strip())) {
+            throw new PayException(PayErrorKind.VALIDATION_FAILED, "不支持的支付形态");
+        }
+    }
+
+    private static boolean isMiniMode(String payMode) {
+        return payMode != null && "MINI".equalsIgnoreCase(payMode.strip());
     }
 
     private static String subject(PayDtos.CreateOrderRequest request) {

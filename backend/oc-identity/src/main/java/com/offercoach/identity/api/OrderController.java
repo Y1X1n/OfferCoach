@@ -3,6 +3,8 @@ package com.offercoach.identity.api;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.api.dto.CreateOrderRequest;
+import com.offercoach.identity.api.dto.MiniPayRequest;
+import com.offercoach.identity.api.dto.MiniPayResponse;
 import com.offercoach.identity.api.dto.OrderResponse;
 import com.offercoach.identity.api.dto.PayChannelOption;
 import com.offercoach.identity.application.payment.PaymentOrderService;
@@ -46,9 +48,22 @@ public class OrderController {
                 currentUser.userId(),
                 request.planCode(),
                 request.channel(),
+                request.payMode(),
                 idempotencyKey,
                 clientIpResolver.resolve(http));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * 小程序内支付：客户端先 my.getAuthCode 取一次性授权码，再调本接口换交易号交 my.tradePay。
+     */
+    @PostMapping("/orders/{orderNo}/miniapp-pay")
+    public MiniPayResponse miniPay(
+            @PathVariable String orderNo, @RequestBody(required = false) MiniPayRequest request) {
+        if (request == null) {
+            throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("body", "required"));
+        }
+        return paymentOrderService.miniPay(currentUser.userId(), orderNo, request.authCode());
     }
 
     @GetMapping("/orders/{orderNo}")

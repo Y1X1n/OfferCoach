@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * <p>下单返回一个指向本服务确认端点的链接，在浏览器打开即视为支付成功；不产生任何真实资金流。</p>
  */
 @Component
-public class MockPayChannel implements PaymentChannel {
+public class MockPayChannel implements PaymentChannel, MiniAppPaymentChannel {
 
     private final PayChannelProperties.Mock mock;
     private final PayOpsProperties ops;
@@ -49,6 +49,15 @@ public class MockPayChannel implements PaymentChannel {
                 ? "http://127.0.0.1:8099"
                 : ops.getPublicBaseUrl().replaceAll("/+$", "");
         return new Prepay(base + mock.getConfirmPath() + "/" + order.orderNo() + "/pay", order.orderNo());
+    }
+
+    /**
+     * 本地联调：小程序内支付直接返回一个假交易号，不产生真实资金流。
+     */
+    @Override
+    public String miniPrepay(PaymentOrder order, String authCode) {
+        requireEnabled();
+        return "mock-trade-" + order.orderNo();
     }
 
     @Override

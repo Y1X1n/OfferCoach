@@ -24,6 +24,7 @@ public final class PayDtos {
      * @param channel        支付渠道：wechat / alipay / mock
      * @param idempotencyKey 幂等键；同一用户内唯一，重复请求返回首次订单
      * @param clientIp       用户下单来源 IP，供渠道风控
+     * @param payMode        支付形态：QR 扫码（缺省） / MINI 小程序内调起；MINI 不预生成扫码交易
      */
     public record CreateOrderRequest(
             long userId,
@@ -33,7 +34,32 @@ public final class PayDtos {
             String currency,
             String channel,
             String idempotencyKey,
-            String clientIp) {}
+            String clientIp,
+            String payMode) {
+
+        /** 兼容旧调用方：缺省按扫码下单。 */
+        public CreateOrderRequest(
+                long userId,
+                String planCode,
+                String subject,
+                int amountCents,
+                String currency,
+                String channel,
+                String idempotencyKey,
+                String clientIp) {
+            this(userId, planCode, subject, amountCents, currency, channel, idempotencyKey, clientIp, null);
+        }
+    }
+
+    /**
+     * 小程序内支付请求：{@code authCode} 由客户端 {@code my.getAuthCode} 一次性取得。
+     */
+    public record MiniPayRequest(String authCode) {}
+
+    /**
+     * 小程序内支付结果：{@code tradeNo} 直接交给 {@code my.tradePay}。
+     */
+    public record MiniPayView(String orderNo, String tradeNo, String status) {}
 
     /**
      * 订单视图；前端据此展示二维码/状态。

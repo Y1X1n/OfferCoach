@@ -6,15 +6,18 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import com.offercoach.pay.api.PayDtos;
 import com.offercoach.pay.service.application.port.PaymentOrderRepository;
 import com.offercoach.pay.service.application.port.PaymentRefundRepository;
 import com.offercoach.pay.service.channel.ChannelRegistry;
+import com.offercoach.pay.service.channel.MiniAppPaymentChannel;
 import com.offercoach.pay.service.channel.PaymentChannel;
 import com.offercoach.pay.service.config.PayOpsProperties;
 import com.offercoach.pay.service.domain.ChannelCode;
@@ -182,6 +185,86 @@ class OrderServiceTest {
 
         assertThat(view.status()).isEqualTo("CLOSED");
         verify(orderRepository).markClosed("OC-TEST");
+    }
+
+    @Test
+    void createMiniOrderSkipsQrPrepay() {
+        when(orderRepository.findByUserIdempotency(1L, "key-mini")).thenReturn(Optional.empty());
+        PaymentChannel alipay = miniChannel();
+        when(registry.require(ChannelCode.ALIPAY)).thenReturn(alipay);
+        when(alipay.available()).thenReturn(true);
+        when(orderRepository.findByOrderNo(anyString())).thenReturn(Optional.empty());
+
+        PayDtos.OrderView view = service.createOrder(new PayDtos.CreateOrderRequest(
+                1L, "PRO", "专业版", 3900, "CNY", "alipay", "key-mini", "127.0.0.1", "MINI"));
+
+        assertThat(view.status()).isEqualTo("CREATED");
+        verify(alipay, never()).prepay(any(), any());
+        verify(orderRepository, never()).attachPrepay(anyString(), any(), any());
+    }
+
+    @Test
+    void miniPrepayReturnsTradeNo() {
+        when(orderRepository.findByOrderNo("OC-TEST")).thenReturn(Optional.of(miniOrder(null)));
+        PaymentChannel alipay = miniChannel();
+        when(registry.require(ChannelCode.ALIPAY)).thenReturn(alipay);
+        when(alipay.available()).thenReturn(true);
+        when(((MiniAppPaymentChannel) alipay).miniPrepay(any(), anyString())).thenReturn("2026111700001");
+
+        PayDtos.MiniPayView view = service.miniPrepay(1L, "OC-TEST", "auth-code");
+
+        assertThat(view.tradeNo()).isEqualTo("2026111700001");
+        assertThat(view.status()).isEqualTo("CREATED");
+        verify(orderRepository).attachPrepay(eq("OC-TEST"), isNull(), eq("2026111700001"));
+    }
+
+    @Test
+    void miniPrepayRejectsQrOrder() {
+        when(orderRepository.findByOrderNo("OC-TEST")).thenReturn(Optional.of(miniOrder("https://qr.alipay.com/x")));
+
+        assertThatThrownBy(() -> service.miniPrepay(1L, "OC-TEST", "auth-code"))
+                .isInstanceOf(PayException.class)
+                .hasMessageContaining("扫码");
+    }
+
+    @Test
+    void miniPrepayRejectsPaidOrder() {
+        PaymentOrder paid = order(OrderStatus.PAID, 0, "txn-1");
+        when(orderRepository.findByOrderNo("OC-TEST")).thenReturn(Optional.of(paid));
+
+        assertThatThrownBy(() -> service.miniPrepay(1L, "OC-TEST", "auth-code"))
+                .isInstanceOf(PayException.class)
+                .hasMessageContaining("状态");
+    }
+
+    private static PaymentChannel miniChannel() {
+        return mock(PaymentChannel.class, withSettings().extraInterfaces(MiniAppPaymentChannel.class));
+    }
+
+    private static PaymentOrder miniOrder(String codeUrl) {
+        Instant now = Instant.now();
+        return new PaymentOrder(
+                1L,
+                "OC-TEST",
+                1L,
+                "PRO",
+                "专业版",
+                3900,
+                "CNY",
+                ChannelCode.ALIPAY,
+                OrderStatus.CREATED,
+                null,
+                null,
+                codeUrl,
+                "key-1",
+                "PENDING",
+                0,
+                now.plus(30, ChronoUnit.MINUTES),
+                null,
+                null,
+                0,
+                now,
+                now);
     }
 
     private static PaymentOrder order(OrderStatus status, int refundedCents, String providerTxnId) {

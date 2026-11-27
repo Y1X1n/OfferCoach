@@ -51,6 +51,22 @@ public class PayInternalController {
         return orderService.getOrder(userId, orderNo);
     }
 
+    /**
+     * 小程序内支付：oc-app 传入用户授权码，返回可被 {@code my.tradePay} 调起的交易号。
+     */
+    @PostMapping("/orders/{orderNo}/miniapp")
+    public PayDtos.MiniPayView miniPay(
+            @PathVariable String orderNo,
+            @RequestParam(defaultValue = "0") long userId,
+            @RequestBody(required = false) PayDtos.MiniPayRequest request,
+            HttpServletRequest http) {
+        guard.require(http);
+        if (request == null) {
+            throw new PayException(PayErrorKind.VALIDATION_FAILED, "请求体不能为空");
+        }
+        return orderService.miniPrepay(userId, orderNo, request.authCode());
+    }
+
     @PostMapping("/orders/{orderNo}/close")
     public PayDtos.OrderView closeOrder(
             @PathVariable String orderNo, @RequestParam(defaultValue = "0") long userId, HttpServletRequest http) {

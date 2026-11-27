@@ -288,6 +288,33 @@
 
 - 状态：`CREATED` 待支付 / `PAID` 已支付 / `FAILED` 失败 / `REFUNDED` 已退款 / `CLOSED` 已关闭。
 
+### 3.2.1 小程序内支付（支付宝）
+
+支付宝小程序无法扫自己的二维码，需走「授权码换买家标识 → 创建交易 → `my.tradePay` 调起」：
+
+1. 下单时显式声明支付形态，服务端不预生成扫码交易（同一 `out_trade_no` 在支付宝侧只能有一笔交易）：
+
+```json
+{"planCode": "PRO", "channel": "alipay", "payMode": "MINI"}
+```
+
+2. `POST /orders/{orderNo}/miniapp-pay`（USER）
+
+```json
+{"authCode": "0810abc..."}
+```
+
+`200`
+
+```json
+{"orderNo": "OC202611170001", "tradeNo": "2026111722001400000001", "status": "CREATED"}
+```
+
+- `authCode` 来自 `my.getAuthCode({scopes: ['auth_base']})`，一次性、有效期很短；服务端用 `alipay.system.oauth.token` 换 `user_id`，再以 `alipay.trade.create` 创建交易。
+- 客户端拿到 `tradeNo` 后调 `my.tradePay({tradeNO})`；**订单状态仍以渠道回调为准**，调起成功后轮询 `GET /orders/{orderNo}` 直到 `PAID`。
+- 已生成扫码交易的订单调用该接口返回 `409 STATE_CONFLICT`；非小程序渠道返回 `503 CHANNEL_NOT_CONFIGURED`。
+- `payMode` 取值 `QR`（缺省，扫码）/ `MINI`（小程序内调起）。
+
 支付由独立服务 `oc-pay` 承载（微信 Native 扫码 / 支付宝扫码），时序、幂等与对账见 [payment.md](./payment.md)：
 
 - 内部下单：`POST /internal/v1/pay/orders`（oc-app → oc-pay，携带 `X-OC-Internal-Token`）。

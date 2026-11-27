@@ -65,6 +65,18 @@ public class PayGateway {
     }
 
     /**
+     * 小程序内支付：授权码换买家标识并创建交易，返回可被 my.tradePay 调起的交易号。
+     */
+    public PayDtos.MiniPayView miniPay(String orderNo, long userId, String authCode) {
+        return send(
+                ORDERS_PATH + "/" + encode(orderNo) + "/miniapp?userId=" + userId,
+                "POST",
+                userId,
+                new PayDtos.MiniPayRequest(authCode),
+                PayDtos.MiniPayView.class);
+    }
+
+    /**
      * 关闭未支付订单。
      */
     public PayDtos.OrderView closeOrder(String orderNo, long userId) {

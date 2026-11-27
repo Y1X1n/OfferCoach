@@ -10,12 +10,19 @@ import com.offercoach.pay.service.config.PayOpsProperties;
 import com.offercoach.pay.service.crypto.Pem;
 import com.offercoach.pay.service.crypto.RsaSigner;
 import com.offercoach.pay.service.error.PayException;
+import com.offercoach.pay.service.domain.ChannelCode;
+import com.offercoach.pay.service.domain.OrderStatus;
+import com.offercoach.pay.service.domain.PaymentOrder;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -75,6 +82,106 @@ class AlipayChannelTest {
         String body = signedForm(params) + "&sign=" + URLEncoder.encode("broken", StandardCharsets.UTF_8);
 
         assertThatThrownBy(() -> channel.parseNotify(Map.of(), body)).isInstanceOf(PayException.class);
+    }
+
+    @Test
+    void miniPrepayExchangesAuthCodeAndCreatesTrade() throws Exception {
+        AtomicReference<String> oauthBody = new AtomicReference<>();
+        AtomicReference<String> createBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/gateway.do", exchange -> {
+            String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            Map<String, String> params = form(body);
+            String response;
+            if ("alipay.system.oauth.token".equals(params.get("method"))) {
+                oauthBody.set(body);
+                response = "{\"alipay_system_oauth_token_response\":{\"code\":\"10000\","
+                        + "\"user_id\":\"2088000000000001\"}}";
+            } else {
+                createBody.set(body);
+                response =
+                        "{\"alipay_trade_create_response\":{\"code\":\"10000\",\"trade_no\":\"2026111722001\"}}";
+            }
+            byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            PayChannelProperties properties = new PayChannelProperties();
+            PayChannelProperties.Alipay alipay = properties.getAlipay();
+            alipay.setEnabled(true);
+            alipay.setAppId("2021000000000000");
+            alipay.setPrivateKeyPem(keys.privatePem());
+            alipay.setGatewayUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/gateway.do");
+            PayOpsProperties ops = new PayOpsProperties();
+            ops.setPublicBaseUrl("https://pay.example.com");
+            AlipayChannel miniChannel = new AlipayChannel(properties, ops, mapper, new PayProperties());
+
+            String tradeNo = miniChannel.miniPrepay(miniOrder(), "auth-code-1");
+
+            assertThat(tradeNo).isEqualTo("2026111722001");
+            Map<String, String> oauth = form(oauthBody.get());
+            assertThat(oauth.get("grant_type")).isEqualTo("authorization_code");
+            assertThat(oauth.get("code")).isEqualTo("auth-code-1");
+            assertThat(oauth).doesNotContainKey("notify_url");
+            Map<String, String> create = form(createBody.get());
+            assertThat(create.get("method")).isEqualTo("alipay.trade.create");
+            assertThat(create.get("biz_content")).contains("2088000000000001").contains("OC202611170099");
+            assertThat(RsaSigner.verify(keys.publicKey(), canonical(create), create.get("sign")))
+                    .isTrue();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void miniPrepayRequiresAuthCode() {
+        assertThatThrownBy(() -> channel.miniPrepay(miniOrder(), " "))
+                .isInstanceOf(PayException.class)
+                .hasMessageContaining("授权码");
+    }
+
+    private static PaymentOrder miniOrder() {
+        java.time.Instant now = java.time.Instant.now();
+        return new PaymentOrder(
+                1L,
+                "OC202611170099",
+                1L,
+                "PRO",
+                "专业版",
+                3900,
+                "CNY",
+                ChannelCode.ALIPAY,
+                OrderStatus.CREATED,
+                null,
+                null,
+                null,
+                "key-1",
+                "PENDING",
+                0,
+                now.plusSeconds(1800),
+                null,
+                null,
+                0,
+                now,
+                now);
+    }
+
+    private static Map<String, String> form(String body) {
+        Map<String, String> params = new LinkedHashMap<>();
+        for (String pair : body.split("&")) {
+            int index = pair.indexOf('=');
+            if (index <= 0) {
+                continue;
+            }
+            params.put(
+                    URLDecoder.decode(pair.substring(0, index), StandardCharsets.UTF_8),
+                    URLDecoder.decode(pair.substring(index + 1), StandardCharsets.UTF_8));
+        }
+        return params;
     }
 
     private String signedForm(Map<String, String> params) {

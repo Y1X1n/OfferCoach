@@ -39,11 +39,13 @@ import tools.jackson.databind.node.ObjectNode;
  * 不做逐条响应验签（如需可再加）；商户私钥 / 支付宝公钥来自部署配置。</p>
  */
 @Component
-public class AlipayChannel implements PaymentChannel {
+public class AlipayChannel implements PaymentChannel, MiniAppPaymentChannel {
 
     private static final Logger log = LoggerFactory.getLogger(AlipayChannel.class);
     private static final String SUCCESS_CODE = "10000";
     private static final String PRECREATE_METHOD = "alipay.trade.precreate";
+    private static final String MINI_CREATE_METHOD = "alipay.trade.create";
+    private static final String OAUTH_METHOD = "alipay.system.oauth.token";
     private static final String QUERY_METHOD = "alipay.trade.query";
     private static final String CLOSE_METHOD = "alipay.trade.close";
     private static final String REFUND_METHOD = "alipay.trade.refund";
@@ -105,6 +107,53 @@ public class AlipayChannel implements PaymentChannel {
             throw new PayException(PayErrorKind.UPSTREAM_FAILED, "支付宝下单未返回二维码链接");
         }
         return new Prepay(codeUrl, response.path("out_trade_no").asText(""));
+    }
+
+    /**
+     * 小程序内支付：用 {@code my.getAuthCode} 的授权码换买家标识，再创建可被 {@code my.tradePay} 调起的交易。
+     *
+     * <p>授权码一次性、有效期很短；失败按上游失败透出，由客户端提示用户重试。</p>
+     */
+    @Override
+    public String miniPrepay(PaymentOrder order, String authCode) {
+        requireAvailable();
+        if (!hasText(authCode)) {
+            throw new PayException(PayErrorKind.VALIDATION_FAILED, "缺少支付宝授权码");
+        }
+        String buyerId = alipayBuyerId(authCode);
+        ObjectNode biz = objectMapper.createObjectNode();
+        biz.put("out_trade_no", order.orderNo());
+        biz.put("total_amount", yuan(order.amountCents()));
+        biz.put("subject", order.subject());
+        biz.put("buyer_id", buyerId);
+        if (order.expiresAt() != null) {
+            biz.put("timeout_express", "30m");
+        }
+        JsonNode response = invoke(MINI_CREATE_METHOD, biz);
+        String tradeNo = response.path("trade_no").asText("");
+        if (tradeNo.isBlank()) {
+            throw new PayException(PayErrorKind.UPSTREAM_FAILED, "支付宝下单未返回交易号");
+        }
+        log.info("支付宝小程序下单成功：orderNo={} tradeNo={}", order.orderNo(), tradeNo);
+        return tradeNo;
+    }
+
+    /**
+     * 授权码换支付宝用户号；该接口不接受 {@code notify_url}，也不涉及业务参数。
+     */
+    private String alipayBuyerId(String authCode) {
+        Map<String, String> extra = new TreeMap<>();
+        extra.put("grant_type", "authorization_code");
+        extra.put("code", authCode);
+        JsonNode response = invoke(OAUTH_METHOD, null, extra, false);
+        String userId = response.path("user_id").asText("");
+        if (userId.isBlank()) {
+            userId = response.path("open_id").asText("");
+        }
+        if (userId.isBlank()) {
+            throw new PayException(PayErrorKind.UPSTREAM_FAILED, "未能从支付宝授权码取得用户标识");
+        }
+        return userId;
     }
 
     @Override
@@ -181,6 +230,11 @@ public class AlipayChannel implements PaymentChannel {
     }
 
     private JsonNode invoke(String method, ObjectNode bizContent) {
+        return invoke(method, bizContent, Map.of(), true);
+    }
+
+    private JsonNode invoke(
+            String method, ObjectNode bizContent, Map<String, String> extraParams, boolean withNotifyUrl) {
         PayChannelProperties.Alipay alipay = properties.getAlipay();
         Map<String, String> params = new TreeMap<>();
         params.put("app_id", alipay.getAppId());
@@ -190,8 +244,13 @@ public class AlipayChannel implements PaymentChannel {
         params.put("timestamp", TIMESTAMP_FORMAT.format(Instant.now()));
         params.put("version", "1.0");
         params.put("format", "JSON");
-        params.put("notify_url", notifyUrl());
-        params.put("biz_content", bizContent.toString());
+        if (withNotifyUrl) {
+            params.put("notify_url", notifyUrl());
+        }
+        if (bizContent != null) {
+            params.put("biz_content", bizContent.toString());
+        }
+        params.putAll(extraParams);
         String signature = RsaSigner.signBase64(appPrivateKey(), canonical(params));
         params.put("sign", signature);
         HttpResponse<String> response;

@@ -2,6 +2,7 @@ package com.offercoach.identity.application.payment;
 
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.identity.api.dto.MiniPayResponse;
 import com.offercoach.identity.api.dto.OrderResponse;
 import com.offercoach.identity.api.dto.PayChannelOption;
 import com.offercoach.identity.application.port.QuotaRepository;
@@ -33,7 +34,8 @@ public class PaymentOrderService {
     private final QuotaRepository quotaRepository;
     private final PayGateway payGateway;
 
-    public OrderResponse create(long userId, String planCode, String channel, String idempotencyKey, String clientIp) {
+    public OrderResponse create(
+            long userId, String planCode, String channel, String payMode, String idempotencyKey, String clientIp) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("header", "Idempotency-Key"));
         }
@@ -58,11 +60,33 @@ public class PaymentOrderService {
                 "CNY",
                 channel.strip().toLowerCase(Locale.ROOT),
                 "oc:" + userId + ":" + idempotencyKey.strip(),
-                clientIp);
+                clientIp,
+                payMode == null || payMode.isBlank() ? null : payMode.strip().toUpperCase(Locale.ROOT));
         try {
             return OrderResponse.from(payGateway.createOrder(request));
         } catch (PayClientException exception) {
             log.warn("下单失败：userId={} planCode={} reason={}", userId, plan.code(), exception.getMessage());
+            throw new BizException(ErrorCode.PAY_UNAVAILABLE, Map.of("reason", exception.getMessage()));
+        }
+    }
+
+    /**
+     * 小程序内支付：把支付宝授权码透传给 oc-pay 换取交易号，状态仍以回调为准。
+     */
+    public MiniPayResponse miniPay(long userId, String orderNo, String authCode) {
+        if (authCode == null || authCode.isBlank()) {
+            throw new BizException(ErrorCode.VALIDATION_FAILED, Map.of("field", "authCode"));
+        }
+        try {
+            return MiniPayResponse.from(payGateway.miniPay(orderNo, userId, authCode.strip()));
+        } catch (PayClientException exception) {
+            if (exception.status() == 404) {
+                throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, Map.of("orderNo", orderNo));
+            }
+            if (exception.status() == 409) {
+                throw new BizException(ErrorCode.STATE_CONFLICT, Map.of("reason", exception.getMessage()));
+            }
+            log.warn("小程序支付失败：orderNo={} reason={}", orderNo, exception.getMessage());
             throw new BizException(ErrorCode.PAY_UNAVAILABLE, Map.of("reason", exception.getMessage()));
         }
     }
