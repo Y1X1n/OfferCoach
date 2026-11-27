@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -38,6 +39,11 @@ public class EntitlementNotifier {
     private final ObjectMapper objectMapper;
     private final SimpleHttp http;
 
+    /**
+     * 两个构造函数时必须显式标注，否则 Spring 找不到唯一候选、退回无参构造并直接启动失败。
+     * 注入用这个 5 参版本（内部自建 {@link SimpleHttp}）；6 参版本留给测试注入桩。
+     */
+    @Autowired
     public EntitlementNotifier(
             PayOpsProperties ops,
             PayProperties payProperties,
