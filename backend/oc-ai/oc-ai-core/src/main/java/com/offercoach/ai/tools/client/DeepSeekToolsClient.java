@@ -1,7 +1,5 @@
 package com.offercoach.ai.tools.client;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.AiRuntimeConfigService.AiRuntimeSettings;
 import com.offercoach.ai.tools.config.ToolsProperties;
@@ -20,6 +18,8 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * DeepSeek 工具接口客户端：{@code /v1/tools/{asr,tts,ocr,search,fetch}}。

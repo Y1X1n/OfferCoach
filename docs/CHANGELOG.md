@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.34 ｜ 更新：2026-11-27
+> 状态：生效 ｜ 版本：v2.35 ｜ 更新：2026-11-27
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,14 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.35（2026-11-27）——Jackson 2 → 3 全量迁移
+
+- **统一到 Jackson 3**：Boot 4 的默认 JSON 栈是 Jackson 3（`tools.jackson.*`）。上一轮为把升级拆小，用 `spring-boot-jackson2` 过渡桥让代码继续跑在 Jackson 2 上；本轮把 49 个文件的 import 一次性迁到 `tools.jackson.*`，并删掉桥、`spring.jackson2.*` 与 `spring.http.converters.preferred-json-mapper`。`spring.jackson.*` 恢复为标准前缀，HTTP 转换器与注入的 `ObjectMapper` 重新同源。
+- **`JacksonException` 是 unchecked**：Jackson 3 把它从受检异常改为 `RuntimeException` 子类，`JsonProcessingException` 不复存在。因此原先 `catch (IOException)` 包纯 Jackson 调用的 12 处（`PayGateway` 3 处、`AiToolGateway` 5 处、四个 AI 工具 Controller 各 1 处）改为 `catch (JacksonException)`；`JdWebFetchService` 两处 `catch (RuntimeException | JsonProcessingException)` 的多 catch 收敛为单 catch。真正包 socket/文件 I/O 的 `catch (IOException)` 全部保留。
+- **`findAndRegisterModules()` 移除**：Jackson 3 改为 `JsonMapper.builder().findAndAddModules().build()`（`EntitlementNotifierTest`）。
+- **logstash-logback-encoder 8.1 → 9.0**：9.0 才支持 Jackson 3，与上面的迁移配套。
+- 校验：`grep com.fasterxml.jackson.{databind,core}` 与 `JsonProcessingException` 均为 0；`com.fasterxml.jackson.annotation.*` 不受影响（注解仍在 Jackson 2 包名下）。`mvn verify` 全模块通过。
 
 ### v2.33（2026-11-27）——订阅到期结算与业务时区统一
 

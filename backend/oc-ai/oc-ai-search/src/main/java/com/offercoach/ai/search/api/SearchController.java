@@ -1,7 +1,5 @@
 package com.offercoach.ai.search.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
@@ -13,7 +11,6 @@ import com.offercoach.ai.tools.error.ToolException;
 import com.offercoach.ai.tools.internal.InternalAuth;
 import com.offercoach.ai.tools.log.ToolCallLogger;
 import jakarta.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -23,6 +20,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 内部检索端点：关键词 → 结构化结果。只做检索，不做岗位语义判断。
@@ -128,7 +128,7 @@ public class SearchController {
                         item.path("authority").asInt(-1)));
             }
             return new ToolDtos.SearchResponse(results);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "检索结果解析失败", exception);
         }
     }

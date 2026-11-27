@@ -1,7 +1,5 @@
 package com.offercoach.ai.asr.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
@@ -22,6 +20,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 内部 ASR 端点：接收音频，转写为文本。只做转换，不做会话与额度判断。
@@ -106,7 +107,7 @@ public class AsrController {
                     root.path("duration_ms").isNumber()
                             ? root.path("duration_ms").asInt()
                             : null);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "转写结果解析失败", exception);
         }
     }

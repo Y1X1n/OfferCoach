@@ -1,6 +1,5 @@
 package com.offercoach.pay.service.application;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.pay.api.PayDtos;
 import com.offercoach.pay.config.PayProperties;
 import com.offercoach.pay.service.application.port.PaymentOrderRepository;
@@ -15,6 +14,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 支付成功后向 oc-app 下发额度发放通知。

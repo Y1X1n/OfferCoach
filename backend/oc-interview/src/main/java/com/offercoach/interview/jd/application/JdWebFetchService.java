@@ -1,8 +1,5 @@
 package com.offercoach.interview.jd.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
@@ -20,6 +17,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 岗位链接抓取：缓存、每日上限与失败归因。
@@ -115,7 +114,7 @@ public class JdWebFetchService {
                 return null;
             }
             return objectMapper.readValue(json, new TypeReference<CachedFetch>() {});
-        } catch (RuntimeException | JsonProcessingException exception) {
+        } catch (RuntimeException exception) {
             log.warn("抓取缓存读取失败：reason={}", exception.getClass().getSimpleName());
             return null;
         }
@@ -124,7 +123,7 @@ public class JdWebFetchService {
     private void cacheQuietly(String key, CachedFetch value) {
         try {
             redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(value), CACHE_TTL);
-        } catch (RuntimeException | JsonProcessingException exception) {
+        } catch (RuntimeException exception) {
             log.warn("抓取缓存写入失败：reason={}", exception.getClass().getSimpleName());
         }
     }

@@ -1,8 +1,5 @@
 package com.offercoach.interview.qbank;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.interview.support.JsonCodec;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -23,6 +20,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 启动时从 oc.qbank.import-path 指向的 JSONL 导入题库，按 (source_repo, source_path) 幂等。
@@ -121,7 +121,7 @@ public class QuestionBankImporter implements ApplicationRunner {
             JsonNode node = objectMapper.readTree(line);
             String repo = text(node, "sourceRepo");
             return repo != null && EXCLUDED_REPOS.contains(repo);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return false;
         }
     }
@@ -130,7 +130,7 @@ public class QuestionBankImporter implements ApplicationRunner {
         JsonNode node = null;
         try {
             node = objectMapper.readTree(line);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             RepoStats stats = statsByRepo.computeIfAbsent(DEFAULT_REPO, key -> new RepoStats());
             stats.total++;
             stats.fail(lineNumber, "invalid json");

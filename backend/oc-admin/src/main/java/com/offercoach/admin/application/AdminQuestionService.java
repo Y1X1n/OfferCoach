@@ -1,7 +1,5 @@
 package com.offercoach.admin.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.admin.application.model.AdminModels.ImportBatch;
 import com.offercoach.admin.application.model.AdminModels.ImportItem;
 import com.offercoach.admin.application.model.AdminModels.ImportedQuestion;
@@ -27,6 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 题库管理：分页筛选、草稿维护、发布/归档与 JSON 批量导入。
@@ -346,7 +346,7 @@ public class AdminQuestionService {
     private String toJson(List<Map<String, Object>> errors) {
         try {
             return objectMapper.writeValueAsString(errors == null ? List.of() : errors);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return "[]";
         }
     }

@@ -3,7 +3,6 @@ package com.offercoach.ai.tts.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.tools.client.DeepSeekToolsClient;
 import com.offercoach.ai.tools.config.ToolsProperties;
 import com.offercoach.ai.tools.error.ToolErrorKind;
@@ -17,6 +16,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * TTS 合成缓存：按内容哈希命中不回源、入参上限与过期清理。

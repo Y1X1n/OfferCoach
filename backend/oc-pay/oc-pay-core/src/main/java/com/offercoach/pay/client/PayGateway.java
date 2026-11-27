@@ -1,6 +1,5 @@
 package com.offercoach.pay.client;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.common.trace.TraceContext;
 import com.offercoach.pay.api.PayDtos;
 import com.offercoach.pay.config.PayProperties;
@@ -16,6 +15,8 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 调用 oc-pay-service 的客户端；oc-app 是它唯一的调用方。
@@ -123,7 +124,7 @@ public class PayGateway {
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new PayClientException("支付请求序列化失败", 0, exception);
         }
     }
@@ -131,7 +132,7 @@ public class PayGateway {
     private <T> T readJson(String json, Class<T> type) {
         try {
             return objectMapper.readValue(json, type);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new PayClientException("支付响应解析失败", 0, exception);
         }
     }
@@ -146,7 +147,7 @@ public class PayGateway {
                 if (!message.isBlank()) {
                     return message;
                 }
-            } catch (IOException ignored) {
+            } catch (JacksonException ignored) {
                 // 非 JSON 错误体，退回状态码描述
             }
         }

@@ -1,8 +1,5 @@
 package com.offercoach.admin.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.admin.application.model.AdminModels.AuditLog;
 import com.offercoach.admin.application.port.AdminAuditLogRepository;
 import java.time.OffsetDateTime;
@@ -11,6 +8,9 @@ import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 审计日志只读查询。
@@ -88,7 +88,7 @@ public class AdminAuditLogRepositoryImpl implements AdminAuditLogRepository {
         }
         try {
             return objectMapper.readTree(json);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("JSONB 解析失败", exception);
         }
     }

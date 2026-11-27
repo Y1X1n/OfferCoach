@@ -1,6 +1,5 @@
 package com.offercoach.admin.audit;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.common.trace.TraceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 管理端写操作审计；独立事务写入，序列化失败或写库失败只告警，不阻断主操作。

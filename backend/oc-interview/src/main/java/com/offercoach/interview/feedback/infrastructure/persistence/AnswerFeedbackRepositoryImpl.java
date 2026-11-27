@@ -1,6 +1,5 @@
 package com.offercoach.interview.feedback.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.offercoach.interview.feedback.application.port.AnswerFeedbackRepository;
 import com.offercoach.interview.feedback.domain.AnswerFeedback;
 import com.offercoach.interview.feedback.domain.FeedbackEvidence;
@@ -13,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.type.TypeReference;
 
 /**
  * 反馈仓储实现：JSONB 文本解析失败时按空集合处理，分数缺失按 0 处理。

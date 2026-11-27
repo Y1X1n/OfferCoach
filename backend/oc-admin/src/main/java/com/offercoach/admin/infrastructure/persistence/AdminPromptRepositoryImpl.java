@@ -1,8 +1,5 @@
 package com.offercoach.admin.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.admin.application.model.AdminModels.PromptTemplate;
 import com.offercoach.admin.application.model.AdminModels.PromptVersion;
 import com.offercoach.admin.application.port.AdminPromptRepository;
@@ -12,6 +9,9 @@ import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Prompt 模板与版本仓储：版本内容不可变，发布状态由唯一部分索引兜底。
@@ -181,7 +181,7 @@ public class AdminPromptRepositoryImpl implements AdminPromptRepository {
         }
         try {
             return objectMapper.readTree(json);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("JSONB 解析失败", exception);
         }
     }

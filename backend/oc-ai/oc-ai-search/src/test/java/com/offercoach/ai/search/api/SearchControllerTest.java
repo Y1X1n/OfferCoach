@@ -9,7 +9,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.client.DeepSeekToolsClient;
@@ -21,6 +20,7 @@ import com.offercoach.ai.tools.log.ToolCallLogger;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 内部检索端点：鉴权、能力开关、入参校验与调用日志。

@@ -1,8 +1,5 @@
 package com.offercoach.app.account;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import java.time.OffsetDateTime;
@@ -12,6 +9,9 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 个人数据导出：只读聚合当前用户的主数据、额度流水、简历/JD、会话、回答与报告。
@@ -237,7 +237,7 @@ public class AccountDataExportService {
         }
         try {
             return objectMapper.readTree(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return null;
         }
     }

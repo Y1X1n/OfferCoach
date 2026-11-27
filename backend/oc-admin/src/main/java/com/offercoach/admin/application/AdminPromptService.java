@@ -1,6 +1,5 @@
 package com.offercoach.admin.application;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.offercoach.admin.application.model.AdminModels.PromptTemplate;
 import com.offercoach.admin.application.model.AdminModels.PromptVersion;
 import com.offercoach.admin.application.port.AdminPromptRepository;
@@ -16,6 +15,7 @@ import java.util.regex.Pattern;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Prompt 模板与版本管理：版本不可变，同一模板最多一个 PUBLISHED 版本。

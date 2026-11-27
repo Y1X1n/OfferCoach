@@ -1,10 +1,10 @@
 package com.offercoach.interview.support;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * JSON 序列化边界；解析失败抛 IllegalArgumentException，由调用方决定降级。
@@ -23,7 +23,7 @@ public class JsonCodec {
     public String write(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new IllegalArgumentException("JSON 序列化失败", ex);
         }
     }
@@ -34,7 +34,7 @@ public class JsonCodec {
         }
         try {
             return objectMapper.readValue(json, MAP_TYPE);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new IllegalArgumentException("JSON 解析失败", ex);
         }
     }
@@ -45,7 +45,7 @@ public class JsonCodec {
         }
         try {
             return objectMapper.readValue(json, type);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new IllegalArgumentException("JSON 解析失败", ex);
         }
     }

@@ -1,6 +1,6 @@
 package com.offercoach.admin.api.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * 审计日志响应；before/after 原样返回脱敏 JSONB。

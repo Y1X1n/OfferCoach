@@ -11,7 +11,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.error.ToolErrorKind;
@@ -28,6 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 岗位抓取的缓存与配额语义：能力关闭不计数、失败归还并保留失败原因、命中保留标题。

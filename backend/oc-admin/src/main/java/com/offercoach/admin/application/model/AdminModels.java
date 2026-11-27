@@ -1,11 +1,11 @@
 package com.offercoach.admin.application.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import tools.jackson.databind.JsonNode;
 
 /**
  * 管理端应用层视图与分页模型；持久化层与 API 层都只依赖本类中的只读结构。

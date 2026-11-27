@@ -1,6 +1,5 @@
 package com.offercoach.interview.session.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
 import com.offercoach.interview.session.domain.InterviewQuestion;
 import com.offercoach.interview.support.JsonCodec;
@@ -9,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.type.TypeReference;
 
 /**
  * 题目仓储实现：referencePoints 从 JSONB 文本解析，解析失败按空列表处理。

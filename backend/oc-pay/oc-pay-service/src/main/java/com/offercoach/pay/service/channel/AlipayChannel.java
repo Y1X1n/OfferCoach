@@ -1,8 +1,5 @@
 package com.offercoach.pay.service.channel;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.offercoach.pay.config.PayProperties;
 import com.offercoach.pay.service.config.PayChannelProperties;
 import com.offercoach.pay.service.config.PayOpsProperties;
@@ -31,6 +28,9 @@ import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * 支付宝渠道适配（{@code alipay.trade.precreate} 扫码支付为主）。

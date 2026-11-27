@@ -1,7 +1,5 @@
 package com.offercoach.gateway;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -19,6 +17,8 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 拒绝外部访问 /internal/** 服务间接口，直接返回 403，不转发到后端。
@@ -66,7 +66,7 @@ public class InternalPathBlockFilter implements WebFilter {
         body.put("timestamp", OffsetDateTime.now(ZoneOffset.UTC).toString());
         try {
             return objectMapper.writeValueAsBytes(body);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             return FALLBACK_BODY;
         }
     }

@@ -1,8 +1,5 @@
 package com.offercoach.admin.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.admin.application.model.AdminModels.Experiment;
 import com.offercoach.admin.application.port.AdminExperimentRepository;
 import java.time.OffsetDateTime;
@@ -11,6 +8,9 @@ import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * A/B 实验仓储：variants/guardrails 以 JSONB 文本出入。
@@ -120,7 +120,7 @@ public class AdminExperimentRepositoryImpl implements AdminExperimentRepository 
         }
         try {
             return objectMapper.readTree(json);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("JSONB 解析失败", exception);
         }
     }

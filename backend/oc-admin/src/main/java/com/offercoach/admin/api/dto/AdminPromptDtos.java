@@ -1,9 +1,9 @@
 package com.offercoach.admin.api.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Prompt 管理请求与响应。

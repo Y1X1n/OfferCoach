@@ -3,12 +3,12 @@ package com.offercoach.ai.tools.gateway;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.error.ToolErrorKind;
 import com.offercoach.ai.tools.error.ToolException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 工具网关纯逻辑：内部端点响应体解析与错误码识别。
