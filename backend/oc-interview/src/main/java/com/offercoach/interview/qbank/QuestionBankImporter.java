@@ -144,11 +144,11 @@ public class QuestionBankImporter implements ApplicationRunner {
         String dimension = upper(text(node, "dimension"));
         String difficulty = upper(text(node, "difficulty"));
         String stem = text(node, "stem");
-        if (!DIMENSIONS.contains(dimension)) {
+        if (dimension == null || !DIMENSIONS.contains(dimension)) {
             stats.fail(lineNumber, "invalid dimension");
             return;
         }
-        if (!DIFFICULTIES.contains(difficulty)) {
+        if (difficulty == null || !DIFFICULTIES.contains(difficulty)) {
             stats.fail(lineNumber, "invalid difficulty");
             return;
         }
@@ -224,7 +224,10 @@ public class QuestionBankImporter implements ApplicationRunner {
         if (value == null || value.isNull()) {
             return null;
         }
-        String text = value.asText();
+        // 必须给默认值：Jackson 3 的无参 asText() 在对象/数组节点上抛 JsonNodeException，
+        // 而 Jackson 2 返回 ""。run() 外层只 catch (IOException)，一抛就会让 ApplicationRunner
+        // 失败、整个应用起不来——一行脏数据不该有这种杀伤力。
+        String text = value.asText(null);
         return text == null || text.isBlank() ? null : text.strip();
     }
 
