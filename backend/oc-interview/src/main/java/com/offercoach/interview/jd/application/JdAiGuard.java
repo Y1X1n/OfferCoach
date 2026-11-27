@@ -1,11 +1,10 @@
 package com.offercoach.interview.jd.application;
 
 import com.offercoach.common.cache.RedisKeys;
+import com.offercoach.common.time.BusinessDate;
 import com.offercoach.identity.application.quota.RedisCounterGuard;
 import com.offercoach.interview.config.InterviewProperties;
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import org.springframework.stereotype.Component;
 
 /**
@@ -35,7 +34,7 @@ public class JdAiGuard {
         if (limit <= 0) {
             return;
         }
-        String key = RedisKeys.dailyJdAi(userId, LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE));
+        String key = RedisKeys.dailyJdAi(userId, BusinessDate.todayKey());
         counterGuard.tryAcquireOrThrow(key, limit, TTL, "JD_AI");
     }
 }

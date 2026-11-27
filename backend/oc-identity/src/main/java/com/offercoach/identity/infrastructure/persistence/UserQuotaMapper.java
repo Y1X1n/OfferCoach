@@ -2,6 +2,7 @@ package com.offercoach.identity.infrastructure.persistence;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import java.time.LocalDate;
+import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -120,6 +121,20 @@ public interface UserQuotaMapper extends BaseMapper<UserQuotaDO> {
             @Param("resumeAdd") int resumeAdd,
             @Param("today") LocalDate today,
             @Param("nextPeriodEnd") LocalDate nextPeriodEnd);
+
+    /**
+     * 找出周期已到期的用户，供定时任务分批续发。
+     *
+     * <p>按 period_end 升序，配合 {@code idx_user_quota_period_end} 只扫索引前缀，避免全表。</p>
+     */
+    @Select(
+            """
+            SELECT user_id FROM user_quota
+            WHERE period_end IS NOT NULL AND period_end <= #{today}
+            ORDER BY period_end
+            LIMIT #{limit}
+            """)
+    List<Long> findExpiredPeriodUserIds(@Param("today") LocalDate today, @Param("limit") int limit);
 
     /**
      * 购买成功后切换套餐并刷新有效期；不调整余额（额度由调用方单独追加）。

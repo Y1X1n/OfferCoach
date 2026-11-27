@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
+import com.offercoach.common.time.BusinessDate;
 import com.offercoach.identity.application.port.QuotaRepository;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.identity.config.QuotaProperties;
@@ -70,7 +71,7 @@ public class QuotaService {
             plan = syntheticFreePlan();
         }
         String effectivePlanCode = plan.code() == null || plan.code().isBlank() ? FREE_PLAN_CODE : plan.code();
-        LocalDate today = LocalDate.now();
+        LocalDate today = businessDate();
         quotaRepository.insertQuotaIfAbsent(new QuotaAccount(
                 userId,
                 effectivePlanCode,
@@ -111,7 +112,7 @@ public class QuotaService {
      */
     @Transactional
     public QuotaSnapshot snapshot(long userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = businessDate();
         QuotaAccount quota = quotaRepository.findQuota(userId).orElse(null);
         if (quota == null) {
             initializeQuota(userId, FREE_PLAN_CODE);
@@ -168,8 +169,10 @@ public class QuotaService {
 
     /**
      * 周期到期续发：降级 FREE 并按运行时策略续发月度额度；流水幂等，可重复调用。
+     *
+     * @return 是否真的发生了续发（未到期或已被并发请求处理时返回 false）
      */
-    private void renewPeriod(long userId, QuotaAccount quota, LocalDate today) {
+    private boolean renewPeriod(long userId, QuotaAccount quota, LocalDate today) {
         PlatformSettingsService.Snapshot settings = settingsService.snapshot();
         int interviewAdd = Math.max(0, settings.freeMonthlyInterviews());
         int resumeAdd = Math.max(0, settings.freeMonthlyResumes());
@@ -177,7 +180,7 @@ public class QuotaService {
         boolean renewed = quotaRepository.renewExpired(
                 userId, FREE_PLAN_CODE, interviewAdd, resumeAdd, today, today.plusMonths(1));
         if (!renewed) {
-            return;
+            return false;
         }
         QuotaAccount after = quotaRepository.findQuota(userId).orElse(null);
         int interviewBalance = after == null ? interviewAdd : after.interviewCredits();
@@ -190,6 +193,32 @@ public class QuotaService {
                 oldPeriodEnd,
                 interviewAdd,
                 resumeAdd);
+        return true;
+    }
+
+    /**
+     * 结算单个用户的到期周期；供定时任务调用，也可安全重复执行。
+     *
+     * <p>与 {@link #snapshot} 内的懒续发共用同一段逻辑与幂等流水键，所以两条路径
+     * 同时命中不会重复发放。额度行不存在时视为无需结算（新用户由注册流程初始化）。</p>
+     *
+     * @return 是否续发
+     */
+    @Transactional
+    public boolean renewIfExpired(long userId) {
+        LocalDate today = businessDate();
+        QuotaAccount quota = quotaRepository.findQuota(userId).orElse(null);
+        if (quota == null || quota.periodEnd() == null || today.isBefore(quota.periodEnd())) {
+            return false;
+        }
+        return renewPeriod(userId, quota, today);
+    }
+
+    /**
+     * 业务时区的「今天」；所有日额度 / 每日上限 / 周期边界都以此为准。
+     */
+    public static LocalDate businessDate() {
+        return BusinessDate.today();
     }
 
     private void insertRenewalLedger(
@@ -246,7 +275,7 @@ public class QuotaService {
         if (cap <= 0) {
             return;
         }
-        LocalDate today = LocalDate.now();
+        LocalDate today = businessDate();
         int updated = quotaRepository.incrementDailyIfUnderCap(userId, today, cap);
         if (updated == 0) {
             throw new BizException(ErrorCode.QUOTA_EXCEEDED, Map.of("type", "DAILY_SESSION", "cap", cap));
@@ -264,7 +293,7 @@ public class QuotaService {
         if (cap <= 0) {
             return;
         }
-        String key = RedisKeys.dailyResumeParse(userId, LocalDate.now().format(DAY_KEY));
+        String key = RedisKeys.dailyResumeParse(userId, businessDate().format(DAY_KEY));
         if (!counterGuard.tryAcquire(key, cap, DAILY_RESUME_PARSE_TTL)) {
             throw new BizException(ErrorCode.QUOTA_EXCEEDED, Map.of("type", "DAILY_RESUME_PARSE", "cap", cap));
         }
