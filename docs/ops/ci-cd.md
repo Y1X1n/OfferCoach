@@ -61,11 +61,13 @@
 |---|---|---|
 | 前端 | Nginx 静态镜像 | `offercoach-web:<version>` |
 | Java 服务 | JRE 镜像（单 jar） | `offercoach-<component>:<version>` |
-| AI 服务 | Python 镜像（uv 依赖） | `offercoach-ai:<version>` |
-| Worker | JRE 镜像 | `offercoach-report-worker:<version>` |
 | 迁移 Job | 同 Java 镜像，执行 Flyway | 复用 `offercoach-app:<version>` |
 
-- 组件码：`gateway`、`identity`、`interview`、`admin`、`worker`、`ai`、`web`。
+> AI 工具服务（asr/tts/ocr/search/fetch）当前同样是 Java + JRE 镜像，不是 Python；
+> 早期设计里的 Python `offercoach-ai` 镜像与独立 `offercoach-report-worker` 镜像均未实现
+> （报告生成跑在 `oc-app` 进程内）。
+
+- 组件码：`gateway`、`app`、`ai-asr`、`ai-tts`、`ai-ocr`、`ai-search`、`ai-fetch`、`pay`、`web`。
 - 版本号 `major.minor.patch[-stage]`，不带 `v`；镜像 tag 与 git tag 一致。
 - 构建产物必须带 SBOM（CycloneDX）与镜像签名（cosign，V1.1）。
 

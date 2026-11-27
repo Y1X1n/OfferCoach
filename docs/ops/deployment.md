@@ -1,6 +1,6 @@
 # 部署与环境
 
-> 状态：生效 ｜ 版本：v1.5 ｜ 更新：2026-11-27
+> 状态：生效 ｜ 版本：v1.6 ｜ 更新：2026-11-27
 > 开发：Docker Compose ｜ 生产：Kubernetes + Helm
 > 关联：[架构](../design/architecture.md)、[后端规范](../dev/backend.md)、[CI/CD](ci-cd.md)、[可观测性](observability.md)
 
@@ -35,26 +35,32 @@ docker compose up -d --build   # 前端 http://localhost:8082
 
 ### 2.2 服务清单
 
-| 服务 | 端口 | 说明 |
-|---|---|---|
-| frontend | 5174 | Vite dev server（5173 常被其他本地进程占用） |
-| gateway | 8080 | 统一入口 |
-| identity / interview / admin | 8081–8083 | 业务服务（单体模式只起 app） |
-| ai-asr / ai-tts / ai-ocr | 8094 / 8095 / 8096 | AI 工具服务，仅内网可达，由 oc-app 调用；见 [ai-tools-prd.md](../design/ai-tools-prd.md) §4 |
-| ai-search / ai-fetch | 8097 / 8098 | 联网检索 / 抓取服务，仅内网可达，用于目标岗位 JD 获取；见 [ai-jd-web-prd.md](../design/ai-jd-web-prd.md) §3 |
-| pay | 8099 | 支付服务（`oc-pay-service`），仅内网可达；渠道回调 `/pay/notify/*` 经 Nginx 反代暴露；见 [payment.md](../design/payment.md) |
-| report-worker | — | 无 HTTP |
-| ai-orchestrator | 8000 | FastAPI |
-| postgres | 5432 | 主库 |
-| redis | 6379 | 缓存/限流 |
-| rabbitmq | 5672 / 15672 | 消息/管理台 |
-| milvus | 19530 | 向量库 |
-| etcd / minio-milvus | 2379 / 9001 | Milvus 依赖 |
-| minio | 9000 / 9001 | 对象存储 |
-| prometheus / grafana | 9090 / 3000 | 监控 |
-| tempo / loki | 3200 / 3100 | 链路/日志 |
+> **当前实际运行的服务**见 §2.1 的 `compose.yaml`（PostgreSQL + Redis + oc-app + Nginx）与下表标注为
+> “已实现”的条目。标 **目标架构** 的条目在当前仓库中**没有对应代码或依赖**，保留的是拆分微服务后的
+> 设计意图，不要照此部署。
+
+| 服务 | 端口 | 状态 | 说明 |
+|---|---|---|---|
+| frontend | 5174 | 已实现 | Vite dev server（5173 常被其他本地进程占用）；容器内由 Nginx 提供 |
+| gateway | 8080 | 已实现 | 统一入口（Spring Cloud Gateway） |
+| identity / interview / admin | 8081–8083 | 已实现 | 业务服务（单体模式只起 oc-app） |
+| ai-asr / ai-tts / ai-ocr | 8094 / 8095 / 8096 | 已实现 | AI 工具服务，仅内网可达，由 oc-app 调用；见 [ai-tools-prd.md](../design/ai-tools-prd.md) §4 |
+| ai-search / ai-fetch | 8097 / 8098 | 已实现 | 联网检索 / 抓取服务，仅内网可达，用于目标岗位 JD 获取；见 [ai-jd-web-prd.md](../design/ai-jd-web-prd.md) §3 |
+| pay | 8099 | 已实现 | 支付服务（`oc-pay-service`），仅内网可达；渠道回调 `/pay/notify/*` 经 Nginx 反代暴露；见 [payment.md](../design/payment.md) |
+| postgres | 5432 | 已实现 | 主库 |
+| redis | 6379 | 已实现 | 缓存/限流 |
+| prometheus / grafana | 9090 / 3000 | 已实现 | 监控 |
+| ai-orchestrator | 8000 | **目标架构** | FastAPI 服务，尚未实现；AI 调用当前由 `oc-ai` 五个工具服务承担 |
+| rabbitmq | 5672 / 15672 | **目标架构** | 消息队列，尚未实现；当前用进程内调度与 Redis |
+| milvus | 19530 | **目标架构** | 向量库，尚未实现；当前用 `pg_trgm` + 关键词打分 |
+| etcd / minio-milvus | 2379 / 9001 | **目标架构** | Milvus 依赖，随 Milvus 一同延后 |
+| minio | 9000 / 9001 | **目标架构** | 对象存储，尚未实现；当前用本地卷 `appdata` |
+| tempo / loki | 3200 / 3100 | **目标架构** | 链路/日志，尚未实现 |
 
 ### 2.3 Compose 关键片段
+
+> **注意**：以下片段描述的是**目标架构**（含 RabbitMQ / Milvus / MinIO / FastAPI `ai-orchestrator`），
+> 当前仓库**没有**对应实现，照此执行会失败。真实可用的编排见根目录 `compose.yaml`（§2.1）。
 
 ```yaml
 services:
@@ -191,8 +197,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--worker
 | identity | 3 | 500m / 1 | 512Mi / 1Gi | 3–8 |
 | interview | 3 | 750m / 1.5 | 768Mi / 1.5Gi | 3–12，CPU 70% |
 | admin | 2 | 300m / 500m | 384Mi / 768Mi | 2–4 |
-| ai-orchestrator | 4 | 1 / 2 | 2Gi / 4Gi | 4–20，CPU 65% + 活跃 SSE |
-| report-worker | 2 | 500m / 1 | 512Mi / 1Gi | 2–6，队列深度 |
+| ai-orchestrator | 4 | 1 / 2 | 2Gi / 4Gi | 4–20，CPU 65% + 活跃 SSE（目标架构） |
 | frontend | 2 | 100m / 300m | 128Mi / 256Mi | 2–4 |
 
 - `ai-orchestrator` 的 HPA 同时参考 `oc_sse_active_connections`（Prometheus Adapter）；仅 CPU 会低估长连接负载。

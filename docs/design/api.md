@@ -1,8 +1,12 @@
 # API 接口契约
 
-> 状态：生效 ｜ 版本：v1.8 ｜ 更新：2026-11-09
+> 状态：生效 ｜ 版本：v1.9 ｜ 更新：2026-11-27
 > Base URL：`https://api.offercoach.example.com/api/v1` ｜ 内部接口：`http://<service>/internal/v1`
 > 关联：[数据模型](./data-model.md)、[前端规范](../dev/frontend.md)、[契约流程](../dev/workflow.md)
+
+> **内部接口表中标注 `ai-orchestrator` / `report-worker` 的行是目标架构，当前未实现。**
+> 现状：AI 调用由 `oc-ai` 五个工具服务承担，报告生成在 `oc-interview` 进程内完成，
+> 不存在 `/internal/v1/reports:generate` 端点。判断实现状态以代码为准。
 
 ## 0. 接口总览
 

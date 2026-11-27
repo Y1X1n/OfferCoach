@@ -25,7 +25,6 @@
     <module>oc-identity</module>
     <module>oc-interview</module>
     <module>oc-admin</module>
-    <module>oc-report-worker</module>
     <module>oc-gateway</module>
     <module>oc-app</module>
   </modules>

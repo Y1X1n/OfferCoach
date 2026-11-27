@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.35 ｜ 更新：2026-11-27
+> 状态：生效 ｜ 版本：v2.36 ｜ 更新：2026-11-27
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,13 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.36（2026-11-27）——删除空模块 oc-report-worker，文档与实现对齐
+
+- **删除 `oc-report-worker`**：该模块自初始导入起只有 `package-info.java`（4 行），从未有过代码。报告生成实际在 `oc-interview` 的 `ReportGenerationWorker`（进程内 `@Scheduled` 领取）。一并清理 `oc-app` 对它的依赖、`oc-pay` enforcer 的排除项、ArchUnit 里的 `com.offercoach.report..` 包名。Maven 模块 18 → 17。
+- **修正文档中的虚构架构**：`dev/backend.md` 曾把该模块描述为「RabbitMQ 消费者 + 报告编排」，`design/api.md` 列出一个从不存在的 `POST /internal/v1/reports:generate`，`ops/deployment.md` 把它列为部署服务并给了 HPA 配置。
+- **标记目标架构**：`design/architecture.md`、`overview.md` 里的 `ai-orchestrator`（Python/FastAPI）、RabbitMQ、Milvus、MinIO 在仓库中都没有对应实现，加顶部说明区分「目标架构」与「当前实现」，保留设计意图但不冒充现状。
+- **README 规模表按实测刷新**：模块表与总量表原为过期数据（353 文件/31,506 行 → 403/36,076；HTTP 端点 84 → 101；业务表 23 → 28）。
 
 ### v2.35（2026-11-27）——Jackson 2 → 3 全量迁移
 

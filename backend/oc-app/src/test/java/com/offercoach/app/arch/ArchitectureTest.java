@@ -50,9 +50,5 @@ class ArchitectureTest {
             .resideInAPackage("com.offercoach.ai..")
             .should()
             .dependOnClassesThat()
-            .resideInAnyPackage(
-                    "com.offercoach.interview..",
-                    "com.offercoach.admin..",
-                    "com.offercoach.identity..",
-                    "com.offercoach.report..");
+            .resideInAnyPackage("com.offercoach.interview..", "com.offercoach.admin..", "com.offercoach.identity..");
 }

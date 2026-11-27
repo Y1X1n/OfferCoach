@@ -38,7 +38,6 @@
                     <exclude>com.offercoach:oc-identity</exclude>
                     <exclude>com.offercoach:oc-interview</exclude>
                     <exclude>com.offercoach:oc-admin</exclude>
-                    <exclude>com.offercoach:oc-report-worker</exclude>
                     <exclude>com.offercoach:oc-gateway</exclude>
                     <exclude>com.offercoach:oc-app</exclude>
                   </excludes>

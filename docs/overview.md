@@ -1,6 +1,6 @@
 # 项目总览：产品与架构
 
-> 状态：生效 ｜ 版本：v1.2 ｜ 更新：2026-11-07
+> 状态：生效 ｜ 版本：v1.3 ｜ 更新：2026-11-27
 > **什么时候读**：第一次接触项目，或要判断“这个功能属于哪一层 / 选型为什么这么定”时。
 > 逐项展开：**要做什么** → [requirements.md](requirements.md)；**怎么设计** → [design/](design/)；**怎么干活** → [dev/](dev/)；**做到哪了** → [CHANGELOG.md](CHANGELOG.md)。
 
@@ -33,11 +33,17 @@
 
 | 部署形态 | 组成 | 说明 |
 |---|---|---|
-| 本地开发 | Docker Compose：PG / Redis / RabbitMQ / Milvus / MinIO + 服务 + 前端 | 一键起；见 [ops/deployment.md](ops/deployment.md) |
+| 本地开发 | Docker Compose：PG / Redis / oc-app / Nginx | 一键起；见 [ops/deployment.md](ops/deployment.md) §2.1 |
 | 预发 | Helm + 脱敏数据 + 真实 AI 小流量 | 跑 E2E、压测、迁移演练 |
 | 生产 | K8s + Helm；Gateway 统一入口；AI 服务独立扩容 | 灰度发布；见 [ops/ci-cd.md](ops/ci-cd.md) |
 
 ## 3. 总体架构
+
+> **下图是目标架构，不是当前实现。** 当前代码里没有 `ai-orchestrator`（Python/FastAPI）、
+> `report-worker`（独立进程）、RabbitMQ、Milvus、MinIO —— 实际为：`oc-ai` 五个 Java 工具服务、
+> `oc-interview` 进程内报告调度、Redis、PostgreSQL `pg_trgm`、本地卷存储。
+> 详见 [design/architecture.md](design/architecture.md) 顶部说明与
+> [ops/deployment.md](ops/deployment.md) §2.2 的状态列。
 
 ```mermaid
 flowchart TB
