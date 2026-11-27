@@ -20,6 +20,17 @@ class JobFamilyClassifierTest {
     }
 
     @Test
+    void infersIndustryFamiliesForNonTechRoles() {
+        assertThat(JobFamilyClassifier.infer("内科病房注册护士", "负责责任制护理与院感防控")).isEqualTo("医疗健康");
+        assertThat(JobFamilyClassifier.infer("大客户销售经理", "负责渠道拓展与商务谈判")).isEqualTo("销售");
+        assertThat(JobFamilyClassifier.infer("财务主管", "负责总账、税务与成本核算")).isEqualTo("财务");
+        assertThat(JobFamilyClassifier.infer("HRBP", "负责招聘、绩效与组织发展")).isEqualTo("人力资源");
+        assertThat(JobFamilyClassifier.infer("产品经理", "负责需求分析与 PRD")).isEqualTo("产品");
+        assertThat(JobFamilyClassifier.isIndustryFamily("医疗健康")).isTrue();
+        assertThat(JobFamilyClassifier.isIndustryFamily("后端")).isFalse();
+    }
+
+    @Test
     void fallsBackToBodyWhenTitleHasNoSignal() {
         assertThat(JobFamilyClassifier.infer("工程师", "3 年以上 Java 后端经验，熟悉 Spring 与 MySQL"))
                 .isEqualTo("后端");

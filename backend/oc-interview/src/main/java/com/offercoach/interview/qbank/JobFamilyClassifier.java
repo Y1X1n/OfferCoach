@@ -3,6 +3,7 @@ package com.offercoach.interview.qbank;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 岗位族推断与归一化：把 JD 标题/正文映射到岗位族，供出题检索与行业题库沉淀使用。
@@ -13,6 +14,10 @@ import java.util.Map;
 public final class JobFamilyClassifier {
 
     public static final String DEFAULT_FAMILY = "通用";
+
+    /** 非技术行业族：没有对应题库时宁可走通用模板，也不要拿技术题凑数。 */
+    private static final Set<String> INDUSTRY_FAMILIES =
+            Set.of("医疗健康", "教育培训", "销售", "市场营销", "运营", "财务", "法务", "人力资源", "产品", "设计", "供应链");
 
     private static final Map<String, String> ALIASES = Map.ofEntries(
             Map.entry("backend", "后端"),
@@ -78,6 +83,11 @@ public final class JobFamilyClassifier {
             }
         }
         return DEFAULT_FAMILY;
+    }
+
+    /** 是否为非技术行业族。 */
+    public static boolean isIndustryFamily(String family) {
+        return family != null && INDUSTRY_FAMILIES.contains(family);
     }
 
     /**

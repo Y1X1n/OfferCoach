@@ -105,6 +105,11 @@ public class QuestionBankRetriever implements QuestionRetriever {
     private List<QuestionBankDO> collectCandidates(String family) {
         Map<Long, QuestionBankDO> merged = new LinkedHashMap<>();
         merge(merged, questionBankMapper.selectPublishedByFamily(family, CANDIDATE_LIMIT));
+        // 行业族（护理/销售/财务等）命中不足时，用通用题库或技术题凑数只会答非所问，
+        // 直接返回空让上层走行业无关的模板题。
+        if (JobFamilyClassifier.isIndustryFamily(family)) {
+            return new ArrayList<>(merged.values());
+        }
         if (!JobFamilyClassifier.DEFAULT_FAMILY.equals(family)) {
             merge(
                     merged,
