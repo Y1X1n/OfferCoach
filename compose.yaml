@@ -1,0 +1,141 @@
+# OfferCoach 一键部署：PostgreSQL + Redis + oc-app + 前端 Nginx。
+# 用法：cp .env.example .env && docker compose up -d --build
+# 仅用于本地/演示环境；生产请按 docs/ops/deployment.md 配置独立密钥与 HTTPS。
+# AI 工具服务与支付服务仍按 README 在宿主机运行（默认经 host.docker.internal 访问）。
+name: offercoach
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: offercoach
+      POSTGRES_USER: oc
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-change_me_local}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oc -d offercoach"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    logging: *default-logging
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - volatile-lru
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+    restart: unless-stopped
+
+  oc-app:
+    build:
+      context: ./backend
+      dockerfile: oc-app/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: 8081
+      DB_URL: jdbc:postgresql://postgres:5432/offercoach
+      DB_USER: oc
+      DB_PASSWORD: ${PG_PASSWORD:-change_me_local}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      STORAGE_ROOT: /data/storage
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8082,http://127.0.0.1:8082}
+      DEMO_ENABLED: ${DEMO_ENABLED:-false}
+      DEMO_EMAIL: ${DEMO_EMAIL:-demo@offercoach.dev}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      DEV_VERIFY_CODE_ENABLED: ${DEV_VERIFY_CODE_ENABLED:-true}
+      ADMIN_ENABLED: ${ADMIN_ENABLED:-false}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      OC_AI_SECRET: ${OC_AI_SECRET:-}
+      OC_AI_INTERNAL_TOKEN: ${OC_AI_INTERNAL_TOKEN:-}
+      AI_ASR_BASE_URL: ${AI_ASR_BASE_URL:-http://host.docker.internal:8094}
+      AI_TTS_BASE_URL: ${AI_TTS_BASE_URL:-http://host.docker.internal:8095}
+      AI_OCR_BASE_URL: ${AI_OCR_BASE_URL:-http://host.docker.internal:8096}
+      AI_SEARCH_BASE_URL: ${AI_SEARCH_BASE_URL:-http://host.docker.internal:8097}
+      AI_FETCH_BASE_URL: ${AI_FETCH_BASE_URL:-http://host.docker.internal:8098}
+      OC_PAY_BASE_URL: ${OC_PAY_BASE_URL:-http://host.docker.internal:8099}
+      OC_PAY_INTERNAL_TOKEN: ${OC_PAY_INTERNAL_TOKEN:-}
+      # 可信代理：由前端 Nginx 以 X-Proxy-Secret 发出；两者必须一致，留空则忽略代理头。
+      AUTH_PROXY_SECRET: ${AUTH_PROXY_SECRET:-}
+      # 运维参数透传（留空即用应用默认值）。
+      SCHEDULING_POOL_SIZE: ${SCHEDULING_POOL_SIZE:-4}
+      RETENTION_AI_CALL_DAYS: ${RETENTION_AI_CALL_DAYS:-90}
+      RETENTION_AUDIT_DAYS: ${RETENTION_AUDIT_DAYS:-1095}
+      RETENTION_PAYMENT_NOTIFY_DAYS: ${RETENTION_PAYMENT_NOTIFY_DAYS:-180}
+      SUBSCRIPTION_EXPIRY_CRON: ${SUBSCRIPTION_EXPIRY_CRON:-0 10 3 * * *}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${APP_PORT:-8081}:8081"
+    volumes:
+      - appdata:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    logging: *default-logging
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+    environment:
+      # 透传给 Nginx 模板，由它作为 X-Proxy-Secret 发给 oc-app（见 docker/default.conf.template）。
+      AUTH_PROXY_SECRET: ${AUTH_PROXY_SECRET:-}
+    ports:
+      - "${WEB_PORT:-8082}:80"
+    depends_on:
+      oc-app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    logging: *default-logging
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  appdata:

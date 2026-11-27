@@ -1,6 +1,6 @@
 # 部署与环境
 
-> 状态：生效 ｜ 版本：v1.4 ｜ 更新：2026-11-08
+> 状态：生效 ｜ 版本：v1.5 ｜ 更新：2026-11-27
 > 开发：Docker Compose ｜ 生产：Kubernetes + Helm
 > 关联：[架构](../design/architecture.md)、[后端规范](../dev/backend.md)、[CI/CD](ci-cd.md)、[可观测性](observability.md)
 
@@ -19,7 +19,21 @@
 
 ## 2. 本地一键启动
 
-### 2.1 服务清单
+### 2.1 一键部署（Docker Compose）
+
+根目录 `compose.yaml` 提供完整前后端容器化启动（PostgreSQL + Redis + oc-app + Nginx）：
+
+```bash
+cp .env.example .env
+docker compose up -d --build   # 前端 http://localhost:8082
+```
+
+- 前后端镜像均为多阶段构建，无需宿主机 JDK / Maven / Node / pnpm。
+- `oc-app` 数据落在 `appdata` 卷；`docker compose down -v` 会同时删除数据库与上传文件。
+- AI 工具服务（8094–8098）与 oc-pay（8099）暂未纳入该 compose，按 §2.2 在宿主机启动；容器默认通过 `host.docker.internal` 访问。
+- 该 compose 使用 local profile 与临时 JWT 密钥，仅用于本地/演示；生产按 §4 与 §8 部署。
+
+### 2.2 服务清单
 
 | 服务 | 端口 | 说明 |
 |---|---|---|
@@ -40,7 +54,7 @@
 | prometheus / grafana | 9090 / 3000 | 监控 |
 | tempo / loki | 3200 / 3100 | 链路/日志 |
 
-### 2.2 Compose 关键片段
+### 2.3 Compose 关键片段
 
 ```yaml
 services:

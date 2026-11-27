@@ -132,7 +132,20 @@ SECURITY.md          安全策略与漏洞上报方式
 
 ## 快速开始
 
-前置：JDK 21、Maven 3.9+、Node.js 20+、pnpm、Docker。
+**方式一：Docker 一键启动**（只需 Docker，镜像内完成前后端构建）
+
+```bash
+cp .env.example .env      # 可选：修改端口/密码；不创建也能用内置默认值启动
+docker compose up -d --build
+```
+
+启动后访问 `http://localhost:8082`，`/api` 由前端容器反代到 `oc-app`。首次构建需拉取 Maven / Node / Nginx 基础镜像。
+
+- 停止 `docker compose down`；连数据卷一起清空 `docker compose down -v`。
+- 本地默认开启固定验证码 `123456`，可直接注册；管理端需在 `.env` 中设置 `ADMIN_*`。
+- AI 工具服务与支付服务暂未纳入该 compose，按下方步骤在宿主机启动即可（容器默认经 `host.docker.internal` 访问）。
+
+**方式二：本地开发**（前置：JDK 21、Maven 3.9+、Node.js 20+、pnpm、Docker）
 
 **后端**
 
