@@ -100,6 +100,37 @@
     );
   }
 
+  // ------------------------------------------------------------------ 文件选择与下载
+  const fileStore = {};
+  const hiddenDownloads = {};
+  let fileInput = null;
+
+  function pickFile(options, imagesOnly) {
+    const opts = options || {};
+    if (!fileInput) {
+      fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.style.display = 'none';
+      document.body.appendChild(fileInput);
+    }
+    fileInput.accept = imagesOnly ? 'image/*' : '.pdf,.doc,.docx,.ppt,.pptx,image/*';
+    fileInput.value = '';
+    fileInput.onchange = function () {
+      const files = Array.prototype.slice.call(fileInput.files || []);
+      if (!files.length) {
+        opts.fail && opts.fail({ errorMessage: 'cancel' });
+        return;
+      }
+      const paths = files.map(function (file) {
+        const path = 'blob://upload/' + Date.now() + '/' + encodeURIComponent(file.name);
+        fileStore[path] = file;
+        return path;
+      });
+      opts.success && opts.success({ apFilePaths: paths, filePaths: paths });
+    };
+    fileInput.click();
+  }
+
   // ------------------------------------------------------------------ my.* 兼容层
   const storagePrefix = 'oc-preview:';
 
@@ -204,6 +235,170 @@
       navigate(options.url, 'relaunch');
     },
 
+    chooseFile: function (options) {
+      pickFile(options, false);
+    },
+
+    chooseImage: function (options) {
+      pickFile(options, true);
+    },
+
+    uploadFile: function (options) {
+      const opts = options || {};
+      const file = fileStore[opts.filePath];
+      const form = new FormData();
+      if (file) {
+        form.append(opts.fileName || 'file', file, file.name || 'upload.bin');
+      }
+      Object.keys(opts.formData || {}).forEach(function (key) {
+        form.append(key, opts.formData[key]);
+      });
+      const headers = Object.assign({}, opts.header || {});
+      delete headers['Content-Type'];
+      fetch(opts.url, { method: 'POST', headers: headers, body: form })
+        .then(function (response) {
+          return response.text().then(function (text) {
+            opts.success && opts.success({ status: response.status, data: text });
+          });
+        })
+        .catch(function (error) {
+          opts.fail && opts.fail({ errorMessage: error.message });
+        });
+    },
+
+    downloadFile: function (options) {
+      const opts = options || {};
+      fetch(opts.url, { headers: opts.header || {}, cache: 'no-store' })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error('下载失败 ' + response.status);
+          }
+          return response.blob();
+        })
+        .then(function (blob) {
+          const objectUrl = URL.createObjectURL(blob);
+          hiddenDownloads[objectUrl] = blob;
+          opts.success && opts.success({ apFilePath: objectUrl, statusCode: 200 });
+        })
+        .catch(function (error) {
+          opts.fail && opts.fail({ errorMessage: error.message });
+        });
+    },
+
+    openDocument: function (options) {
+      const opts = options || {};
+      window.open(opts.filePath, '_blank');
+      opts.success && opts.success();
+    },
+
+    createInnerAudioContext: function () {
+      const audio = new Audio();
+      return {
+        src: '',
+        play: function () {
+          audio.src = this.src;
+          audio.play().catch(function () {});
+        },
+        stop: function () {
+          audio.pause();
+        },
+        destroy: function () {
+          audio.pause();
+          audio.src = '';
+        },
+        onEnded: function (callback) {
+          audio.addEventListener('ended', callback);
+        },
+        onError: function (callback) {
+          audio.addEventListener('error', callback);
+        }
+      };
+    },
+
+    getRecorderManager: function () {
+      // 预览环境不伪造录音：真实录音需在支付宝客户端验证。
+      return null;
+    },
+
+    getAuthCode: function (options) {
+      const opts = options || {};
+      setTimeout(function () {
+        opts.success && opts.success({ authCode: 'preview-auth-code' });
+      }, 120);
+    },
+
+    tradePay: function (options) {
+      const opts = options || {};
+      if (window.__previewPayMode === 'mock') {
+        setTimeout(function () {
+          opts.success && opts.success({ resultCode: '9000' });
+        }, 300);
+        return;
+      }
+      setTimeout(function () {
+        opts.fail && opts.fail({ errorMessage: '预览环境未开启模拟支付' });
+      }, 100);
+    },
+
+    setClipboard: function (options) {
+      const opts = options || {};
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(opts.text || '').then(
+          function () {
+            opts.success && opts.success();
+          },
+          function () {
+            opts.fail && opts.fail();
+          }
+        );
+        return;
+      }
+      opts.success && opts.success();
+    },
+
+    setNavigationBar: function (options) {
+      const opts = options || {};
+      if (opts.title) {
+        TITLE_EL.textContent = opts.title;
+      }
+      if (opts.backgroundColor) {
+        document.querySelector('.navbar').style.background = opts.backgroundColor;
+      }
+    },
+
+    showActionSheet: function (options) {
+      const opts = options || {};
+      const items = opts.items || [];
+      const answer = window.prompt(
+        items.map(function (item, index) {
+          return index + 1 + '. ' + item;
+        }).join(String.fromCharCode(10)) + String.fromCharCode(10, 10) + '输入序号选择',
+        '1'
+      );
+      const index = Number(answer) - 1;
+      if (index >= 0 && index < items.length) {
+        opts.success && opts.success({ tapIndex: index });
+      } else {
+        opts.fail && opts.fail({ errorMessage: 'cancel' });
+      }
+    },
+
+    prompt: function (options) {
+      const opts = options || {};
+      const answer = window.prompt(opts.title || '', opts.value || '');
+      if (answer === null) {
+        opts.fail && opts.fail({ errorMessage: 'cancel' });
+        return;
+      }
+      opts.success && opts.success({ ok: true, inputValue: answer });
+    },
+
+    confirm: function (options) {
+      const opts = options || {};
+      const ok = window.confirm((opts.title ? opts.title + String.fromCharCode(10) : '') + (opts.content || ''));
+      opts.success && opts.success({ confirm: ok });
+    },
+
     pageScrollTo: function (options) {
       PAGE_EL.scrollTo({ top: (options && options.scrollTop) || 0, behavior: 'smooth' });
     },
@@ -291,10 +486,14 @@
 
       if (el.hasAttribute('a:for')) {
         const list = evaluate(directive(el.getAttribute('a:for')), ctx) || [];
+        const itemName = el.getAttribute('a:for-item') || 'item';
+        const indexName = el.getAttribute('a:for-index') || 'index';
         Array.prototype.forEach.call(list, function (item, itemIndex) {
           const childCtx = Object.create(ctx);
           childCtx.item = item;
           childCtx.index = itemIndex;
+          childCtx[itemName] = item;
+          childCtx[indexName] = itemIndex;
           renderElement(el, childCtx, out, path + '.' + index + '.' + itemIndex);
         });
         previousCondition = null;
@@ -473,6 +672,10 @@
     window.Page = function (definition) {
       captured = definition;
     };
+    // 页面模块每次进入都要重新执行 Page()，否则二次进入拿不到定义。
+    if (modules[base + '.js']) {
+      modules[base + '.js'].loaded = false;
+    }
     evalModule(base + '.js');
     if (!captured) {
       throw new Error('页面未调用 Page()：' + base);
