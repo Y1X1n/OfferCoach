@@ -1,8 +1,5 @@
 package com.offercoach.interview.jd.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.error.ToolException;
@@ -24,6 +21,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 岗位检索与候选缓存：查询级缓存、每日限额、候选正文短期缓存（供预览复用，避免重复计费）。
@@ -147,7 +147,7 @@ public class JdSearchCacheService {
     private <T> T readValue(String json, TypeReference<T> type) {
         try {
             return objectMapper.readValue(json, type);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", "CACHE_CORRUPTED"));
         }
     }

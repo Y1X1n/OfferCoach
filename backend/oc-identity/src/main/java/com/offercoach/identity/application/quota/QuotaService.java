@@ -1,8 +1,5 @@
 package com.offercoach.identity.application.quota;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
@@ -25,6 +22,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 额度核心服务：初始化、快照、扣减、返还与套餐查询。
@@ -420,7 +420,7 @@ public class QuotaService {
         try {
             Map<String, Object> parsed = objectMapper.readValue(featuresJson, FEATURE_MAP_TYPE);
             return parsed == null ? Map.of() : parsed;
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             log.warn("invalid subscription_plan.features json, fallback to empty map", exception);
             return Map.of();
         }

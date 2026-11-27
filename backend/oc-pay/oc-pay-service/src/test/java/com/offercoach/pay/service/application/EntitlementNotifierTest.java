@@ -10,7 +10,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.pay.config.PayProperties;
 import com.offercoach.pay.service.application.port.PaymentOrderRepository;
 import com.offercoach.pay.service.config.PayOpsProperties;
@@ -25,6 +24,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 发放失败闭环：4xx 永久拒绝直接死信；5xx 重试到上限后死信并写异常队列，不再静默放弃。
@@ -49,7 +49,7 @@ class EntitlementNotifierTest {
                 new PayProperties(),
                 orderRepository,
                 exceptions,
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().findAndAddModules().build(),
                 http);
     }
 

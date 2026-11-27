@@ -1,7 +1,5 @@
 package com.offercoach.ai.ocr.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
@@ -26,6 +24,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 内部 OCR 端点：文档 / 图片 → 逐页文本；坐标标记原样保留，由调用方决定是否清理。
@@ -127,7 +128,7 @@ public class OcrController {
             }
             return new ToolDtos.OcrResult(
                     root.path("id").asText(""), root.path("page_count").asInt(pages.size()), pages);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "识别结果解析失败", exception);
         }
     }

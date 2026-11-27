@@ -1,6 +1,5 @@
 package com.offercoach.interview.report.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.offercoach.interview.report.application.port.InterviewReportRepository;
 import com.offercoach.interview.report.domain.InterviewReport;
 import com.offercoach.interview.support.JsonCodec;
@@ -10,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.type.TypeReference;
 
 /**
  * 报告仓储实现：结构字段从 JSONB 文本解析，解析失败按空集合返回。

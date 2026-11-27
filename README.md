@@ -39,7 +39,7 @@ AI 模拟面试与简历诊断平台：上传简历与目标岗位 JD，自动�
 | 层 | 技术 |
 |---|---|
 | 前端 | Vue 3.5、TypeScript 5.6（strict）、Vite 6、Pinia 2.3、Vue Router 4.5、Tailwind CSS 3.4、Reka UI、lucide-vue-next |
-| 后端 | JDK 21、Spring Boot 4.2.0、Spring Security（OAuth2 Resource Server）、Maven 多模块、MyBatis-Plus 3.5.18 |
+| 后端 | JDK 21、Spring Boot 4.2.0、Spring Security（OAuth2 Resource Server）、Maven 多模块、MyBatis-Plus 3.5.18、Jackson 3（`tools.jackson.*`） |
 | 数据 | PostgreSQL 16（`pg_trgm`）、Redis 7.2、Flyway |
 | 文档处理 | PDFBox 3.0.3、Apache POI 5.3.0 |
 | AI | 对话走 OpenAI 兼容 `/chat/completions`；语音 / 识别 / 联网检索走 DeepSeek 工具接口 `/v1/tools/{asr,tts,ocr,search,fetch}`；运行时可切换 Base URL / Key / 模型；无 Key 时启发式 / 模板降级 |

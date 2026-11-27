@@ -1,7 +1,5 @@
 package com.offercoach.ai.fetch.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.ai.AiRuntimeConfigService;
 import com.offercoach.ai.AiScene;
 import com.offercoach.ai.tools.api.ToolDtos;
@@ -14,7 +12,6 @@ import com.offercoach.ai.tools.internal.InternalAuth;
 import com.offercoach.ai.tools.log.ToolCallLogger;
 import com.offercoach.ai.tools.validation.FetchUrlRules;
 import jakarta.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -22,6 +19,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 内部抓取端点：URL → Markdown 正文。
@@ -96,7 +96,7 @@ public class FetchController {
             }
             String title = root.path("title").isNull() ? "" : root.path("title").asText("");
             return new ToolDtos.FetchResponse(title, content);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "抓取结果解析失败", exception);
         }
     }

@@ -1,6 +1,5 @@
 package com.offercoach.admin.application;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.offercoach.admin.application.model.AdminModels.Experiment;
 import com.offercoach.admin.application.model.AdminModels.Paged;
 import com.offercoach.admin.application.model.AdminModels.PromptTemplate;
@@ -17,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
 
 /**
  * A/B 实验最小 CRUD；只维护配置与状态，不接入运行时分流。

@@ -1,8 +1,5 @@
 package com.offercoach.interview.jd.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
@@ -16,6 +13,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * JD 预览存取：未落库预览的短期缓存与"确认后落库"。
@@ -103,7 +103,7 @@ public class JdPreviewStoreService {
         StructuredPreview preview;
         try {
             preview = objectMapper.readValue(json, new TypeReference<StructuredPreview>() {});
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new BizException(
                     ErrorCode.STATE_CONFLICT, Map.of("reason", "PREVIEW_EXPIRED", "message", "预览已过期，请重新获取"));
         }

@@ -1,6 +1,5 @@
 package com.offercoach.interview.qbank;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.offercoach.interview.support.JsonCodec;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,6 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
 
 /**
  * 题库检索实现：同岗位族优先，按关键词 / tag / 字符 bigram 相似度在 Java 侧打分。

@@ -1,10 +1,10 @@
 package com.offercoach.admin.api.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import tools.jackson.databind.JsonNode;
 
 /**
  * 题库管理请求与响应；枚举校验在服务层完成，导入条目逐条容错。

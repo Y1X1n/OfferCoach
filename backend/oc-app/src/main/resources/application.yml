@@ -31,16 +31,14 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: false
-  # Boot 4 默认 JSON 栈是 Jackson 3；本服务仍用 Jackson 2（见 spring-boot-jackson2 桥），
-  # 因此配置键是 spring.jackson2.*，写回 spring.jackson.* 不会生效。
-  jackson2:
+  jackson:
     # 不设置 default-property-inclusion：null 字段按契约显式输出，前端可区分“缺失”与“null”。
-    serialization:
-      write-dates-as-timestamps: false
-  # HTTP 转换器默认会优先用 Jackson 3；显式选 jackson2，保持与上面 ObjectMapper 一致。
-  http:
-    converters:
-      preferred-json-mapper: jackson2
+    # Jackson 3 把 WRITE_DATES_AS_TIMESTAMPS 从 SerializationFeature 挪到了 DateTimeFeature，
+    # 旧写法 spring.jackson.serialization.write-dates-as-timestamps 绑定不上会直接启动失败。
+    # 3.x 的默认值已经是 false，这里显式写出是为了把「日期走 ISO 字符串、不走 epoch 数字」的契约钉住。
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
   task:
     scheduling:
       # 默认只有 1 个调度线程：保留策略一次分批删除可能跑几分钟，

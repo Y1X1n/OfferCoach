@@ -1,8 +1,5 @@
 package com.offercoach.interview.qbank;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.interview.support.JsonCodec;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -23,6 +20,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 启动时从 oc.qbank.import-path 指向的 JSONL 导入题库，按 (source_repo, source_path) 幂等。
@@ -121,7 +121,7 @@ public class QuestionBankImporter implements ApplicationRunner {
             JsonNode node = objectMapper.readTree(line);
             String repo = text(node, "sourceRepo");
             return repo != null && EXCLUDED_REPOS.contains(repo);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return false;
         }
     }
@@ -130,7 +130,7 @@ public class QuestionBankImporter implements ApplicationRunner {
         JsonNode node = null;
         try {
             node = objectMapper.readTree(line);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             RepoStats stats = statsByRepo.computeIfAbsent(DEFAULT_REPO, key -> new RepoStats());
             stats.total++;
             stats.fail(lineNumber, "invalid json");
@@ -144,11 +144,11 @@ public class QuestionBankImporter implements ApplicationRunner {
         String dimension = upper(text(node, "dimension"));
         String difficulty = upper(text(node, "difficulty"));
         String stem = text(node, "stem");
-        if (!DIMENSIONS.contains(dimension)) {
+        if (dimension == null || !DIMENSIONS.contains(dimension)) {
             stats.fail(lineNumber, "invalid dimension");
             return;
         }
-        if (!DIFFICULTIES.contains(difficulty)) {
+        if (difficulty == null || !DIFFICULTIES.contains(difficulty)) {
             stats.fail(lineNumber, "invalid difficulty");
             return;
         }
@@ -224,7 +224,10 @@ public class QuestionBankImporter implements ApplicationRunner {
         if (value == null || value.isNull()) {
             return null;
         }
-        String text = value.asText();
+        // 必须给默认值：Jackson 3 的无参 asText() 在对象/数组节点上抛 JsonNodeException，
+        // 而 Jackson 2 返回 ""。run() 外层只 catch (IOException)，一抛就会让 ApplicationRunner
+        // 失败、整个应用起不来——一行脏数据不该有这种杀伤力。
+        String text = value.asText(null);
         return text == null || text.isBlank() ? null : text.strip();
     }
 

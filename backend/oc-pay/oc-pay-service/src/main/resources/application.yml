@@ -20,14 +20,13 @@ spring:
   # 支付表由 oc-app 的 Flyway 统一管理；本服务共享同一数据库，不自行迁移。
   flyway:
     enabled: false
-  # Boot 4 默认 JSON 栈是 Jackson 3；本服务仍用 Jackson 2，故配置键是 spring.jackson2.*。
-  jackson2:
-    serialization:
-      write-dates-as-timestamps: false
-  # HTTP 转换器默认优先 Jackson 3；显式选 jackson2，保持与上面的 ObjectMapper 一致。
-  http:
-    converters:
-      preferred-json-mapper: jackson2
+  jackson:
+    # Jackson 3 把 WRITE_DATES_AS_TIMESTAMPS 从 SerializationFeature 挪到了 DateTimeFeature，
+    # 旧写法 spring.jackson.serialization.write-dates-as-timestamps 绑定不上会直接启动失败。
+    # 3.x 的默认值已经是 false，这里显式写出是为了把「日期走 ISO 字符串、不走 epoch 数字」的契约钉住。
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
 
 mybatis-plus:
   configuration:

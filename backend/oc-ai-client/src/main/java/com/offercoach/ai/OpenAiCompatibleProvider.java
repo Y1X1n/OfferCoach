@@ -1,9 +1,5 @@
 package com.offercoach.ai;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.offercoach.ai.AiRuntimeConfigService.AiRuntimeSettings;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -20,6 +16,11 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * OpenAI 兼容 /chat/completions 客户端；每次调用读取运行时配置，不记录密钥与完整提示词。
@@ -112,6 +113,9 @@ public class OpenAiCompatibleProvider implements AiProvider {
                     }
                 }
             }
+        } catch (JacksonException ex) {
+            // Jackson 3 的解析异常不再继承 IOException；调用方只认 AiUnavailableException 做降级。
+            throw new AiUnavailableException("AI 流式响应解析失败", ex);
         } catch (IOException ex) {
             throw new AiUnavailableException("AI 流式请求失败", ex);
         } catch (InterruptedException ex) {
@@ -153,6 +157,9 @@ public class OpenAiCompatibleProvider implements AiProvider {
             int tokensOut = root.path("usage").path("completion_tokens").asInt(estimateTokens(text));
             long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
             return new AiResult(text, PROVIDER, model, tokensIn, tokensOut, latencyMs);
+        } catch (JacksonException ex) {
+            // Jackson 3 的解析异常不再继承 IOException；调用方只认 AiUnavailableException 做降级。
+            throw new AiUnavailableException("AI 响应解析失败", ex);
         } catch (IOException ex) {
             throw new AiUnavailableException("AI 请求失败", ex);
         } catch (InterruptedException ex) {
@@ -184,6 +191,9 @@ public class OpenAiCompatibleProvider implements AiProvider {
             int tokensOut = root.path("usage").path("completion_tokens").asInt(estimateTokens(text));
             long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
             return new AiResult(text, PROVIDER, model, tokensIn, tokensOut, latencyMs);
+        } catch (JacksonException ex) {
+            // Jackson 3 的解析异常不再继承 IOException；调用方只认 AiUnavailableException 做降级。
+            throw new AiUnavailableException("AI 响应解析失败", ex);
         } catch (IOException ex) {
             throw new AiUnavailableException("AI 请求失败", ex);
         } catch (InterruptedException ex) {

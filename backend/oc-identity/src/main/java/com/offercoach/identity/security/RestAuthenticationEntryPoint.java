@@ -1,6 +1,5 @@
 package com.offercoach.identity.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offercoach.common.error.ApiError;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.common.trace.TraceContext;
@@ -16,6 +15,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 未认证统一输出 ApiError：仅 JWT 时间校验明确过期时返回 TOKEN_EXPIRED，

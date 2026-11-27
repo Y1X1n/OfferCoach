@@ -1,8 +1,5 @@
 package com.offercoach.ai.tools.gateway;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.offercoach.ai.tools.api.ToolDtos;
 import com.offercoach.ai.tools.config.ToolsProperties;
 import com.offercoach.ai.tools.error.ToolErrorKind;
@@ -21,6 +18,10 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * 调用 AI 工具微服务的客户端；oc-app 是它们唯一的调用方。
@@ -167,7 +168,7 @@ public class AiToolGateway {
                     root.path("requestId").asText(""),
                     root.path("text").asText(""),
                     root.path("durationMs").isNumber() ? root.path("durationMs").asInt() : null);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "ASR 结果解析失败", exception);
         }
     }
@@ -184,7 +185,7 @@ public class AiToolGateway {
             }
             return new ToolDtos.OcrResult(
                     root.path("id").asText(""), root.path("pageCount").asInt(pages.size()), pages);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "OCR 结果解析失败", exception);
         }
     }
@@ -207,7 +208,7 @@ public class AiToolGateway {
                         item.path("authority").asInt(-1)));
             }
             return results;
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "检索结果解析失败", exception);
         }
     }
@@ -217,7 +218,7 @@ public class AiToolGateway {
             JsonNode root = mapper.readTree(json);
             return new ToolDtos.FetchResponse(
                     root.path("title").asText(""), root.path("content").asText(""));
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ToolException(ToolErrorKind.UPSTREAM_FAILED, "抓取结果解析失败", exception);
         }
     }
@@ -322,7 +323,7 @@ public class AiToolGateway {
             JsonNode root = mapper.readTree(body);
             String code = root.path("code").asText("");
             return code.isBlank() ? null : ToolErrorKind.valueOf(code);
-        } catch (IOException | IllegalArgumentException exception) {
+        } catch (JacksonException | IllegalArgumentException exception) {
             return null;
         }
     }

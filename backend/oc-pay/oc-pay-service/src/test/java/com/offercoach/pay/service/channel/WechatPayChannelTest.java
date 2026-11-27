@@ -3,8 +3,6 @@ package com.offercoach.pay.service.channel;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.offercoach.pay.config.PayProperties;
 import com.offercoach.pay.service.TestKeys;
 import com.offercoach.pay.service.config.PayChannelProperties;
@@ -16,6 +14,8 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 class WechatPayChannelTest {
 
