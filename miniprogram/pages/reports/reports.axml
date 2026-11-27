@@ -1,0 +1,36 @@
+<view class="container">
+  <view class="head">
+    <view class="head-title">复盘报告</view>
+    <view class="muted small">分数趋势按最近 10 份已出分报告统计。</view>
+  </view>
+
+  <view class="card" a:if="{{trend.length}}">
+    <view class="row-between">
+      <text class="card-title">分数趋势</text>
+      <text class="tiny muted">均分 {{average}}</text>
+    </view>
+    <view class="trend">
+      <view class="trend-item" a:for="{{trend}}" a:key="id">
+        <view class="trend-bar-wrap">
+          <view class="trend-bar" style="height: {{item.percent}}%"></view>
+        </view>
+        <text class="trend-score">{{item.score}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="list" a:if="{{items.length}}">
+    <view class="list-item" a:for="{{items}}" a:key="id" data-id="{{item.id}}" onTap="open">
+      <view class="list-main">
+        <view class="list-title">{{item.title}}</view>
+        <view class="list-sub">{{item.company}} · {{item.questionCount}} 题 · {{item.dateText}}</view>
+      </view>
+      <text class="badge {{item.statusClass}}" a:if="{{item.statusText}}">{{item.statusText}}</text>
+      <text class="score" a:if="{{item.overallScore !== null}}">{{item.overallScore}}</text>
+      <text class="list-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="empty" a:if="{{!loading && !items.length}}">还没有报告，先练一场。</view>
+  <view class="safe-bottom"></view>
+</view>

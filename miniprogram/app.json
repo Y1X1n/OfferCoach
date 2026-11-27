@@ -3,7 +3,15 @@
     "pages/index/index",
     "pages/setup/setup",
     "pages/interview/interview",
-    "pages/report/report"
+    "pages/report/report",
+    "pages/reports/reports",
+    "pages/resume/list",
+    "pages/resume/detail",
+    "pages/jd/list",
+    "pages/jd/create",
+    "pages/jd/detail",
+    "pages/me/me",
+    "pages/plans/plans"
   ],
   "window": {
     "defaultTitle": "OfferCoach 面试教练",

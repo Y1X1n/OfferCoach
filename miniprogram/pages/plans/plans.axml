@@ -1,0 +1,44 @@
+<view class="container">
+  <view class="head">
+    <view class="head-title">套餐与额度</view>
+    <view class="muted small">额度按周期续发；升级后立即生效。</view>
+  </view>
+
+  <view class="plan-card {{item.code === currentPlan ? 'plan-current' : ''}}" a:for="{{plans}}" a:key="code">
+    <view class="row-between">
+      <view>
+        <text class="plan-name">{{item.name}}</text>
+        <text class="badge badge-ember" a:if="{{item.code === currentPlan}}">当前</text>
+      </view>
+      <view class="plan-price">
+        <text class="plan-amount">{{item.priceText}}</text>
+        <text class="tiny muted" a:if="{{item.priceCents > 0}}">/ {{item.periodDays}} 天</text>
+      </view>
+    </view>
+    <view class="plan-credits">
+      面试 {{item.interviewCredits}} 次 · 简历解析 {{item.resumeCredits}} 次
+    </view>
+    <view class="chip-row">
+      <text class="chip-mini" a:for="{{item.featureList}}" a:for-item="feature" a:key="*this">{{feature}}</text>
+    </view>
+    <button
+      class="btn {{item.code === currentPlan ? 'btn-ghost' : ''}}"
+      a:if="{{item.priceCents > 0}}"
+      data-code="{{item.code}}"
+      onTap="buy"
+      disabled="{{buying}}"
+    >
+      {{buying && buyingCode === item.code ? phase : '购买并支付'}}
+    </button>
+  </view>
+
+  <view class="notice">
+    <view class="notice-title">支付说明</view>
+    <view class="tiny muted">
+      支付由支付宝完成，金额与套餐以服务端为准。支付成功后额度自动到账；若通道未开通，会提示暂不可用。
+    </view>
+    <view class="tiny muted" a:if="{{channelText}}">可用渠道：{{channelText}}</view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

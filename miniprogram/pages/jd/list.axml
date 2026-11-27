@@ -1,0 +1,32 @@
+<view class="container">
+  <view class="head">
+    <view class="head-title">目标岗位</view>
+    <view class="muted small">粘贴 JD、抓取招聘链接，或直接搜索岗位。出题标准来自这里。</view>
+  </view>
+
+  <view class="btn-row">
+    <button class="btn grow" onTap="create">新增岗位 JD</button>
+  </view>
+
+  <view class="list" a:if="{{items.length}}">
+    <view class="list-item" a:for="{{items}}" a:key="id" data-id="{{item.id}}" onTap="open">
+      <view class="list-main">
+        <view class="list-title">{{item.title}}</view>
+        <view class="list-sub">
+          {{item.company || '未填写公司'}}{{item.skillsText ? ' · ' + item.skillsText : ''}}
+        </view>
+      </view>
+      <text class="badge badge-ember" a:if="{{item.matchText}}">{{item.matchText}}</text>
+      <text class="list-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="empty" a:if="{{!loading && !items.length}}">还没有岗位 JD，先新增一个。</view>
+
+  <view class="notice">
+    <view class="notice-title">关于联网获取</view>
+    <view class="tiny muted">链接抓取与搜索需要后端开启对应 AI 工具；不可用时会提示改为粘贴 JD 原文。</view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

@@ -157,3 +157,36 @@
   font-weight: 700;
   margin-bottom: 12rpx;
 }
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14rpx;
+}
+
+.action {
+  font-size: 23rpx;
+  color: #475569;
+  margin-left: 24rpx;
+}
+
+.action.danger {
+  color: #b91c1c;
+}
+
+.warn {
+  color: #b45309;
+  margin-top: 8rpx;
+}
+
+.voice {
+  margin-top: 12rpx;
+  padding: 12rpx 16rpx;
+  background: #f7f8fa;
+  border-radius: 12rpx;
+}
+
+.btn-row .btn {
+  font-size: 27rpx;
+  padding: 22rpx 0;
+}

@@ -1,0 +1,11 @@
+.invite-code {
+  font-size: 44rpx;
+  font-weight: 700;
+  letter-spacing: 6rpx;
+  color: #0f172a;
+  margin: 12rpx 0 8rpx;
+}
+
+.danger-text {
+  color: #b91c1c;
+}

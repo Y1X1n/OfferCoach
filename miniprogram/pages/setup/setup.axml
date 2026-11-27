@@ -6,51 +6,28 @@
 
   <view class="card">
     <view class="row-between">
-      <text class="card-title">你的简历</text>
-      <text class="tiny muted" data-field="resume" onTap="fillSample">填入示例</text>
+      <text class="card-title">简历</text>
+      <text class="tiny link" onTap="pickResume">更换</text>
     </view>
-    <textarea
-      class="field textarea"
-      value="{{resumeText}}"
-      placeholder="把简历文本粘贴进来：教育背景、工作经历、项目、技能。"
-      placeholder-class="placeholder"
-      maxlength="{{50000}}"
-      onInput="onResumeInput"
-    />
-    <view class="row-between meta">
-      <text class="tiny muted">至少 20 字，建议包含项目背景与量化结果</text>
-      <text class="tiny muted">{{resumeText.length}} 字</text>
+    <view class="pick" a:if="{{currentResume}}">
+      <view class="pick-title">{{currentResume.title}}</view>
+      <view class="tiny muted">{{currentResume.summary}}</view>
     </view>
+    <view class="tiny muted" a:else>还没有可用简历。</view>
+    <button class="btn btn-ghost next" a:if="{{!currentResume}}" onTap="goResume">去添加简历</button>
   </view>
 
   <view class="card">
     <view class="row-between">
       <text class="card-title">目标岗位</text>
-      <text class="tiny muted" data-field="jd" onTap="fillSample">填入示例</text>
+      <text class="tiny link" onTap="pickJd">更换</text>
     </view>
-    <view class="chips">
-      <view
-        class="chip {{job.id === activeJob ? 'chip-on' : ''}}"
-        a:for="{{jobs}}"
-        a:key="id"
-        data-id="{{item.id}}"
-        onTap="pickJob"
-      >
-        {{item.name}}
-      </view>
+    <view class="pick" a:if="{{currentJd}}">
+      <view class="pick-title">{{currentJd.title}}</view>
+      <view class="tiny muted">{{currentJd.company || '未填写公司'}} · {{currentJd.skillsText}}</view>
     </view>
-    <textarea
-      class="field textarea jd-input"
-      value="{{jdText}}"
-      placeholder="粘贴招聘 JD 原文；也可以先点上方岗位一键填入示例。"
-      placeholder-class="placeholder"
-      maxlength="{{8000}}"
-      onInput="onJdInput"
-    />
-    <view class="row-between meta">
-      <text class="tiny muted">至少 50 字</text>
-      <text class="tiny muted">{{jdText.length}} 字</text>
-    </view>
+    <view class="tiny muted" a:else>还没有岗位 JD。</view>
+    <button class="btn btn-ghost next" a:if="{{!currentJd}}" onTap="goJd">去添加岗位</button>
   </view>
 
   <view class="card">
@@ -66,12 +43,18 @@
       <view class="seg-item {{difficulty === 'MIXED' ? 'seg-on' : ''}}" data-value="MIXED" onTap="pickDifficulty">循序渐进</view>
       <view class="seg-item {{difficulty === 'HARD' ? 'seg-on' : ''}}" data-value="HARD" onTap="pickDifficulty">偏难 · 压力面</view>
     </view>
+    <view class="opt-label">面试官风格</view>
+    <view class="seg">
+      <view class="seg-item {{style === 'GENTLE' ? 'seg-on' : ''}}" data-value="GENTLE" onTap="pickStyle">温和</view>
+      <view class="seg-item {{style === 'STANDARD' ? 'seg-on' : ''}}" data-value="STANDARD" onTap="pickStyle">标准</view>
+      <view class="seg-item {{style === 'PRESSURE' ? 'seg-on' : ''}}" data-value="PRESSURE" onTap="pickStyle">压力</view>
+    </view>
   </view>
 
   <button class="btn" onTap="createInterview" disabled="{{creating}}">
     {{creating ? phase : '生成面试题'}}
   </button>
-  <view class="hint tiny muted">出题基于你的简历与 JD 语义匹配，通常 10-30 秒；不会额外扣减额度。</view>
+  <view class="hint tiny muted">出题基于简历与 JD 语义匹配，通常 10-30 秒；创建时扣 1 次面试额度。</view>
 
   <view class="safe-bottom"></view>
 </view>

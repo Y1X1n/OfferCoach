@@ -28,7 +28,10 @@ function mapReport(detail) {
         question: item.question,
         answer: item.answer,
         summary: item.summary,
-        dimensionLabel: format.dimensionLabel(item.dimension)
+        dimensionLabel: format.dimensionLabel(item.dimension),
+        strengths: (item.feedback && item.feedback.strengths) || [],
+        improvements: (item.feedback && item.feedback.improvements) || [],
+        evidence: (item.feedback && item.feedback.evidence) || []
       };
     })
   };
@@ -66,7 +69,11 @@ Page({
           self.setData({ phase: 'failed' });
           return;
         }
-        self.setData({ phase: 'ready', report: mapReport(detail) });
+        self.setData({
+          phase: 'ready',
+          report: mapReport(detail),
+          raw: { breakdownRaw: detail.questionBreakdown || [] }
+        });
       })
       .catch(function (error) {
         self.setData({ phase: 'failed' });
@@ -87,6 +94,30 @@ Page({
         self.setData({ retrying: false });
         my.showToast({ type: 'fail', content: error.message || '重试失败', duration: 2000 });
       });
+  },
+
+  exportMarkdown: function () {
+    const self = this;
+    const report = self.data.report;
+    if (!report) {
+      return;
+    }
+    const raw = self.data.raw || {};
+    api.copy(format.reportMarkdown({
+      title: report.role || report.title,
+      role: report.role,
+      company: report.company,
+      overallScore: report.overallScore,
+      questionCount: report.questionCount,
+      summary: report.summary,
+      radar: report.radar,
+      highlights: report.highlights,
+      risks: report.risks,
+      improvementPlan: report.improvementPlan,
+      questionBreakdown: raw.breakdownRaw || []
+    })).then(function () {
+      api.toast('报告已复制为 Markdown', 'success');
+    });
   },
 
   practiceAgain: function () {

@@ -1,0 +1,70 @@
+<view class="container">
+  <view a:if="{{loading}}" class="empty">加载中…</view>
+
+  <block a:if="{{!loading && jd}}">
+    <view class="head">
+      <view class="head-title detail-title">{{jd.title}}</view>
+      <view class="muted small">
+        {{jd.company || '未填写公司'}} · {{sourceText}} · {{dateText}}
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">必备技能</view>
+      <view class="chip-row" a:if="{{mustHave.length}}">
+        <text class="chip-mini" a:for="{{mustHave}}" a:key="*this">{{item}}</text>
+      </view>
+      <view class="tiny muted" a:else>未识别到必备技能</view>
+      <view class="chip-row" a:if="{{niceToHave.length}}">
+        <text class="chip-mini" a:for="{{niceToHave}}" a:key="*this">{{item}}</text>
+      </view>
+    </view>
+
+    <view class="card" a:if="{{jd.rawText}}">
+      <view class="card-title">JD 原文</view>
+      <view class="small raw">{{rawPreview}}</view>
+      <text class="tiny link" a:if="{{rawExpanded === false && rawLong}}" onTap="expandRaw">展开全文</text>
+    </view>
+
+    <view class="card">
+      <view class="row-between">
+        <text class="card-title">简历匹配</text>
+        <text class="tiny link" a:if="{{resumes.length > 1}}" onTap="pickResume">换简历</text>
+      </view>
+      <view class="tiny muted" a:if="{{!resumes.length}}">还没有简历，先去「我的简历」上传一份。</view>
+      <block a:if="{{resumes.length}}">
+        <view class="tiny muted">当前简历：{{currentResumeTitle}}</view>
+        <button class="btn next" onTap="runMatch" disabled="{{matching}}">
+          {{matching ? '分析中…' : '开始匹配分析'}}
+        </button>
+      </block>
+    </view>
+
+    <view class="card" a:if="{{match}}">
+      <view class="row-between">
+        <text class="card-title">匹配结果</text>
+        <text class="score">{{match.matchScore}}</text>
+      </view>
+      <view class="block" a:if="{{match.matchedSkills.length}}">
+        <view class="section-name">已匹配</view>
+        <view class="section-line" a:for="{{match.matchedSkills}}" a:key="skill">
+          {{item.skill}} —— {{item.evidence}}
+        </view>
+      </view>
+      <view class="block" a:if="{{match.missingSkills.length}}">
+        <view class="section-name">缺口</view>
+        <view class="section-line" a:for="{{match.missingSkills}}" a:key="skill">
+          {{item.skill}} —— {{item.suggestion}}
+        </view>
+      </view>
+      <view class="block" a:if="{{match.risks.length}}">
+        <view class="section-name">风险</view>
+        <view class="section-line" a:for="{{match.risks}}" a:key="*this">· {{item}}</view>
+      </view>
+    </view>
+
+    <button class="btn" onTap="startInterview">用这个岗位开始面试</button>
+    <button class="btn btn-ghost next" onTap="remove">删除这个岗位</button>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

@@ -72,10 +72,17 @@
         <view class="qa-question">{{item.question}}</view>
         <view class="qa-answer tiny muted" a:if="{{item.answer}}">{{item.answer}}</view>
         <view class="qa-summary tiny" a:if="{{item.summary}}">{{item.summary}}</view>
+        <view class="qa-points tiny" a:if="{{item.strengths.length}}">
+          <text class="dot-ok">·</text> {{item.strengths[0]}}
+        </view>
+        <view class="qa-points tiny" a:if="{{item.improvements.length}}">
+          <text class="dot-warn">·</text> {{item.improvements[0]}}
+        </view>
       </view>
     </view>
 
     <button class="btn" onTap="practiceAgain">再练一次</button>
+    <button class="btn btn-ghost back" onTap="exportMarkdown">复制报告为 Markdown</button>
     <button class="btn btn-ghost back" onTap="backHome">回到首页</button>
 
     <view class="notice">

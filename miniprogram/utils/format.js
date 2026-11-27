@@ -1,5 +1,7 @@
 /** 展示层映射与示例素材（示例内容均为虚构，用于演示与检测入口）。 */
 
+const NEWLINE = String.fromCharCode(10);
+
 const DIMENSION_LABELS = {
   content: '内容相关性',
   structure: '结构化表达',
@@ -156,6 +158,181 @@ function dimensionsToRows(dimensions) {
     });
 }
 
+const ORDER_STATUS_LABELS = {
+  CREATED: '待支付',
+  PAID: '已支付',
+  FAILED: '支付失败',
+  REFUNDED: '已退款',
+  CLOSED: '已关闭'
+};
+
+const PARSE_STATUS_LABELS = {
+  PENDING: '排队解析',
+  PARSING: '解析中',
+  READY: '已就绪',
+  FAILED: '解析失败'
+};
+
+const PLAN_FEATURES = {
+  rewrittenAnswer: '参考答案改写',
+  pdfExport: 'PDF 导出',
+  priorityQueue: '优先排队',
+  prioritySupport: '优先支持',
+  unlimitedResume: '简历解析不限次'
+};
+
+function money(cents) {
+  const value = Number(cents || 0) / 100;
+  return value.toFixed(2).replace(/\.00$/, '');
+}
+
+function dateTime(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return String(iso).slice(0, 16).replace('T', ' ');
+  const pad = function (n) {
+    return n < 10 ? '0' + n : String(n);
+  };
+  return (
+    date.getFullYear() +
+    '-' +
+    pad(date.getMonth() + 1) +
+    '-' +
+    pad(date.getDate()) +
+    ' ' +
+    pad(date.getHours()) +
+    ':' +
+    pad(date.getMinutes())
+  );
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return '';
+  const diff = Math.max(0, Date.now() - then);
+  const minute = 60 * 1000;
+  if (diff < minute) return '刚刚';
+  if (diff < 60 * minute) return Math.floor(diff / minute) + ' 分钟前';
+  if (diff < 24 * 60 * minute) return Math.floor(diff / (60 * minute)) + ' 小时前';
+  if (diff < 30 * 24 * 60 * minute) return Math.floor(diff / (24 * 60 * minute)) + ' 天前';
+  return formatDate(iso);
+}
+
+function orderStatusLabel(status) {
+  return ORDER_STATUS_LABELS[status] || status || '';
+}
+
+function parseStatusLabel(status) {
+  return PARSE_STATUS_LABELS[status] || status || '';
+}
+
+function planFeatureLabel(key) {
+  return PLAN_FEATURES[key] || key;
+}
+
+/** 把结构化简历拍平成可读的分区，供详情页展示与 Markdown 导出。 */
+function resumeSections(structured) {
+  if (!structured) return [];
+  const sections = [];
+  const basic = structured.basic || {};
+  const basics = [];
+  if (basic.name) basics.push('姓名：' + basic.name);
+  if (basic.city) basics.push('城市：' + basic.city);
+  if (basic.yearsOfExperience) basics.push('经验：' + basic.yearsOfExperience + ' 年');
+  if (basic.email) basics.push('邮箱：' + basic.email);
+  if (basic.phone) basics.push('电话：' + basic.phone);
+  if (basics.length) sections.push({ title: '基本信息', items: basics });
+
+  const education = (structured.education || []).map(function (item) {
+    return [item.school, item.major, item.degree, item.period].filter(Boolean).join(' · ');
+  });
+  if (education.length) sections.push({ title: '教育背景', items: education });
+
+  const experiences = (structured.experiences || []).map(function (item) {
+    const head = [item.company, item.title, item.period].filter(Boolean).join(' · ');
+    const lines = [head].concat(item.highlights || []);
+    return lines.filter(Boolean).join(NEWLINE);
+  });
+  if (experiences.length) sections.push({ title: '工作经历', items: experiences });
+
+  const projects = (structured.projects || []).map(function (item) {
+    const head = [item.name, item.role].filter(Boolean).join(' · ');
+    const lines = [head].concat(item.highlights || []);
+    return lines.filter(Boolean).join(NEWLINE);
+  });
+  if (projects.length) sections.push({ title: '项目经历', items: projects });
+
+  const skills = (structured.skills || []).map(function (item) {
+    return typeof item === 'string' ? item : item.name || '';
+  }).filter(Boolean);
+  if (skills.length) sections.push({ title: '技能', items: [skills.join('、')] });
+
+  return sections;
+}
+
+function reportMarkdown(report) {
+  const lines = [];
+  lines.push('# ' + (report.title || '面试复盘报告'));
+  lines.push('');
+  lines.push('- 岗位：' + (report.role || '—'));
+  lines.push('- 公司：' + (report.company || '—'));
+  lines.push('- 总分：' + (report.overallScore === null || report.overallScore === undefined ? '—' : report.overallScore) + '/100');
+  lines.push('- 题数：' + (report.questionCount || 0));
+  lines.push('');
+  if (report.summary) {
+    lines.push('## 总结');
+    lines.push('');
+    lines.push(report.summary);
+    lines.push('');
+  }
+  if (report.radar && report.radar.length) {
+    lines.push('## 五维评分');
+    lines.push('');
+    report.radar.forEach(function (item) {
+      lines.push('- ' + (item.label || item.dimension) + '：' + item.score + '/10');
+    });
+    lines.push('');
+  }
+  [['亮点', report.highlights], ['风险', report.risks]].forEach(function (group) {
+    if (!group[1] || !group[1].length) return;
+    lines.push('## ' + group[0]);
+    lines.push('');
+    group[1].forEach(function (item) {
+      lines.push('- ' + item);
+    });
+    lines.push('');
+  });
+  if (report.improvementPlan && report.improvementPlan.length) {
+    lines.push('## 改进计划');
+    lines.push('');
+    report.improvementPlan.forEach(function (item) {
+      lines.push(item.priority + '. ' + item.action + '（' + (item.reason || '') + '）');
+    });
+    lines.push('');
+  }
+  if (report.questionBreakdown && report.questionBreakdown.length) {
+    lines.push('## 逐题拆解');
+    lines.push('');
+    report.questionBreakdown.forEach(function (item) {
+      lines.push('### 第 ' + item.seq + ' 题 · ' + item.score + '/10');
+      lines.push('');
+      lines.push('**题目**：' + item.question);
+      lines.push('');
+      if (item.answer) {
+        lines.push('**回答**：' + item.answer);
+        lines.push('');
+      }
+      if (item.summary) {
+        lines.push('**点评**：' + item.summary);
+        lines.push('');
+      }
+    });
+  }
+  lines.push('> 评分只用于练习参考，不代表任何企业的真实录用结论。');
+  return lines.join(NEWLINE);
+}
+
 module.exports = {
   SAMPLE_RESUME: SAMPLE_RESUME,
   SAMPLE_JD: SAMPLE_JD,
@@ -164,5 +341,13 @@ module.exports = {
   statusLabel: statusLabel,
   scorePercent: scorePercent,
   formatDate: formatDate,
-  dimensionsToRows: dimensionsToRows
+  dimensionsToRows: dimensionsToRows,
+  orderStatusLabel: orderStatusLabel,
+  parseStatusLabel: parseStatusLabel,
+  planFeatureLabel: planFeatureLabel,
+  resumeSections: resumeSections,
+  reportMarkdown: reportMarkdown,
+  money: money,
+  dateTime: dateTime,
+  timeAgo: timeAgo
 };

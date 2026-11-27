@@ -1,8 +1,8 @@
 /**
  * 后端请求封装：统一错误、Token 注入、游客态自动登录。
  *
- * 会话模型（对齐 oc-identity 现有契约，后端零改动）：
- * 1. 首次进入用「设备指纹 + 一次性验证码/邀约码」注册一个体验账号，凭证保存在本地；
+ * 会话模型（对齐 oc-identity 现有契约，后端仅新增小程序支付）：
+ * 1. 首次进入用「设备指纹 + 一次性验证码/邀约码」注册体验账号，凭证保存在本地；
  * 2. Access Token 有效期 15 分钟，过期后用本地凭证静默登录；
  * 3. Refresh Cookie 无法在 my.request 中携带，因此不做刷新，直接重新登录。
  */
@@ -66,14 +66,18 @@ function bizError(status, body) {
   return error;
 }
 
-function rawRequest(path, options) {
-  const opts = options || {};
-  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+function authHeaders() {
+  const headers = { 'Content-Type': 'application/json', 'X-Device-Id': deviceId() };
   const session = storage(SESSION_KEY);
   if (session && session.accessToken) {
     headers.Authorization = 'Bearer ' + session.accessToken;
   }
-  headers['X-Device-Id'] = deviceId();
+  return headers;
+}
+
+function rawRequest(path, options) {
+  const opts = options || {};
+  const headers = Object.assign(authHeaders(), opts.headers || {});
 
   return new Promise(function (resolve, reject) {
     my.request({
@@ -176,14 +180,15 @@ function relogin() {
     return loginPromise;
   }
   const session = storage(SESSION_KEY);
-  const task = session && session.email && session.password
-    ? rawRequest('/auth/login', {
-        method: 'POST',
-        data: { account: session.email, password: session.password }
-      }).then(function (auth) {
-        return saveSession(auth, session.email, session.password);
-      })
-    : registerGuest();
+  const task =
+    session && session.email && session.password
+      ? rawRequest('/auth/login', {
+          method: 'POST',
+          data: { account: session.email, password: session.password }
+        }).then(function (auth) {
+          return saveSession(auth, session.email, session.password);
+        })
+      : registerGuest();
 
   loginPromise = task.then(
     function (value) {
@@ -226,7 +231,7 @@ function sleep(ms) {
   });
 }
 
-/** 轮询直到 predicate 命中或超时；用于出题、评分、报告三个异步阶段。 */
+/** 轮询直到 predicate 命中或超时；用于出题、评分、报告、订单四个异步阶段。 */
 function poll(fetcher, predicate, options) {
   const opts = options || {};
   const interval = opts.interval || 1500;
@@ -245,11 +250,110 @@ function poll(fetcher, predicate, options) {
   return step();
 }
 
+/** 上传文件（简历 PDF/DOCX/图片/PPT、语音 WAV）；服务端返回 JSON 字符串。 */
+function upload(path, filePath, formData) {
+  return ensureSession().then(function () {
+    return new Promise(function (resolve, reject) {
+      my.uploadFile({
+        url: config.API_BASE + path,
+        filePath: filePath,
+        fileName: 'file',
+        formData: formData || {},
+        header: authHeaders(),
+        success: function (res) {
+          const status = res.status || res.statusCode || 0;
+          let body = res.data;
+          if (typeof body === 'string') {
+            try {
+              body = JSON.parse(body);
+            } catch (error) {
+              body = { message: body };
+            }
+          }
+          if (status >= 200 && status < 300) {
+            resolve(body || {});
+            return;
+          }
+          reject(bizError(status, body));
+        },
+        fail: function () {
+          const error = new Error('上传失败，请检查网络后重试');
+          error.code = 'UPLOAD_FAILED';
+          reject(error);
+        }
+      });
+    });
+  });
+}
+
+/** 支付宝一次性授权码，用于小程序内支付。 */
+function getAuthCode() {
+  return new Promise(function (resolve, reject) {
+    if (!my.getAuthCode) {
+      const error = new Error('当前环境不支持支付宝授权');
+      error.code = 'AUTH_CODE_UNAVAILABLE';
+      reject(error);
+      return;
+    }
+    my.getAuthCode({
+      scopes: ['auth_base'],
+      success: function (res) {
+        if (res && res.authCode) {
+          resolve(res.authCode);
+          return;
+        }
+        reject(new Error('未取得支付授权码'));
+      },
+      fail: function () {
+        reject(new Error('支付授权失败，请重试'));
+      }
+    });
+  });
+}
+
+/** 调起支付宝收银台；返回 9000 视为成功，其余按用户取消/失败处理。 */
+function tradePay(tradeNo) {
+  return new Promise(function (resolve, reject) {
+    my.tradePay({
+      tradeNO: tradeNo,
+      success: function (res) {
+        const code = String(res.resultCode || '');
+        if (code === '9000') {
+          resolve(res);
+          return;
+        }
+        const cancelled = code === '6001';
+        const error = new Error(cancelled ? '已取消支付' : '支付未完成（' + (code || '未知') + '）');
+        error.code = cancelled ? 'PAY_CANCELLED' : 'PAY_FAILED';
+        reject(error);
+      },
+      fail: function () {
+        reject(new Error('支付调起失败，请重试'));
+      }
+    });
+  });
+}
+
+function toast(message, type) {
+  my.showToast({ type: type || 'none', content: message, duration: 2200 });
+}
+
+function copy(text) {
+  return new Promise(function (resolve) {
+    my.setClipboard({ text: text, success: resolve, fail: resolve });
+  });
+}
+
 module.exports = {
   request: request,
+  upload: upload,
   ensureSession: ensureSession,
   poll: poll,
   sleep: sleep,
   storage: storage,
-  deviceId: deviceId
+  deviceId: deviceId,
+  getAuthCode: getAuthCode,
+  tradePay: tradePay,
+  toast: toast,
+  copy: copy
 };

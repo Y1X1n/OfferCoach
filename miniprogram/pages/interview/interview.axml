@@ -10,12 +10,19 @@
       <view class="bar">
         <view class="bar-fill" style="width: {{progressPercent}}%"></view>
       </view>
+      <view class="actions">
+        <text class="action" onTap="speak">{{speaking ? '停止朗读' : '朗读题目'}}</text>
+        <text class="action" onTap="togglePause">{{paused ? '恢复面试' : '暂停'}}</text>
+        <text class="action danger" onTap="abandon">放弃本场</text>
+      </view>
+      <view class="tiny warn" a:if="{{paused}}">已暂停，恢复后才能提交回答。</view>
     </view>
 
     <view class="question">
       <view class="row">
         <text class="tag">{{current.dimensionLabel}}</text>
         <text class="tag tag-ember">{{current.difficultyLabel}}</text>
+        <text class="tag" a:if="{{current.isFollowUp}}">追问</text>
       </view>
       <view class="question-text">{{current.text}}</view>
       <view class="why" a:if="{{current.whyThisQuestion}}">
@@ -32,17 +39,29 @@
       <textarea
         class="field answer"
         value="{{answerText}}"
-        placeholder="先给结论，再讲背景、做法和结果。有数字就写数字。"
+        placeholder="先给结论，再讲背景、做法和结果。有数字就写数字；也可以按住录音口述。"
         placeholder-class="placeholder"
         maxlength="{{maxLength}}"
         onInput="onAnswerInput"
       />
-      <view class="row gap">
-        <button class="btn btn-ghost btn-mini" onTap="skipQuestion" disabled="{{submitting}}">跳过</button>
-        <button class="btn grow" onTap="submitAnswer" disabled="{{submitting}}">
-          {{submitting ? phase : '提交并评分'}}
+
+      <view class="voice" a:if="{{recording || voicePath}}">
+        <view class="tiny muted" a:if="{{recording}}">正在录音 {{recordSeconds}}s，再次点击结束</view>
+        <view class="tiny muted" a:else>已录制 {{recordSeconds}}s，可提交或重录</view>
+      </view>
+
+      <view class="btn-row">
+        <button class="btn btn-ghost" onTap="skipQuestion" disabled="{{submitting}}">跳过</button>
+        <button class="btn btn-ghost" onTap="toggleRecord" disabled="{{submitting}}">
+          {{recording ? '结束录音' : voicePath ? '重录' : '语音作答'}}
         </button>
       </view>
+      <button class="btn next" onTap="submitAnswer" disabled="{{submitting || paused}}">
+        {{submitting ? phase : '提交并评分'}}
+      </button>
+      <button class="btn btn-ghost next" a:if="{{voicePath && !recording}}" onTap="submitVoice" disabled="{{submitting}}">
+        提交语音回答
+      </button>
     </view>
 
     <view class="card" a:if="{{feedback}}">
@@ -93,9 +112,14 @@
         <view class="rewrite">{{feedback.rewrittenAnswer}}</view>
       </view>
 
-      <button class="btn next" onTap="nextQuestion" disabled="{{submitting}}">
-        {{isLast ? '生成复盘报告' : '下一题'}}
-      </button>
+      <view class="btn-row">
+        <button class="btn btn-ghost btn-mini" onTap="followUp" disabled="{{submitting || followUpUsed}}">
+          {{followUpUsed ? '追问已用完' : '追问一题'}}
+        </button>
+        <button class="btn grow" onTap="nextQuestion" disabled="{{submitting}}">
+          {{isLast ? '生成复盘报告' : '下一题'}}
+        </button>
+      </view>
     </view>
 
     <view class="footnote tiny muted" a:if="{{feedback}}">评分来源：{{modelText}}</view>

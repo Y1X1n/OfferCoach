@@ -1,0 +1,99 @@
+<view class="container">
+  <view class="head">
+    <view class="head-title">新增岗位 JD</view>
+    <view class="muted small">出题会围绕 JD 的必备技能与职责展开。</view>
+  </view>
+
+  <view class="tabs">
+    <view class="tab {{mode === 'text' ? 'tab-on' : ''}}" data-mode="text" onTap="switchMode">粘贴文本</view>
+    <view class="tab {{mode === 'url' ? 'tab-on' : ''}}" data-mode="url" onTap="switchMode">链接抓取</view>
+    <view class="tab {{mode === 'search' ? 'tab-on' : ''}}" data-mode="search" onTap="switchMode">搜索岗位</view>
+  </view>
+
+  <view class="card" a:if="{{mode === 'text'}}">
+    <view class="card-title">JD 原文</view>
+    <textarea
+      class="field paste jd"
+      value="{{rawText}}"
+      placeholder="粘贴岗位职责与任职要求，至少 50 字。"
+      placeholder-class="placeholder"
+      maxlength="{{8000}}"
+      onInput="onTextInput"
+    />
+    <view class="row-between tiny muted">
+      <text>至少 50 字</text>
+      <text>{{rawText.length}} 字</text>
+    </view>
+    <button class="btn next" onTap="saveText" disabled="{{busy}}">
+      {{busy ? '保存中…' : '保存岗位'}}
+    </button>
+  </view>
+
+  <view class="card" a:if="{{mode === 'url'}}">
+    <view class="card-title">招聘链接</view>
+    <input
+      class="field"
+      value="{{url}}"
+      placeholder="https://…（仅支持 http/https）"
+      placeholder-class="placeholder"
+      onInput="onUrlInput"
+    />
+    <view class="spacer"></view>
+    <view class="card-title">关键词（可选）</view>
+    <input
+      class="field"
+      value="{{keywords}}"
+      placeholder="例如：高级后端工程师 上海"
+      placeholder-class="placeholder"
+      onInput="onKeywordsInput"
+    />
+    <button class="btn next" onTap="fetchUrl" disabled="{{busy}}">
+      {{busy ? '抓取中…' : '抓取并预览'}}
+    </button>
+  </view>
+
+  <view class="card" a:if="{{mode === 'search'}}">
+    <view class="card-title">岗位关键词</view>
+    <input
+      class="field"
+      value="{{query}}"
+      placeholder="例如：高级后端工程师"
+      placeholder-class="placeholder"
+      onInput="onQueryInput"
+    />
+    <view class="spacer"></view>
+    <view class="card-title">城市（可选）</view>
+    <input
+      class="field"
+      value="{{location}}"
+      placeholder="例如：上海"
+      placeholder-class="placeholder"
+      onInput="onLocationInput"
+    />
+    <button class="btn next" onTap="searchJobs" disabled="{{busy}}">
+      {{busy ? '搜索中…' : '搜索岗位'}}
+    </button>
+  </view>
+
+  <view class="card" a:if="{{results.length}}">
+    <view class="card-title">选择一个岗位</view>
+    <view class="list-item" a:for="{{results}}" a:key="resultId" data-id="{{item.resultId}}" onTap="pickResult">
+      <view class="list-main">
+        <view class="list-title">{{item.title}}</view>
+        <view class="list-sub">{{item.siteName}} {{item.snippet}}</view>
+      </view>
+      <text class="list-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="card" a:if="{{preview}}">
+    <view class="card-title">{{preview.title}}</view>
+    <view class="tiny muted">{{preview.siteName}} · {{preview.resolvedBy}}</view>
+    <view class="preview-text">{{previewPreview}}</view>
+    <view class="btn-row">
+      <button class="btn" onTap="savePreview" disabled="{{busy}}">保存并开始面试</button>
+    </view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

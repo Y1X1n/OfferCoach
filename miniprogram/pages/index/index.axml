@@ -1,6 +1,9 @@
 <view class="container">
   <view class="hero">
-    <view class="hero-kicker">OFFERCOACH · 面试教练</view>
+    <view class="row-between">
+      <view class="hero-kicker">OFFERCOACH · 面试教练</view>
+      <view class="plan-pill" data-url="/pages/me/me" onTap="go">{{planLabel}}</view>
+    </view>
     <view class="hero-title">把简历和目标岗位交给它，练一场真面试</view>
     <view class="hero-sub">按你的经历出题，答完立刻拿到证据与改写建议。</view>
   </view>
@@ -11,64 +14,60 @@
       <text class="quota-unit">场今日可练</text>
     </view>
     <view class="quota-side">
-      <text class="tiny muted">{{quota.planName}} · 每日上限 {{quota.daily.sessionsLimit}} 场</text>
+      <text class="tiny muted">面试额度 {{quota.interviewCredits}} · 解析额度 {{quota.resumeCredits}}</text>
       <text class="tiny muted">额度周期至 {{quota.periodEnd}}</text>
     </view>
   </view>
 
-  <view class="card steps">
-    <view class="step">
-      <view class="step-index">1</view>
-      <view class="step-body">
-        <view class="step-title">粘贴简历与岗位</view>
-        <view class="step-desc muted small">支持直接粘贴文本，或一键填入示例。</view>
-      </view>
-    </view>
-    <view class="step">
-      <view class="step-index">2</view>
-      <view class="step-body">
-        <view class="step-title">按你的经历出题</view>
-        <view class="step-desc muted small">题目绑定简历里的项目与 JD 里的必备技能。</view>
-      </view>
-    </view>
-    <view class="step">
-      <view class="step-index">3</view>
-      <view class="step-body">
-        <view class="step-title">逐题评分 + 复盘报告</view>
-        <view class="step-desc muted small">五维评分、原文证据、改进计划与改写示例。</view>
-      </view>
-    </view>
-  </view>
-
-  <button class="btn" onTap="startInterview" disabled="{{loading}}">
-    {{loading ? '正在准备…' : '开始一次模拟面试'}}
-  </button>
-
-  <view class="card recent" a:if="{{sessions.length}}">
+  <view class="card active" a:if="{{active}}">
     <view class="row-between">
-      <text class="card-title">最近的面试</text>
-      <text class="tiny muted">仅本人可见</text>
+      <text class="card-title">进行中的面试</text>
+      <text class="tiny badge badge-ember">{{active.statusLabel}}</text>
     </view>
-    <view
-      class="session"
-      a:for="{{sessions}}"
-      a:key="id"
-      data-id="{{item.id}}"
-      data-report="{{item.reportId}}"
-      onTap="openSession"
-    >
-      <view class="session-main">
-        <view class="session-title">{{item.title}}</view>
-        <view class="tiny muted">{{item.dateText}} · {{item.statusText}}</view>
-      </view>
-      <view class="session-score" a:if="{{item.totalScore !== null && item.totalScore !== undefined}}">
-        {{item.totalScore}}
-      </view>
-      <view class="session-arrow" a:else>›</view>
+    <view class="active-title">{{active.jdTitle || '模拟面试'}}</view>
+    <view class="tiny muted">
+      {{active.resumeTitle || '简历'}} · 已答 {{active.answeredCount}}/{{active.questionCount}} 题 · {{active.timeText}}
+    </view>
+    <button class="btn next" onTap="continueSession">继续这场面试</button>
+  </view>
+
+  <button class="btn" onTap="startInterview">开始一次模拟面试</button>
+
+  <view class="grid-2 quick">
+    <view class="tile" data-url="/pages/resume/list" onTap="go">
+      <view class="tile-title">我的简历</view>
+      <view class="tile-sub">{{resumeReady ? '已有可用简历' : '上传或粘贴一份'}}</view>
+    </view>
+    <view class="tile" data-url="/pages/jd/list" onTap="go">
+      <view class="tile-title">目标岗位</view>
+      <view class="tile-sub">{{jdCount}} 个 JD · 支持链接与搜索</view>
+    </view>
+    <view class="tile" data-url="/pages/reports/reports" onTap="go">
+      <view class="tile-title">复盘报告</view>
+      <view class="tile-sub">共 {{reportTotal}} 份{{avgText}}</view>
+    </view>
+    <view class="tile" data-url="/pages/plans/plans" onTap="go">
+      <view class="tile-title">套餐与额度</view>
+      <view class="tile-sub">升级后可练更多场</view>
     </view>
   </view>
 
-  <view class="empty" a:if="{{!loading && !sessions.length}}">还没有面试记录，从上面开始第一场。</view>
+  <view class="card" a:if="{{reports.length}}">
+    <view class="row-between">
+      <text class="card-title">最近报告</text>
+      <text class="tiny link" data-url="/pages/reports/reports" onTap="go">全部</text>
+    </view>
+    <view class="list-item" a:for="{{reports}}" a:key="id" data-id="{{item.id}}" onTap="openReport">
+      <view class="list-main">
+        <view class="list-title">{{item.title}}</view>
+        <view class="list-sub">{{item.role}} · {{item.dateText}}</view>
+      </view>
+      <text class="score">{{item.overallScore}}</text>
+      <text class="list-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="empty" a:if="{{!loading && !reports.length}}">还没有报告，先练一场。</view>
 
   <view class="notice">
     <view class="notice-title">关于这份练习</view>

@@ -1,0 +1,41 @@
+.trend {
+  display: flex;
+  align-items: flex-end;
+  height: 220rpx;
+  margin-top: 16rpx;
+}
+
+.trend-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.trend-bar-wrap {
+  flex: 1;
+  width: 26rpx;
+  display: flex;
+  align-items: flex-end;
+}
+
+.trend-bar {
+  width: 100%;
+  background: #a34a2a;
+  border-radius: 8rpx 8rpx 0 0;
+  min-height: 8rpx;
+}
+
+.trend-score {
+  font-size: 20rpx;
+  color: #6b7280;
+  margin-top: 8rpx;
+}
+
+.score {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #a34a2a;
+  margin-left: 12rpx;
+}

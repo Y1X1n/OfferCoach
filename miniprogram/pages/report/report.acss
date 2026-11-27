@@ -182,3 +182,18 @@
 .next {
   margin-top: 32rpx;
 }
+
+.qa-points {
+  margin-top: 6rpx;
+  color: #475569;
+}
+
+.dot-ok {
+  color: #2f7f5b;
+  font-weight: 700;
+}
+
+.dot-warn {
+  color: #b45309;
+  font-weight: 700;
+}

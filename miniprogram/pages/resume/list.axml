@@ -1,0 +1,49 @@
+<view class="container">
+  <view class="head">
+    <view class="head-title">我的简历</view>
+    <view class="muted small">简历决定「问你什么」。支持 PDF / Word / 图片，也可以直接粘贴文本。</view>
+  </view>
+
+  <view class="btn-row">
+    <button class="btn btn-mini grow" onTap="pickFile">上传文件</button>
+    <button class="btn btn-ghost btn-mini" onTap="pickImage">拍照/相册</button>
+    <button class="btn btn-ghost btn-mini" onTap="togglePaste">{{pasteOpen ? '收起' : '粘贴文本'}}</button>
+  </view>
+
+  <view class="card" a:if="{{pasteOpen}}">
+    <view class="card-title">粘贴简历文本</view>
+    <textarea
+      class="field paste"
+      value="{{pasteText}}"
+      placeholder="把简历内容粘贴进来，至少 20 字。"
+      placeholder-class="placeholder"
+      maxlength="{{50000}}"
+      onInput="onPasteInput"
+    />
+    <view class="row-between tiny muted">
+      <text>会自动结构化，可随后修正</text>
+      <text>{{pasteText.length}} 字</text>
+    </view>
+    <button class="btn next" onTap="createManual" disabled="{{creating}}">
+      {{creating ? '正在创建…' : '创建简历'}}
+    </button>
+  </view>
+
+  <view class="list" a:if="{{items.length}}">
+    <view class="list-item" a:for="{{items}}" a:key="id" data-id="{{item.id}}" onTap="open">
+      <view class="list-main">
+        <view class="list-title">
+          {{item.title}}
+          <text class="badge {{item.statusClass}}" a:if="{{item.statusText}}">{{item.statusText}}</text>
+          <text class="badge badge-ember" a:if="{{item.isDefault}}">默认</text>
+        </view>
+        <view class="list-sub">{{item.summary}}</view>
+      </view>
+      <text class="list-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="empty" a:if="{{!loading && !items.length}}">还没有简历，先上传或粘贴一份。</view>
+
+  <view class="safe-bottom"></view>
+</view>

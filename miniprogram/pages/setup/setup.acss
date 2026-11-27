@@ -76,3 +76,16 @@
   margin-top: 20rpx;
   text-align: center;
 }
+
+.pick {
+  margin-top: 12rpx;
+  padding: 20rpx 24rpx;
+  background: #f7f8fa;
+  border-radius: 16rpx;
+}
+
+.pick-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  margin-bottom: 6rpx;
+}

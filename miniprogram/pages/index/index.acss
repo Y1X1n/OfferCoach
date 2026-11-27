@@ -153,3 +153,40 @@
   color: #475569;
   margin-bottom: 8rpx;
 }
+
+.plan-pill {
+  font-size: 22rpx;
+  color: #a34a2a;
+  background: #fdf0ea;
+  border-radius: 999rpx;
+  padding: 6rpx 18rpx;
+}
+
+.active {
+  border: 2rpx solid #0f172a;
+}
+
+.active-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin: 12rpx 0 6rpx;
+}
+
+.next {
+  margin-top: 20rpx;
+}
+
+.quick {
+  margin-top: 24rpx;
+}
+
+.quick .tile {
+  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+}
+
+.score {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #a34a2a;
+  margin-left: 12rpx;
+}
