@@ -2,7 +2,7 @@
 
 > 状态：进行中 ｜ 赛季：第一赛季（提交截止 2026-12-06 23:59:59，北京时间）
 > 活动页：https://www.qianwenai.com/arena/competitions/alipay-agents-emerge
-> 关联：[交付清单](#4-交付清单对照)、[小程序运行说明](./miniprogram.md)、[检测入口说明](./agent-entry.md)
+> 关联：[交付清单](#4-交付清单对照)、[小程序运行说明](./miniprogram.md)、[检测入口说明](./agent-entry.md)、[实测手册](./verify.md)
 
 ## 1. 活动硬性要求（摘自官方「详情」「任务说明」）
 
