@@ -77,9 +77,14 @@
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-prometheus</artifactId>
     </dependency>
+    <!--
+      Boot 4 把 Flyway 自动配置从 spring-boot-autoconfigure 拆到了 spring-boot-flyway。
+      只依赖 flyway-core 时迁移不再自动执行（表建不出来，启动后所有查询报 relation does not exist），
+      必须改用 starter（或显式依赖 spring-boot-flyway）。
+    -->
     <dependency>
-      <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-core</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-flyway</artifactId>
     </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
