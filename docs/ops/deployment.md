@@ -1,6 +1,6 @@
 # 部署与环境
 
-> 状态：生效 ｜ 版本：v1.7 ｜ 更新：2026-11-27
+> 状态：生效 ｜ 版本：v1.8 ｜ 更新：2026-11-28
 > 开发：Docker Compose ｜ 生产：Kubernetes + Helm
 > 关联：[架构](../design/architecture.md)、[后端规范](../dev/backend.md)、[CI/CD](ci-cd.md)、[可观测性](observability.md)
 
@@ -271,18 +271,29 @@ spec:
 
 ## 5. 备份与容灾
 
+**当前实现的组件**（与 `compose.yaml` 一致）：
+
 | 组件 | 策略 | RPO | RTO |
 |---|---|---|---|
-| PostgreSQL | 每日全量 + WAL 归档，PITR 7 天 | 5min | 1h |
-| MinIO | 版本化 + 跨区复制（生产） | 15min | 2h |
-| Redis | AOF everysec + 每日快照 | 1s（缓存可丢） | 30min |
-| RabbitMQ | quorum queue + 持久化 | 0（已确认消息） | 30min |
-| Milvus | 由 PG 题库重建，不单独备份 | 重建时长 | 4h |
-| 配置/密钥 | GitOps + Secret 备份 | 0 | 30min |
+| PostgreSQL | `scripts/backup.sh` 每日全量（`pg_dump -Fc`）+ 校验归档可读；异地复制与更长保留期由运维策略决定 | 24h | 1h |
+| 上传文件（`appdata` 卷：简历原件、语音音频） | 同一脚本打包（从运行中的 oc-app 容器 `docker cp` 或 `STORAGE_ROOT` 目录） | 24h | 1h |
+| Redis | 仅缓存/限流/登录态，**不单独备份**；丢失即强制重新登录 | 可丢 | 即时 |
 
-- 每季度做一次恢复演练：从备份恢复 PG 到临时环境，跑通登录 → 面试 → 报告。
-- Milvus 重建脚本必须幂等，可在新 Collection 上完成后再切别名。
+```bash
+# 数据库 + 上传文件，输出到 ./backups/<UTC 时间戳>/
+BACKUP_DIR=/var/backups/offercoach ./scripts/backup.sh
+# 只备份其一：--db-only / --files-only
+```
+
+- 脚本自带：`pg_restore --list` 归档校验（**坏备份比没有备份更危险**，会让人误以为可恢复）、
+  `SHA256SUMS`、按份数清理旧备份（`BACKUP_RETENTION`，默认 7）。
+- 宿主没装 `pg_dump` 时自动走容器（`DB_CONTAINER`，默认探测 `offercoach-postgres-1`）；
+  文件优先从运行中的 `oc-app` 容器 `docker cp`，不依赖额外镜像。
+- 每季度做一次恢复演练：`pg_restore -d <临时库>` + `tar xzf` 到临时目录，跑通登录 → 面试 → 报告。
 - Redis 丢失会导致登录态失效与限流重置，需在事件中说明并强制重新登录。
+
+> 早期版本的本表列了 MinIO / RabbitMQ / Milvus 的备份策略——这三者尚未实现（见 §2.2 状态列）。
+> 真正没有备份的是**上传文件**，现在由上面的脚本覆盖。
 
 ## 6. 安全基线
 

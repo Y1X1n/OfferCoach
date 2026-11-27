@@ -5,10 +5,13 @@
 # 保守策略：基线缺失、diff 失败或变更列表为空时一律视为「已变更」，宁多跑不漏跑。
 set -uo pipefail
 
-area="${1:?usage: changed-paths.sh <backend|frontend>}"
+area="${1:?usage: changed-paths.sh <backend|frontend|scripts>}"
 case "$area" in
   backend) pattern='^(backend/|\.github/workflows/ci\.yml$)' ;;
   frontend) pattern='^(frontend/|\.github/workflows/ci\.yml$)' ;;
+  # 运维脚本与编排文件不属于前后端：此前只改 scripts/ 或 compose.yaml 时两个 job 全跳过，
+  # 等于零检查（备份脚本、启动冒烟脚本都属于这一类）。
+  scripts) pattern='^(scripts/|backend/scripts/|\.github/scripts/|compose\.yaml$|\.github/workflows/ci\.yml$)' ;;
   *) echo "unknown area: $area" >&2; exit 2 ;;
 esac
 

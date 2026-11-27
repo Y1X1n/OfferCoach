@@ -143,3 +143,34 @@ jobs:
         if: steps.filter.outputs.changed == 'true'
         working-directory: frontend
         run: pnpm exec vite build
+
+  # 运维脚本此前不在任何 job 的路径过滤里：只改 scripts/ 或 compose.yaml 时零检查。
+  # bash -n 是零依赖的语法校验（不引入 shellcheck 镜像，Docker Hub 不可达时也能跑）。
+  scripts:
+    name: Shell syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect script changes
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          changed="$(bash .github/scripts/changed-paths.sh scripts)"
+          echo "changed=${changed}" >> "$GITHUB_OUTPUT"
+      - name: bash -n
+        if: steps.filter.outputs.changed == 'true'
+        run: |
+          status=0
+          for file in scripts/*.sh backend/scripts/*.sh .github/scripts/*.sh; do
+            [ -f "$file" ] || continue
+            echo "checking $file"
+            bash -n "$file" || status=1
+          done
+          exit "$status"
