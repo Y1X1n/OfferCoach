@@ -33,8 +33,12 @@ spring:
     baseline-on-migrate: false
   jackson:
     # 不设置 default-property-inclusion：null 字段按契约显式输出，前端可区分“缺失”与“null”。
-    serialization:
-      write-dates-as-timestamps: false
+    # Jackson 3 把 WRITE_DATES_AS_TIMESTAMPS 从 SerializationFeature 挪到了 DateTimeFeature，
+    # 旧写法 spring.jackson.serialization.write-dates-as-timestamps 绑定不上会直接启动失败。
+    # 3.x 的默认值已经是 false，这里显式写出是为了把「日期走 ISO 字符串、不走 epoch 数字」的契约钉住。
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
   task:
     scheduling:
       # 默认只有 1 个调度线程：保留策略一次分批删除可能跑几分钟，

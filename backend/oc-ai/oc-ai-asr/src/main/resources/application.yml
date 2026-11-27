@@ -22,8 +22,12 @@ spring:
   flyway:
     enabled: false
   jackson:
-    serialization:
-      write-dates-as-timestamps: false
+    # Jackson 3 把 WRITE_DATES_AS_TIMESTAMPS 从 SerializationFeature 挪到了 DateTimeFeature，
+    # 旧写法 spring.jackson.serialization.write-dates-as-timestamps 绑定不上会直接启动失败。
+    # 3.x 的默认值已经是 false，这里显式写出是为了把「日期走 ISO 字符串、不走 epoch 数字」的契约钉住。
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
 
 management:
   endpoints:
