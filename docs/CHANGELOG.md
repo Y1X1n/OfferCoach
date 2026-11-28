@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.46 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.47 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,12 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.47（2026-11-28）——出题检索的排序改走索引（一个岗位 1.2 万行 top-N 排序）
+
+- **问题**：`QuestionBankMapper` 的两个检索查询都用 `ORDER BY (CASE WHEN reference_answer IS NOT NULL AND btrim(reference_answer) <> '' THEN 0 ELSE 1 END), id`。表达式排序索引不了，而 22,409 行的题库里 **AI-AGENT 一个岗位就有 12,557 条已发布题目**，每次出题都要把它们全读出来再 top-N 排序：实测 **58ms / 9,694 buffers**。
+- **改法**（`V202611280002`）：加一个 `STORED` 生成列 `has_reference_answer`（由 `reference_answer` 自动维护；导入与后台编辑的 INSERT 都是显式列，不用改），再建两个部分索引 `(lower(job_family), has_reference_answer DESC, id) WHERE status='PUBLISHED'` 与 `(has_reference_answer DESC, id) WHERE status='PUBLISHED'`；两个查询改成 `ORDER BY has_reference_answer DESC, id`（语义等价：有参考答案的排前面，再按 id）。
+- **实测**（本机 22,409 行真实题库）：限岗位查询 **58ms / 9,694 buffers → 0.22ms / 43 buffers**；不限岗位的全局检索 0.35ms / 16 buffers；参考答案极少的岗位（通用 2,590 条里只有 29 条有答案）走岗位索引 0.08ms；不存在的岗位 0.05ms 直接返回空。
 
 ### v2.46（2026-11-28）——简历原件的"不进缓存"改成端点显式契约
 
