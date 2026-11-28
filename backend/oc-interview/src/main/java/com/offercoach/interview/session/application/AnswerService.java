@@ -17,6 +17,8 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class AnswerService {
+
+    private static final Logger log = LoggerFactory.getLogger(AnswerService.class);
 
     private static final int STREAM_TOKEN_BYTES = 32;
     private static final long STREAM_TOKEN_TTL_SECONDS = 300L;
@@ -174,7 +178,14 @@ public class AnswerService {
                             userId + ":" + answerId,
                             Duration.ofSeconds(STREAM_TOKEN_TTL_SECONDS));
         } catch (RuntimeException exception) {
-            throw new BizException(ErrorCode.INTERNAL_ERROR, Map.of("reason", "STREAM_TOKEN_UNAVAILABLE"));
+            // 评分流令牌只是"可选的实时通道"：反馈同样可以用 GET /answers/{id}/feedback 轮询拿到，
+            // 且 SSE 默认关闭。为了写一个 Redis 键而抛异常，会让外层 @Transactional 回滚——
+            // 用户刚敲完的整段回答直接丢失，代价远大于收益。这里降级为不发放令牌（stream 为 null）。
+            log.warn(
+                    "评分流令牌写入失败，本次不提供实时流（轮询仍可用）：answerId={} reason={}",
+                    answerId,
+                    exception.getClass().getSimpleName());
+            token = null;
         }
         eventPublisher.publishEvent(new AnswerSubmitted(userId, sessionId, answerId));
         return new Submitted(answerId, "SCORING", token, STREAM_TOKEN_TTL_SECONDS);

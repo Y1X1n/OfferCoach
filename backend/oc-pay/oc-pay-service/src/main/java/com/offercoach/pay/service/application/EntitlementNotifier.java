@@ -102,8 +102,12 @@ public class EntitlementNotifier {
             HttpResponse<String> response = http.send("POST", url, headers, body, ops.getNotifyTimeout());
             int status = response.statusCode();
             if (status / 100 == 2) {
-                orderRepository.updateNotify(order.orderNo(), STATUS_NOTIFIED, ops.getNotifyMaxAttempts());
-                log.info("额度发放通知成功：orderNo={} userId={}", order.orderNo(), order.userId());
+                if (orderRepository.updateNotify(order.orderNo(), STATUS_NOTIFIED, ops.getNotifyMaxAttempts())) {
+                    log.info("额度发放通知成功：orderNo={} userId={}", order.orderNo(), order.userId());
+                } else {
+                    // 已被并发请求或另一副本标记为已通知；不重复记日志为"成功"，也不覆盖状态。
+                    log.info("额度发放已由其他调用标记成功，跳过：orderNo={}", order.orderNo());
+                }
             } else if (permanentFailure(status)) {
                 dead(order, "oc-app 拒绝发放：status=" + status + " body=" + response.body());
             } else {
@@ -127,8 +131,13 @@ public class EntitlementNotifier {
     private void retry(PaymentOrder order, String reason) {
         int attemptsAfter = order.notifyAttempts() + 1;
         boolean exhausted = attemptsAfter >= ops.getNotifyMaxAttempts();
-        orderRepository.updateNotify(
+        boolean applied = orderRepository.updateNotify(
                 order.orderNo(), exhausted ? STATUS_DEAD : STATUS_FAILED, ops.getNotifyMaxAttempts());
+        if (!applied) {
+            // 订单已被并发置为 NOTIFIED：额度已发放，不能再挂"死信"人工处理项。
+            log.info("通知状态已被并发标记为已通知，忽略本次失败：orderNo={} reason={}", order.orderNo(), reason);
+            return;
+        }
         if (exhausted) {
             exceptions.record(
                     order.orderNo(),
@@ -144,7 +153,10 @@ public class EntitlementNotifier {
     }
 
     private void dead(PaymentOrder order, String reason) {
-        orderRepository.updateNotify(order.orderNo(), STATUS_DEAD, ops.getNotifyMaxAttempts());
+        if (!orderRepository.updateNotify(order.orderNo(), STATUS_DEAD, ops.getNotifyMaxAttempts())) {
+            log.info("通知状态已被并发标记为已通知，忽略本次永久失败：orderNo={} reason={}", order.orderNo(), reason);
+            return;
+        }
         exceptions.record(
                 order.orderNo(),
                 order.userId(),

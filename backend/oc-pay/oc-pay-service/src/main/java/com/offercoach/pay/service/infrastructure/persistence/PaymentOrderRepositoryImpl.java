@@ -92,8 +92,8 @@ public class PaymentOrderRepositoryImpl implements PaymentOrderRepository {
     }
 
     @Override
-    public void updateNotify(String orderNo, String status, int maxAttempts) {
-        mapper.updateNotify(orderNo, status, maxAttempts);
+    public boolean updateNotify(String orderNo, String status, int maxAttempts) {
+        return mapper.updateNotify(orderNo, status, maxAttempts) > 0;
     }
 
     @Override

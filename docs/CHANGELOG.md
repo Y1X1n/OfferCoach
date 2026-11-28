@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.40 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.41 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,13 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.41（2026-11-28）——发放通知状态不再被并发覆盖，答案不再因 Redis 抖动被回滚
+
+- **`payment_order.notify_status` 加了状态谓词**：`updateNotify` 原先只有 `WHERE order_no = ?`，而扫描任务用的是"开始时读到的快照"。同一订单被另一次通知（或另一副本）成功置为 `NOTIFIED` 后，本次失败写入仍会把它改成 `FAILED`/`DEAD`——**"钱已到账且额度已发"的订单被反标成失败**，`PaymentOpsMonitor` 随即对已完成的发放发 `ENTITLEMENT_DEAD` 告警，人工按异常队列处理时还可能重复补发。现在 `AND notify_status <> 'NOTIFIED'`：`NOTIFIED` 对通知状态是终态，`DEAD` 仍允许被一次成功写回（手工重试场景）。接口返回是否真的写入，`EntitlementNotifier` 据此**不再给已发放成功的订单挂人工处理项**。
+- **提交流程不再因评分流令牌写入失败回滚**：`AnswerService` 在 `@Transactional` 内写 Redis 令牌并抛 `STREAM_TOKEN_UNAVAILABLE`，Redis 抖动时整个事务回滚——用户刚敲完的整段回答直接丢失、需要重打。令牌只是"可选的实时通道"（反馈可用 `GET /answers/{id}/feedback` 轮询，SSE 默认关闭），现在降级为不发放令牌（响应不下发 `stream` 段），答案照常落库、评分照常触发。
+- 新增 `AnswerServiceTest`（2 条）：正常签发令牌；Redis 写入失败时答案仍落库、事件仍发布、`token=null`。
+- `EntitlementNotifierTest` +2 条：状态写入被谓词挡掉时（订单已 `NOTIFIED`），失败路径与重试耗尽路径都**不写** `payment_exception`。
 
 ### v2.40（2026-11-28）——新增备份脚本，补上"上传文件完全没有备份"的缺口
 
