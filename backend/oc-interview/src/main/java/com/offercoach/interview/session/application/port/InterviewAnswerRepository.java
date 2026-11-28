@@ -21,6 +21,11 @@ public interface InterviewAnswerRepository {
 
     List<InterviewAnswer> listBySession(long sessionId);
 
+    /**
+     * 按会话批量取该用户的回答；报告详情用它把"每题一次查询"收敛成一次。
+     */
+    List<InterviewAnswer> listOwnedBySession(long userId, long sessionId);
+
     void markScored(long answerId);
 
     /**

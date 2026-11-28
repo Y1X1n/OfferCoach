@@ -61,6 +61,13 @@ public class InterviewAnswerRepositoryImpl implements InterviewAnswerRepository 
     }
 
     @Override
+    public List<InterviewAnswer> listOwnedBySession(long userId, long sessionId) {
+        return answerMapper.listOwnedBySession(userId, sessionId).stream()
+                .map(InterviewAnswerRepositoryImpl::toAnswer)
+                .toList();
+    }
+
+    @Override
     public void markScored(long answerId) {
         answerMapper.markScored(answerId);
     }

@@ -7,16 +7,12 @@ import com.offercoach.interview.api.dto.PageResponse;
 import com.offercoach.interview.api.dto.report.ReportDetailResponse;
 import com.offercoach.interview.api.dto.report.ReportStartedResponse;
 import com.offercoach.interview.api.dto.report.ReportSummaryResponse;
-import com.offercoach.interview.feedback.application.port.AnswerFeedbackRepository;
 import com.offercoach.interview.feedback.domain.AnswerFeedback;
+import com.offercoach.interview.report.application.ReportBreakdownResolver;
 import com.offercoach.interview.report.application.ReportGenerationWorker;
 import com.offercoach.interview.report.application.ReportMetaResolver;
 import com.offercoach.interview.report.application.ReportService;
 import com.offercoach.interview.report.domain.InterviewReport;
-import com.offercoach.interview.session.application.port.InterviewAnswerRepository;
-import com.offercoach.interview.session.application.port.InterviewQuestionRepository;
-import com.offercoach.interview.session.domain.InterviewAnswer;
-import com.offercoach.interview.session.domain.InterviewQuestion;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -39,25 +35,19 @@ public class ReportController {
     private final ReportService reportService;
     private final ReportGenerationWorker reportGenerationWorker;
     private final ReportMetaResolver reportMetaResolver;
-    private final InterviewQuestionRepository questionRepository;
-    private final InterviewAnswerRepository answerRepository;
-    private final AnswerFeedbackRepository feedbackRepository;
+    private final ReportBreakdownResolver reportBreakdownResolver;
     private final CurrentUser currentUser;
 
     public ReportController(
             ReportService reportService,
             ReportGenerationWorker reportGenerationWorker,
             ReportMetaResolver reportMetaResolver,
-            InterviewQuestionRepository questionRepository,
-            InterviewAnswerRepository answerRepository,
-            AnswerFeedbackRepository feedbackRepository,
+            ReportBreakdownResolver reportBreakdownResolver,
             CurrentUser currentUser) {
         this.reportService = reportService;
         this.reportGenerationWorker = reportGenerationWorker;
         this.reportMetaResolver = reportMetaResolver;
-        this.questionRepository = questionRepository;
-        this.answerRepository = answerRepository;
-        this.feedbackRepository = feedbackRepository;
+        this.reportBreakdownResolver = reportBreakdownResolver;
         this.currentUser = currentUser;
     }
 
@@ -108,6 +98,12 @@ public class ReportController {
 
     private ReportDetailResponse toDetail(long userId, InterviewReport report) {
         ReportMetaResolver.Meta meta = reportMetaResolver.resolve(userId, report.sessionId());
+        // 逐题素材按会话一次取齐：逐题查时 20 题要 60 条 SQL。
+        // 生成中/失败的报告还没有 breakdown，前端会每 2-15 秒轮询一次详情——这时一条都不该查，
+        // 否则每次轮询都白扫三张表（还把整段回答原文读出来丢掉）。
+        ReportBreakdownResolver.Sources sources = report.questionBreakdown().isEmpty()
+                ? ReportBreakdownResolver.Sources.empty()
+                : reportBreakdownResolver.resolve(userId, report.sessionId());
         return new ReportDetailResponse(
                 Long.toString(report.id()),
                 Long.toString(report.sessionId()),
@@ -128,7 +124,7 @@ public class ReportController {
                                 item.priority(), item.action(), item.reason(), item.resource()))
                         .toList(),
                 report.questionBreakdown().stream()
-                        .map(item -> toBreakdown(userId, report.sessionId(), item))
+                        .map(item -> toBreakdown(sources, item))
                         .toList(),
                 timestamp(report.generatedAt()),
                 timestamp(report.createdAt()));
@@ -138,13 +134,8 @@ public class ReportController {
      * 逐题拆解补充回答原文与反馈证据：数据来自回答与反馈表，旧报告同样适用。
      */
     private ReportDetailResponse.BreakdownItem toBreakdown(
-            long userId, long sessionId, InterviewReport.BreakdownItem item) {
-        InterviewQuestion question =
-                questionRepository.findOwned(sessionId, item.questionId()).orElse(null);
-        InterviewAnswer answer =
-                answerRepository.findOwned(userId, sessionId, item.answerId()).orElse(null);
-        AnswerFeedback feedback =
-                feedbackRepository.findLatestByAnswer(userId, item.answerId()).orElse(null);
+            ReportBreakdownResolver.Sources sources, InterviewReport.BreakdownItem item) {
+        AnswerFeedback feedback = sources.feedback(item.answerId());
         ReportDetailResponse.FeedbackView feedbackView = feedback == null
                 ? null
                 : new ReportDetailResponse.FeedbackView(
@@ -165,8 +156,8 @@ public class ReportController {
                 item.score(),
                 item.dimension(),
                 item.summary(),
-                question == null ? null : question.text(),
-                answer == null ? null : answer.answerText(),
+                sources.questionText(item.questionId()),
+                sources.answerText(item.answerId()),
                 feedbackView);
     }
 

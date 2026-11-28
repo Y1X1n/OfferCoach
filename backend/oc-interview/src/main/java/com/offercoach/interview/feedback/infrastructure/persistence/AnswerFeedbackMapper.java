@@ -57,4 +57,19 @@ public interface AnswerFeedbackMapper {
             ORDER BY id
             """)
     List<AnswerFeedbackDO> listBySession(@Param("sessionId") long sessionId);
+
+    /**
+     * 报告详情的批量取数：同一回答只取 version 最大的一版，与
+     * {@link #findLatestByAnswer} 的 {@code ORDER BY version DESC LIMIT 1} 语义一致
+     * （version 相同时按 id 取最新，避免同版本脏数据导致结果不确定）。
+     */
+    @Select(
+            "SELECT DISTINCT ON (answer_id) "
+                    + COLUMNS
+                    + """
+            FROM answer_feedback
+            WHERE user_id = #{userId} AND session_id = #{sessionId}
+            ORDER BY answer_id, version DESC, id DESC
+            """)
+    List<AnswerFeedbackDO> listLatestBySession(@Param("userId") long userId, @Param("sessionId") long sessionId);
 }
