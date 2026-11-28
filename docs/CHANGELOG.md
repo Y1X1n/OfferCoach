@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.50 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.51 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -39,9 +39,16 @@
 
 ## 文档版本
 
+### v2.51（2026-11-28）——「已知待办」按仓库现状重写
+
+- **旧版清单严重过期**：`## 已知待办` 里把已经上线的「M0 工程骨架与 CI」「账号/额度/简历/JD/会话/回答/报告主链路」「AI 四条链」还挂着未勾选，而真正没做的（E2E、题库向量化、后端依赖扫描）混在里面看不出来——这份清单当时会误导人。
+- 按仓库逐条核过一遍后重写为四块：**已完成**（留档，标落地位置）、**需要业务/负责人决策**（题库选型与版权、黄金集、D-01~D-12、隐私政策与协议、零留存条款、保留期、客服与退款流程、域名证书 K8s、支付宝沙箱验证）、**技术上还没做**（OpenAPI 产物与前端类型、E2E 与压测、题库向量化、后端依赖扫描、支付宝证书模式、真实签名 URL、生产版本落后、K8s 目标态）、**刻意不做**（`AiBudgetGuard` 放行、自托管 CJK 字体）。
+- 核对时发现一处真实缺口并写进去：`DataRetentionCleaner` 只清 `ai_call_log` / `admin_audit_log` / `payment_notify_log`，**简历原件与语音音频没有任何自动过期清理**，只有注销账号时才会删。
+- 顺带订正 `## 统计`：文档数 23 → 38、需求条目 63 → 66；D-01~D-12 的指向从根 README §4 改为 `docs/README.md` §4（根 README 重构后已没有这一节）。
+
 ### v2.50（2026-11-28）——前端容器改非 root，PR 加依赖漏洞扫描
 
-- **前端容器以 root 运行**：镜像基于 `nginx:1.27-alpine`，没有 `USER`，master 进程跑在 root 下——容器一旦被拿下（比如某个依赖 RCE）就直接拿到容器内 root。改为 `USER nginx`：把 nginx 运行期会写的目录（`/var/cache/nginx`、`/var/run`、入口脚本 envsubst 渲染的 `/etc/nginx/conf.d`）交给它，容器内改监听 8080（非 root 不能绑 <1024），compose 映射与健康检查同步改到 8080。本机实测：进程 `uid=101(nginx)`、静态页与安全头正常、`/api/` 反代到 `oc-app:8081` 正常且 `X-Proxy-Secret` 透传正确。
+- **前端容器以 root 运行**：镜像基于 `nginx:1.27-alpine`，没有 `USER`，master 进程跑在 root 下——容器一旦被拿下（比如某个依赖 RCE）就直接拿到容器内 root。改为 `USER nginx`：把 nginx 运行期会写的目录（`/var/cache/nginx`、`/var/run`、入口脚本 envsubst 渲染的 `/etc/nginx/conf.d`）交给它，容器内改监听 8080（Docker 默认已放开非特权端口，但固定 8080 不依赖这个运行时默认值），compose 映射与健康检查同步改到 8080。本机实测：进程 `uid=101(nginx)`、静态页与安全头正常、`/api/` 反代到 `oc-app:8081` 正常且 `X-Proxy-Secret` 透传正确。
 - **CI 加依赖漏洞扫描**：新增 `dependency-scan` job：每个 PR 用 `osv-scanner`（官方二进制 `v2.7.1`，下载后先校验 SHA256）扫前端 lockfile（`--lockfile=frontend/pnpm-lock.yaml`），有漏洞即失败。首次运行扫出一条真实结果：`minimatch` 9.0.9 / 10.2.6（GHSA-g3hv-75wg-m249，CVSS 6.9）——它只被 eslint / typescript-eslint / vue-tsc 这些构建期工具依赖、不进产物，已按"接受风险需留痕"的规则写进根目录 `osv-scanner.toml`（带 `reason` 与 `effectiveUntil = 2027-02-28`，到期后下一个 PR 重新报警）。
   - 原计划用 `actions/dependency-review-action`，但它依赖仓库 Dependency Graph，本仓库 `/dependency-graph/sbom` 返回 404（public 仓库这个开关只能从设置页开启，API 改不动），接上去只会一直 `not supported`。
   - 也试过 `google/osv-scanner-action` 的 reusable workflow 形式：在本仓库连续 `startup_failure`，排查成本高于收益，改为直接下官方二进制（参数、校验和、退出码都在本文件里可控）。
@@ -596,40 +603,62 @@
 
 ## 已知待办
 
-### 文档
+> **只列当前还没做完的事。** 2026-11-28 按仓库现状逐条核过一遍——旧版把已经上线的工程骨架、主链路、管理端都还挂着未勾选，真没做的（E2E、向量化、依赖扫描）反而看不出来。
 
-- [ ] D-01 ~ D-12 待决项逐条关闭（负责人与关闭时机见 [README.md](README.md) §4）。
-- [ ] 题库冷启动 500 题（300 人工 + 200 AI 生成后审核）与版权确认。
-- [ ] 评分黄金集 200 条与标注指南。
-- [ ] API OpenAPI 文件与前端生成类型（代码阶段产出）。
-- [ ] 部署环境域名、证书、K8s 集群与 Secret 清单。
+### 已完成（留档，不再当待办追踪）
 
-### 代码
+| 事项 | 落地位置 |
+|---|---|
+| 工程骨架与 CI | `backend/` 17 个 Maven 模块；`.github/workflows/ci.yml`（后端 `mvn verify` + 8 服务启动冒烟、前端 typecheck/lint/unit/build、脚本语法、PR 依赖漏洞扫描） |
+| 账号 / 额度 / 简历 / JD / 会话 / 回答 / 报告主链路 | `oc-identity` + `oc-interview`，端点见 [api.md](design/api.md) |
+| AI 四条链（解析 / 出题 / 评分 / 报告） | `ResumeParseExecutor`、出题链路、`FeedbackService`、`ReportGenerationWorker`（含并发闸门与熔断） |
+| 管理端：题库导入、Prompt 版本、实验、审计日志、AI 调用与指标 | `oc-admin`：`AdminQuestionService` / `AdminPromptService` / `AdminExperimentService` / `AdminAuditLogService` / `AdminMetricsService` |
+| SSE 首字监控 | `ai_call_log.first_token_ms` + 管理端指标；SSE 默认关闭，反馈可轮询 |
+| 支付（微信 v3 / 支付宝 / MOCK）与对账 | `oc-pay`，见 [payment.md](design/payment.md) |
+| 根级 Compose 一键启动 | [compose.yaml](../compose.yaml)，见 [deployment.md](ops/deployment.md) §2 |
 
-- [ ] M0 工程骨架与 CI。
-- [ ] 账号/额度/简历/JD/会话/回答/报告主链路。
-- [ ] AI 服务：解析、出题、评分、报告四条 Chain。
-- [ ] 管理端：题库导入/向量化、Prompt 版本、实验、日志。
-- [ ] SSE 首字监控与端到端埋点。
-- [ ] E2E 主干 15 条与压测脚本。
+### 需要业务 / 负责人决策（不是代码问题）
 
-### 运营与合规
+| 事项 | 现状 | 谁来做 |
+|---|---|---|
+| 题库冷启动「300 人工 + 200 AI 生成后审核」与版权确认 | 库里已有 22,409 条已发布题目，但没按这个口径做过选型与版权确认 | 内容负责人 |
+| 评分黄金集 200 条与标注指南 | 没有黄金集，评分质量目前靠抽检与回归用例 | 内容负责人 |
+| D-01 ~ D-12 待决事项 | 12 条仍未关闭（供应商、定价、存储形态等） | 见 [docs/README.md](README.md) §4 |
+| 隐私政策 / 用户协议 / 数据删除入口 | 代码侧已有数据导出与注销（`AccountDataController`、`AccountDeletionService`），法务文本没有 | 法务 |
+| LLM 供应商零留存 / 不训练条款 | 未确认 | 采购 / 法务 |
+| 简历与音频保留期 | **代码侧没有任何自动过期清理**：`DataRetentionCleaner` 只清 `ai_call_log` / `admin_audit_log` / `payment_notify_log`，简历原件与语音音频只有"注销账号"时才会删。保留期数值与清理策略都要先定 | 法务 + 后端 |
+| 客服补偿与退款流程 | 退款接口与对账已就绪，处理流程未定 | 运营 |
+| 域名 / 证书 / K8s 集群与 Secret 清单 | 生产是 Compose + 宿主 Nginx；K8s 清单只是目标架构 | 运维 |
+| 支付宝沙箱验证 | 同步响应验签已实现，但只在自签密钥下证明过自洽；**上线前必须用沙箱跑一遍查询与退款** | 运维 / 支付 |
 
-- [ ] 隐私政策、用户协议、数据删除入口。
-- [ ] LLM 供应商零留存/不训练条款。
-- [ ] 简历与音频保留期法务确认。
-- [ ] 客服补偿与退款流程。
+### 技术上还没做
+
+| 事项 | 现状 |
+|---|---|
+| OpenAPI 文件与前端生成类型 | 运行时 `/v3/api-docs` 有（springdoc），仓库里没有落产物，也没生成前端类型 |
+| E2E 主干 15 条与压测脚本 | 没有 E2E 目录、没有 k6 / JMeter；只有 `frontend/scripts/visual-*.mjs` 的视觉检查 |
+| 题库向量化 / 语义检索 | 只有 `embedding_status` 列，没有 embedding 服务与向量库；检索靠 trigram + 标签 |
+| 后端依赖漏洞扫描 | CI 只扫前端 lockfile；Maven 不锁传递依赖版本，后端留发布前人工审计 |
+| 支付宝证书模式验签 | 只支持公钥模式 |
+| `download-url` 的真实签名 URL | 现在返回需要 Bearer 的固定路径，却标 `expiresIn=900`，语义上是"临时签名 URL"却不是 |
+| 生产版本落后 `main` | 线上版本落后：AI 工具能力与并发加固只在本地 / 真实 API 验过，未发布 |
+| K8s 目标态落地 | `readOnlyRootFilesystem`、Secret 清单、金丝雀与自动回滚都没落 |
+
+### 刻意不做（有理由，别当缺陷"修"）
+
+- **`AiBudgetGuard` 预算统计故障时放行**：把统计故障放大成业务故障更糟；要改成 fail-closed，得先有"预算表高可用"这个前提。
+- **自托管 CJK 字体**：HarmonyOS Sans 的许可禁止修改字体文件，已改为 OFL 的 `@fontsource-variable/noto-sans-sc`（`unicode-range` 分片）；不要再往仓库塞整段字体。
 
 ## 统计
 
 | 项 | 数值 |
 |---|---|
-| 文档数 | 23（根级 5 + design 6 + dev 7 + ops 3 + reviews 2） |
-| 设计文档 | 6 |
-| 开发文档 | 7（含 conventions/workflow） |
+| 文档数 | 38（根级 5 + design 10 + dev 8 + ops 3 + reviews 12） |
+| 设计文档 | 10 |
+| 开发文档 | 8（含 conventions/workflow） |
 | 运维文档 | 3 |
-| 复查留档 | 2 |
-| 需求条目 | 63（R-01~R-88，编号分段） |
+| 复查留档 | 12 |
+| 需求条目 | 66（R-01~R-88 编号分段） |
 | 待决事项 | 12 |
 
 > 统计随文档变更更新；以文件系统与需求表实际条目为准。
