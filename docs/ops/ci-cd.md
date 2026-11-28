@@ -1,6 +1,6 @@
 # CI/CD 与发布
 
-> 状态：生效 ｜ 版本：v1.1 ｜ 更新：2026-11-07
+> 状态：生效 ｜ 版本：v1.2 ｜ 更新：2026-11-28
 > 本文只讲**怎么构建、怎么打 tag、怎么发布与回滚**；环境、端口、Compose、K8s 与 Nginx 见 [deployment.md](deployment.md)；监控告警与故障处置见 [observability.md](observability.md)。
 >
 > **当前实现**：`.github/workflows/ci.yml` 在 push main、PR 与手动触发时执行，策略如下：
@@ -8,6 +8,9 @@
 > - **按变更路径裁剪**：由 `.github/scripts/changed-paths.sh` 判断改动范围，只改前端/文档时跳过后端重活，反过来同理；基线缺失或 diff 失败时保守全跑。
 > - **后端快速失败 + 并行**：`spotless:check` 与 `checkstyle:check` 绑定在 `validate` 阶段，规范问题约 4s 失败；随后 `mvn -T 1C verify` 并行构建（本地 clean verify 96s → 73s，约 −24%）；失败时上传 surefire 报告。
 > - **前端分步**：`typecheck → lint → unit → build`，build 直接调 `vite build`，避免 `pnpm check` 中重复执行 `vue-tsc`。
+> - **依赖漏洞扫描**：`dependency-scan` job 在每个 PR 上用 `google/osv-scanner` 扫前端 lockfile（几十秒，不值得再做路径裁剪），有漏洞即失败；确实要接受的风险写进根目录 `osv-scanner.toml`（带 `reason` 与 `effectiveUntil`，到期后下一个 PR 会重新报警；CI 里必须显式 `--config`，osv-scanner 不会自动读仓库根目录那份）。
+>   为什么不是 `actions/dependency-review-action`：它依赖仓库的 Dependency Graph，本仓库 `/dependency-graph/sbom` 返回 404（public 仓库该开关只能从设置页开启，API 改不动），接上去只会一直报 `not supported`。
+>   为什么只扫前端 lockfile：Maven 的 `pom.xml` 不锁传递依赖版本，扫 pom 的结论不可信；后端依赖风险留在发布前的人工审计里。
 > - **Pages 工作流**：仓库为私有库且 Pages 未启用，`pages.yml` 仅保留手动触发，避免 `site/**` 变更产生必然失败的运行。
 >
 > 镜像构建、推送、金丝雀与自动回滚仍按本文手动执行，尚未接入 CI/CD。

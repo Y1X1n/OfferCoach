@@ -92,6 +92,40 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # 依赖漏洞扫描：用 OSV 公开漏洞库扫前端 lockfile。
+  # 为什么不用 actions/dependency-review-action：它依赖仓库的 Dependency Graph，本仓库
+  # /dependency-graph/sbom 返回 404（public 仓库该开关只能从设置页开启，API 改不动），
+  # 接上去只会一直报 "not supported"。
+  # 为什么不直接引 google/osv-scanner-action：它的 reusable workflow 形式在本仓库连续
+  # startup_failure（该标签下没有可直接 uses 的 composite action），排查成本高于直接下
+  # 官方二进制；这里参数、校验和与退出码都在本文件里可控。
+  # 范围只到前端 lockfile：Maven 的 pom.xml 不锁传递依赖版本，扫 pom 结论不可信；后端
+  # 依赖风险留给发布前人工审计（见 docs/ops/ci-cd.md）。
+  dependency-scan:
+    name: Dependency scan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # 这里执行的是一个远程二进制：下载后先校验 SHA256 再安装，不校验就等于信任传输链路。
+      - name: Install osv-scanner
+        env:
+          OSV_VERSION: v2.7.1
+        run: |
+          set -euo pipefail
+          base="https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}"
+          curl -fsSL -o "$RUNNER_TEMP/osv-scanner" "${base}/osv-scanner_linux_amd64"
+          curl -fsSL -o "$RUNNER_TEMP/osv-scanner_SHA256SUMS" "${base}/osv-scanner_SHA256SUMS"
+          (cd "$RUNNER_TEMP" && grep " osv-scanner_linux_amd64$" osv-scanner_SHA256SUMS \
+            | sed 's/ osv-scanner_linux_amd64$/ osv-scanner/' | sha256sum -c -)
+          install -m 0755 "$RUNNER_TEMP/osv-scanner" /usr/local/bin/osv-scanner
+          osv-scanner --version
+      # 有漏洞时 osv-scanner 退出码为 1，直接让 job 失败。--config 必须显式传：配置文件是
+      # 按"被扫文件所在目录"发现的，扫 frontend/ 下的 lockfile 不会自动读仓库根目录那份。
+      - name: Scan frontend lockfile
+        run: osv-scanner --config=osv-scanner.toml --lockfile=frontend/pnpm-lock.yaml
+
   frontend:
     name: Frontend check
     runs-on: ubuntu-latest

@@ -29,6 +29,7 @@ docker compose up -d --build   # 前端 http://localhost:8082
 ```
 
 - 前后端镜像均为多阶段构建，无需宿主机 JDK / Maven / Node / pnpm。
+- **前端容器以 `nginx` 用户（非 root）运行**，容器内监听 8080，由 compose 映射到宿主机 `${WEB_PORT:-8082}`。Docker 默认 `ip_unprivileged_port_start=0`，非 root 其实也能绑 80；固定 8080 是为了不依赖这个运行时默认值。`readOnlyRootFilesystem: true` 时需要给 `/etc/nginx/conf.d`（envsubst 输出）、`/var/cache/nginx`、`/run` 挂可写卷；**挂到 `/run` 上的卷必须对 nginx 用户可写**（k8s emptyDir 默认 0777 没问题；`docker run --tmpfs /run` 要显式 `mode=1777`，否则起不来：`open() "/run/nginx.pid" failed (13: Permission denied)`）。
 - `oc-app` 数据落在 `appdata` 卷；`docker compose down -v` 会同时删除数据库与上传文件。
 - AI 工具服务（8094–8098）与 oc-pay（8099）暂未纳入该 compose，按 §2.2 在宿主机启动；容器默认通过 `host.docker.internal` 访问。
 - **前端端口默认只绑 `127.0.0.1`**：该 compose 用 local profile 与临时 JWT 密钥，仅供本机。
