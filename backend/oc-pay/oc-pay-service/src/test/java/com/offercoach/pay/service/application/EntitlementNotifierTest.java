@@ -40,6 +40,8 @@ class EntitlementNotifierTest {
     @BeforeEach
     void setUp() {
         orderRepository = mock(PaymentOrderRepository.class);
+        // 默认"状态写入成功"；被并发置为 NOTIFIED 的场景在专门用例里覆盖。
+        when(orderRepository.updateNotify(anyString(), anyString(), anyInt())).thenReturn(true);
         exceptions = mock(PaymentExceptionRecorder.class);
         http = mock(SimpleHttp.class);
         ops = new PayOpsProperties();
@@ -122,6 +124,34 @@ class EntitlementNotifierTest {
         notifier.notify(order(8, "DEAD"));
 
         verify(orderRepository, never()).updateNotify(anyString(), anyString(), anyInt());
+    }
+
+    /**
+     * 扫描任务用的是开始时读到的快照：同一订单可能已被另一次通知（或另一副本）成功置为 NOTIFIED。
+     * 此时本次失败写入会被状态谓词挡掉，不能再挂"发放失败/死信"人工处理项。
+     */
+    @Test
+    void doesNotRecordFailureWhenOrderWasAlreadyNotified() throws Exception {
+        HttpResponse<String> rejected = response(400);
+        when(orderRepository.updateNotify(anyString(), anyString(), anyInt())).thenReturn(false);
+        when(http.send(anyString(), anyString(), anyMap(), anyString(), any(Duration.class)))
+                .thenReturn(rejected);
+
+        notifier.notify(order(1));
+
+        verify(exceptions, never()).record(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void doesNotRecordExhaustedDeadLetterWhenOrderWasAlreadyNotified() throws Exception {
+        HttpResponse<String> failed = response(500);
+        when(orderRepository.updateNotify(anyString(), anyString(), anyInt())).thenReturn(false);
+        when(http.send(anyString(), anyString(), anyMap(), anyString(), any(Duration.class)))
+                .thenReturn(failed);
+
+        notifier.notify(order(7));
+
+        verify(exceptions, never()).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @SuppressWarnings("unchecked")

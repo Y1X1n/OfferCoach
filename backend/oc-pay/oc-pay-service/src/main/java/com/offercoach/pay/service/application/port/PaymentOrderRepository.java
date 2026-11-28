@@ -46,8 +46,11 @@ public interface PaymentOrderRepository {
 
     /**
      * 更新发放通知状态；{@code status=FAILED} 且本次为最后一次尝试时，落地状态升级为 DEAD。
+     *
+     * @return 是否真的写入；false 表示该订单已被并发置为 NOTIFIED（终态），调用方不应再记
+     *     "发放失败/死信"异常，否则会给已经发放成功的订单挂上人工处理项
      */
-    void updateNotify(String orderNo, String status, int maxAttempts);
+    boolean updateNotify(String orderNo, String status, int maxAttempts);
 
     List<PaymentOrder> findExpired(int limit);
 

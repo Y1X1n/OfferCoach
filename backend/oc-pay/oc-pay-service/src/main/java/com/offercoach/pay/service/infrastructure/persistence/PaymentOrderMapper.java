@@ -103,6 +103,11 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrderDO> {
 
     /**
      * 更新通知状态与尝试次数；FAILED 且已达最大尝试次数时升级为 DEAD（终态，不再重试）。
+     *
+     * <p>{@code AND notify_status <> 'NOTIFIED'} 是必须的：扫描任务用的是"开始时读到的快照"，
+     * 若同一订单的另一次通知（或另一副本）已经成功置为 NOTIFIED，这里再写 FAILED/DEAD 会
+     * 把"钱已到账且额度已发"的订单反标成失败/死信，进而触发误告警和人工重复处理。
+     * NOTIFIED 对通知状态是终态；DEAD 仍允许被一次成功重新写回 NOTIFIED（手工重试场景）。</p>
      */
     @Update(
             """
@@ -113,7 +118,7 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrderDO> {
                 END,
                 notify_attempts = notify_attempts + 1,
                 updated_at = now()
-            WHERE order_no = #{orderNo}
+            WHERE order_no = #{orderNo} AND notify_status <> 'NOTIFIED'
             """)
     int updateNotify(
             @Param("orderNo") String orderNo, @Param("status") String status, @Param("maxAttempts") int maxAttempts);

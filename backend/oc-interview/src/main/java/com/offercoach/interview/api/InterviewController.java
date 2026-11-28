@@ -186,15 +186,19 @@ public class InterviewController {
         return ResponseEntity.status(HttpStatus.CREATED).body(toSubmittedResponse(submitted));
     }
 
+    /**
+     * 令牌为空表示本次没能发放实时流（Redis 不可用），此时不下发 stream 段：
+     * 前端按既有契约（stream 可选）退回轮询，而不是拿一个校验必失败的令牌去连 SSE。
+     */
     private static AnswerSubmitResponse toSubmittedResponse(AnswerService.Submitted submitted) {
-        return new AnswerSubmitResponse(
-                Long.toString(submitted.answerId()),
-                submitted.status(),
-                new AnswerSubmitResponse.StreamInfo(
+        AnswerSubmitResponse.StreamInfo stream = submitted.token() == null
+                ? null
+                : new AnswerSubmitResponse.StreamInfo(
                         "/api/v1/ai/feedback/stream",
                         Long.toString(submitted.answerId()),
                         submitted.token(),
-                        submitted.expiresIn()));
+                        submitted.expiresIn());
+        return new AnswerSubmitResponse(Long.toString(submitted.answerId()), submitted.status(), stream);
     }
 
     /**
