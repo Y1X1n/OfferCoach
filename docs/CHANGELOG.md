@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.47 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.48 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,16 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.48（2026-11-28）——手写 SQL 补上集成用例（Testcontainers）
+
+- **缺口**：项目里只有 `IdentityM0IntegrationTest` 一处 Testcontainers 用例，而 `#71` 的三个批量查询（`<script>` + `<foreach>`）、报告详情的 `DISTINCT ON`、出题检索的生成列排序全是手写 SQL——单元测试只能证明"仓储被调用了几次"，证明不了 SQL 本身能跑、归属过滤对不对。
+- **新增 `MapperSqlIntegrationTest`**（`oc-app`，`@SpringBootTest` + PostgreSQL 16 / Redis 7 容器，`disabledWithoutDocker`）：
+  - `findByIdsOwned` 只返回本人的会话（把别人的 id 一起传进去也不会带出来）；
+  - `findOwnedByIds`（JD / 简历）同时过滤归属与软删；
+  - `listLatestBySession` 只返回每个回答 **version 最大**的一版（同题播种 v1/v2 两版，断言拿到 v2）；
+  - `selectPublishedByFamily` / `selectPublished` 的排序：有参考答案的排最前，**空白答案按"没有"处理**，其余按 id；未发布的题不出现。
+- 播种走 `JdbcTemplate` 直插（顺带把 `resume_source_type_check`、维度枚举这些真实约束也覆盖到），断言直接打 Mapper。
 
 ### v2.47（2026-11-28）——出题检索的排序改走索引（一个岗位 1.2 万行 top-N 排序）
 
