@@ -11,7 +11,7 @@
  * APPID（2021007126674072）写入 mini.project.json；开发者工具导入时如未识别，手动关联同一 APPID 即可。
  */
 module.exports = {
-  API_BASE: 'https://api.offercoach.example.com/api/v1',
+  API_BASE: 'https://offercoach.0803.xin/api/v1',
   ACCESS_CODE: '',
   REQUEST_TIMEOUT: 30000,
   DEFAULT_QUESTION_COUNT: 5,

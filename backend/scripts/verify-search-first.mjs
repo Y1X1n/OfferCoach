@@ -61,6 +61,19 @@ async function call(method, path, { token, body, headers } = {}) {
   return { status: response.status, data };
 }
 
+function solveCaptcha(question) {
+  const match = String(question || '').match(/(\d+)\s*([+\-*/×÷])\s*(\d+)/);
+  if (!match) return null;
+  const left = Number(match[1]);
+  const right = Number(match[3]);
+  const operator = match[2];
+  if (operator === '+') return left + right;
+  if (operator === '-') return left - right;
+  if (operator === '*' || operator === '×') return left * right;
+  if (operator === '/' || operator === '÷') return right === 0 ? null : Math.floor(left / right);
+  return null;
+}
+
 async function authenticate() {
   if (EMAIL) {
     const login = await call('POST', '/auth/login', { body: { account: EMAIL, password: PASSWORD } });
@@ -68,9 +81,26 @@ async function authenticate() {
     return { token: login.data.accessToken, email: EMAIL };
   }
   const email = `verify_${Date.now()}@miniapp.offercoach.local`;
+  const device = `verify_${Date.now()}`;
+  const policy = await call('GET', '/auth/registration-policy');
+  const payload = { email, password: PASSWORD, nickname: '验证用户', verifyCode: VERIFY_CODE };
+
+  // 生产环境不配固定验证码时必须过算术验证码，这里按真实客户端的方式解出来。
+  if (policy.status === 200 && policy.data && policy.data.requireCaptcha) {
+    const challenge = await call('POST', '/auth/captcha', { body: {} });
+    if (challenge.status !== 200) {
+      fail(`获取验证码失败：${challenge.status}`);
+    }
+    payload.captchaId = challenge.data.captchaId;
+    payload.captchaAnswer = solveCaptcha(challenge.data.question);
+    if (payload.captchaAnswer === null) {
+      fail(`无法解析验证码题目：${challenge.data.question}`);
+    }
+  }
+
   const register = await call('POST', '/auth/register', {
-    body: { email, password: PASSWORD, nickname: '验证用户', verifyCode: VERIFY_CODE },
-    headers: { 'X-Device-Id': `verify_${Date.now()}` },
+    body: payload,
+    headers: { 'X-Device-Id': device },
   });
   if (register.status === 201) {
     return { token: register.data.accessToken, email };
