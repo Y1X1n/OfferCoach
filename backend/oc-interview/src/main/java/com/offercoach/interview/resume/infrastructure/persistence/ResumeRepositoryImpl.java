@@ -24,6 +24,17 @@ public class ResumeRepositoryImpl implements ResumeRepository {
     }
 
     @Override
+    public List<Resume> findOwnedByIds(long userId, java.util.Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return resumeMapper.findOwnedByIds(userId, ids).stream()
+                .map(ResumeRepositoryImpl::toResume)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    @Override
     public Optional<Resume> findAny(long id) {
         return Optional.ofNullable(toResume(resumeMapper.findAny(id)));
     }

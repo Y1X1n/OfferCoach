@@ -13,6 +13,11 @@ public interface JobDescriptionRepository {
     Optional<JobDescription> findOwned(long userId, long id);
 
     /**
+     * 按 id 批量取 JD（归属过滤），用于报告列表批量解析标题与公司。
+     */
+    List<JobDescription> findOwnedByIds(long userId, java.util.Collection<Long> ids);
+
+    /**
      * 按内容哈希查同用户未删除的 JD；无则为空。
      */
     Optional<JobDescription> findByContentHash(long userId, String contentHash);

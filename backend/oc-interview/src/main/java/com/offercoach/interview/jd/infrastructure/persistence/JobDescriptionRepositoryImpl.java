@@ -25,6 +25,17 @@ public class JobDescriptionRepositoryImpl implements JobDescriptionRepository {
     }
 
     @Override
+    public List<JobDescription> findOwnedByIds(long userId, java.util.Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return jdMapper.findOwnedByIds(userId, ids).stream()
+                .map(JobDescriptionRepositoryImpl::toDomain)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    @Override
     public Optional<JobDescription> findByContentHash(long userId, String contentHash) {
         return Optional.ofNullable(toDomain(jdMapper.findByContentHash(userId, contentHash)));
     }

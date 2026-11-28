@@ -67,8 +67,12 @@ public class ReportController {
             @RequestParam(value = "size", defaultValue = "20") int size) {
         ReportService.ReportPage result = reportService.list(currentUser.userId(), page, size);
         long userId = currentUser.userId();
-        List<ReportSummaryResponse> items =
-                result.items().stream().map(item -> toSummary(userId, item)).toList();
+        // 批量解析元信息：逐份 resolve 时每份报告要查会话/JD/简历三次（20 份 = 61 条查询）。
+        Map<Long, ReportMetaResolver.Meta> metas = reportMetaResolver.resolveAll(
+                userId, result.items().stream().map(InterviewReport::sessionId).toList());
+        List<ReportSummaryResponse> items = result.items().stream()
+                .map(item -> toSummary(item, metas.getOrDefault(item.sessionId(), ReportMetaResolver.unknown())))
+                .toList();
         return PageResponse.of(items, result.total(), result.page(), result.size());
     }
 
@@ -87,8 +91,7 @@ public class ReportController {
                 .body(new ReportStartedResponse(Long.toString(reportId), "GENERATING"));
     }
 
-    private ReportSummaryResponse toSummary(long userId, InterviewReport report) {
-        ReportMetaResolver.Meta meta = reportMetaResolver.resolve(userId, report.sessionId());
+    private ReportSummaryResponse toSummary(InterviewReport report, ReportMetaResolver.Meta meta) {
         return new ReportSummaryResponse(
                 Long.toString(report.id()),
                 Long.toString(report.sessionId()),

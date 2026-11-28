@@ -2,6 +2,7 @@ package com.offercoach.interview.session.infrastructure.persistence;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -28,6 +29,18 @@ public interface InterviewSessionMapper {
 
     @Select("SELECT " + COLUMNS + " FROM interview_session WHERE id = #{id}")
     InterviewSessionDO findAny(@Param("id") long id);
+
+    /**
+     * 按 id 批量取会话；报告列表用它把"每份报告 1 次会话查询"收敛成 1 次。
+     *
+     * <p>仍带 {@code user_id}：调用方虽已按当前用户筛过报告，这里再做一次归属过滤，
+     * 避免将来被当成通用批量查询使用。</p>
+     */
+    @Select("<script>SELECT " + COLUMNS
+            + " FROM interview_session WHERE user_id = #{userId} AND id IN "
+            + "<foreach item='item' collection='ids' open='(' separator=',' close=')'>#{item}</foreach>"
+            + "</script>")
+    List<InterviewSessionDO> findByIdsOwned(@Param("userId") long userId, @Param("ids") Collection<Long> ids);
 
     /**
      * 工作台的「进行中会话」：状态集合必须与 {@link #countActive} 和 uq_session_active 一致，

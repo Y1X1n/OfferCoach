@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.41 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.42 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,13 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.42（2026-11-28）——报告列表改批量查询，补支付扫描索引
+
+- **报告列表 N+1**：`ReportController.list` 逐份调用 `ReportMetaResolver.resolve`，每份报告查三次（会话 / JD / 简历），默认 20 份就是 **61 条 SQL**、`size=100` 时 301 条；工作台「最近报告」同样吃 12 条。新增 `resolveAll`：三类数据各批量查一次（`IN` + 仍带 `user_id` 归属过滤），查询次数与 page size 无关。单份 `resolve` 委托给它，占位语义不变。
+- **支付扫描缺索引**：`findReconcileCandidates` / `findPendingNotify` 每 3 分钟各跑一次，此前只有 `(status, expires_at)` 与 `(user_id, created_at)`，两个查询都要全表排序。新增两个部分索引（`V202611280001`）：`(created_at) WHERE status='CREATED'` 与 `(updated_at) WHERE status='PAID' AND notify_status IN ('PENDING','FAILED')`，只覆盖还没收敛的行。
+- **邀请码查询让唯一索引失效**：`upper(invite_code) = upper(?)` 的左侧是表达式，`uq_app_user_invite_code` 用不上，每次邀请注册全表扫 `app_user`。邀请码只由大写字母表生成，改为 `invite_code = upper(?)`。
+- 新增 `ReportMetaResolverTest`（3 条），用「每类仓储只被调用一次、`findOwned` 一次都没调」钉住 N+1 不回归。
 
 ### v2.41（2026-11-28）——发放通知状态不再被并发覆盖，答案不再因 Redis 抖动被回滚
 

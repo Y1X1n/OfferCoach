@@ -1,6 +1,7 @@
 package com.offercoach.interview.dashboard.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -58,6 +59,7 @@ class DashboardServiceTest {
         when(sessionRepository.findLatestOpen(anyLong())).thenReturn(Optional.empty());
         when(reportRepository.count(anyLong())).thenReturn(0L);
         when(reportRepository.list(anyLong(), eq(0), eq(20))).thenReturn(List.of());
+        when(metaResolver.resolveAll(anyLong(), any())).thenReturn(Map.of());
 
         DashboardService service = new DashboardService(
                 quotaService, resumeRepository, jdRepository, sessionRepository, reportRepository, metaResolver);

@@ -29,6 +29,17 @@ public class InterviewSessionRepositoryImpl implements InterviewSessionRepositor
     }
 
     @Override
+    public List<InterviewSession> findByIdsOwned(long userId, java.util.Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return sessionMapper.findByIdsOwned(userId, ids).stream()
+                .map(InterviewSessionRepositoryImpl::toSession)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    @Override
     public Optional<InterviewSession> findLatestOpen(long userId) {
         return Optional.ofNullable(toSession(sessionMapper.findLatestOpen(userId)));
     }

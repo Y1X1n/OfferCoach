@@ -2,6 +2,7 @@ package com.offercoach.interview.jd.infrastructure.persistence;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -25,6 +26,15 @@ public interface JdMapper {
     @Select("SELECT " + COLUMNS
             + " FROM job_description WHERE id = #{id} AND user_id = #{userId} AND deleted_at IS NULL")
     JobDescriptionDO findOwned(@Param("userId") long userId, @Param("id") long id);
+
+    /**
+     * 按 id 批量取 JD（报告列表用），归属与软删条件与 {@link #findOwned} 一致。
+     */
+    @Select("<script>SELECT " + COLUMNS
+            + " FROM job_description WHERE user_id = #{userId} AND deleted_at IS NULL AND id IN "
+            + "<foreach item='item' collection='ids' open='(' separator=',' close=')'>#{item}</foreach>"
+            + "</script>")
+    List<JobDescriptionDO> findOwnedByIds(@Param("userId") long userId, @Param("ids") Collection<Long> ids);
 
     @Insert(
             """
