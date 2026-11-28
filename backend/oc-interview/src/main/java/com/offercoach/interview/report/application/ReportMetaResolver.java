@@ -52,6 +52,10 @@ public class ReportMetaResolver {
     /**
      * 批量解析：会话 / JD / 简历各查一次，查询次数与 page size 无关。
      *
+     * <p>三类查询都带 {@code user_id}：会话这一路此前用的是不校验归属的单条查询，这里与
+     * JD/简历对齐。报告与会话在结束面试时由同一个用户写入，正常数据下没有差异；万一历史数据
+     * 越权，结果是回退到占位元信息，而不是把别用会话的题数带出来。</p>
+     *
      * @return sessionId → Meta；入参为空时返回空 Map
      */
     public Map<Long, Meta> resolveAll(long userId, Collection<Long> sessionIds) {
