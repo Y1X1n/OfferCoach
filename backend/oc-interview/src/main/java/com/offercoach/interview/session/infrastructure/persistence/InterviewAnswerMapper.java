@@ -53,6 +53,14 @@ public interface InterviewAnswerMapper {
     List<InterviewAnswerDO> listBySession(@Param("sessionId") long sessionId);
 
     /**
+     * 报告详情的批量取数：归属条件与 {@link #findOwned} 一致（user + session）。
+     */
+    @Select("SELECT " + COLUMNS
+            + " FROM interview_answer WHERE user_id = #{userId} AND session_id = #{sessionId}"
+            + " ORDER BY submitted_at, id")
+    List<InterviewAnswerDO> listOwnedBySession(@Param("userId") long userId, @Param("sessionId") long sessionId);
+
+    /**
      * 评分完成：不覆盖 REJECTED（内容不合规）的回答。
      *
      * <p>从 FAILED 迁回 SCORED 是合法的：看门狗把超时回答标 FAILED 后，评分任务若最终成功，

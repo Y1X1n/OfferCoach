@@ -64,6 +64,13 @@ public class AnswerFeedbackRepositoryImpl implements AnswerFeedbackRepository {
                 .toList();
     }
 
+    @Override
+    public List<AnswerFeedback> listLatestBySession(long userId, long sessionId) {
+        return feedbackMapper.listLatestBySession(userId, sessionId).stream()
+                .map(this::toFeedback)
+                .toList();
+    }
+
     private AnswerFeedback toFeedback(AnswerFeedbackDO row) {
         if (row == null) {
             return null;

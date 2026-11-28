@@ -16,4 +16,11 @@ public interface AnswerFeedbackRepository {
     int insertIfAbsent(AnswerFeedback feedback);
 
     List<AnswerFeedback> listBySession(long sessionId);
+
+    /**
+     * 按会话批量取每个回答的最新一版反馈（同一 answer 只返回 version 最大的那条）。
+     *
+     * <p>报告详情用它替代逐题 {@link #findLatestByAnswer}。</p>
+     */
+    List<AnswerFeedback> listLatestBySession(long userId, long sessionId);
 }
