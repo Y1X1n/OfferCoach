@@ -31,7 +31,13 @@
     <button class="btn next" onTap="continueSession">继续这场面试</button>
   </view>
 
-  <button class="btn" onTap="startInterview">开始一次模拟面试</button>
+  <button class="btn" onTap="startInterview">
+    {{demoBusy ? demoPhase : '开始一次模拟面试'}}
+  </button>
+  <button class="btn btn-ghost next" onTap="quickDemo" disabled="{{demoBusy}}">
+    {{demoBusy ? demoPhase : '没准备简历？用示例直接体验'}}
+  </button>
+  <view class="tiny muted hint-center">示例使用虚构简历与「高级后端工程师」岗位，约 1 分钟走完一场。</view>
 
   <view class="grid-2 quick">
     <view class="tile" data-url="/pages/resume/list" onTap="go">

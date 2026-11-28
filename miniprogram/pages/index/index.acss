@@ -190,3 +190,8 @@
   color: #a34a2a;
   margin-left: 12rpx;
 }
+
+.hint-center {
+  text-align: center;
+  margin-top: 14rpx;
+}

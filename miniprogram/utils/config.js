@@ -8,6 +8,7 @@
  *   开启 REGISTER_INVITE_CODE 时填邀请码；两者都关闭时留空，改用算术验证码自动注册。
  *
  * 说明：小程序不持有任何模型密钥，所有 AI 调用都由后端完成。
+ * APPID（2021007126674072）写入 mini.project.json；开发者工具导入时如未识别，手动关联同一 APPID 即可。
  */
 module.exports = {
   API_BASE: 'https://api.offercoach.example.com/api/v1',

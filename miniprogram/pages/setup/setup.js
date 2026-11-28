@@ -1,4 +1,5 @@
 const api = require('../../utils/api');
+const session = require('../../utils/session');
 
 Page({
   data: {
@@ -160,49 +161,17 @@ Page({
     }
 
     self.setData({ creating: true });
-    self.setPhase('正在创建面试…');
-    let sessionId = null;
-
-    api
-      .request('/interviews', {
-        method: 'POST',
-        headers: { 'Idempotency-Key': 'mp-' + Date.now() },
-        data: {
-          resumeId: self.resumeId,
-          jdId: self.jdId,
-          config: {
-            questionCount: self.data.questionCount,
-            difficulty: self.data.difficulty,
-            interviewerStyle: self.data.style,
-            answerMode: 'TEXT',
-            timeLimitSec: 180,
-            language: 'zh-CN'
-          }
-        }
+    session
+      .startSession({
+        resumeId: self.resumeId,
+        jdId: self.jdId,
+        questionCount: self.data.questionCount,
+        difficulty: self.data.difficulty,
+        interviewerStyle: self.data.style,
+        onPhase: self.setPhase
       })
-      .then(function (session) {
-        sessionId = session.id;
-        self.setPhase('正在按你的经历出题…');
-        return api.request('/interviews/' + sessionId + '/start', { method: 'POST', data: {} }).catch(function () {
-          return null;
-        });
-      })
-      .then(function () {
-        return api.poll(
-          function () {
-            return api.request('/interviews/' + sessionId);
-          },
-          function (detail) {
-            return detail.status === 'READY' || detail.status === 'IN_PROGRESS' || detail.status === 'FAILED';
-          },
-          { timeout: 60000, interval: 2000, timeoutMessage: '出题超时，请稍后在「进行中的面试」继续' }
-        );
-      })
-      .then(function (detail) {
-        if (detail.status === 'FAILED') {
-          throw new Error('出题失败，请稍后重试');
-        }
-        my.redirectTo({ url: '/pages/interview/interview?id=' + sessionId });
+      .then(function (result) {
+        my.redirectTo({ url: '/pages/interview/interview?id=' + result.sessionId });
       })
       .catch(function (error) {
         self.setData({ creating: false, phase: '生成面试题' });

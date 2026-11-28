@@ -9,5 +9,7 @@
   "developOptions": {
     "hotReload": true
   },
-  "miniprogramRoot": "./"
+  "miniprogramRoot": "./",
+  "appId": "2021007126674072",
+  "projectname": "OfferCoach 面试教练"
 }

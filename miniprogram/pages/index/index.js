@@ -1,5 +1,6 @@
 const api = require('../../utils/api');
 const format = require('../../utils/format');
+const session = require('../../utils/session');
 
 Page({
   data: {
@@ -11,7 +12,9 @@ Page({
     resumeReady: false,
     jdCount: 0,
     reportTotal: 0,
-    avgText: ''
+    avgText: '',
+    demoBusy: false,
+    demoPhase: ''
   },
 
   onShow: function () {
@@ -65,6 +68,42 @@ Page({
 
   startInterview: function () {
     my.navigateTo({ url: '/pages/setup/setup' });
+  },
+
+  /**
+   * 一键体验：示例简历 + 示例岗位 → 直接进入答题页，评审不用自己准备材料。
+   */
+  quickDemo: function () {
+    const self = this;
+    if (self.data.demoBusy) {
+      return;
+    }
+    self.setData({ demoBusy: true, demoPhase: '正在准备示例…' });
+    session
+      .ensureDemoMaterial()
+      .then(function (material) {
+        return session.startSession({
+          resumeId: material.resumeId,
+          jdId: material.jdId,
+          questionCount: 3,
+          difficulty: 'MIXED',
+          onPhase: function (phase) {
+            self.setData({ demoPhase: phase });
+          }
+        });
+      })
+      .then(function (result) {
+        self.setData({ demoBusy: false, demoPhase: '' });
+        my.navigateTo({ url: '/pages/interview/interview?id=' + result.sessionId });
+      })
+      .catch(function (error) {
+        self.setData({ demoBusy: false, demoPhase: '' });
+        let message = (error && error.message) || '体验启动失败，请稍后重试';
+        if (error && error.code === 'QUOTA_EXCEEDED') {
+          message = '今日额度已用完，明天再来或升级套餐';
+        }
+        api.toast(message, 'fail');
+      });
   },
 
   continueSession: function () {

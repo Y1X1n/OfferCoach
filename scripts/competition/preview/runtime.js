@@ -733,6 +733,7 @@
           '/miniprogram/utils/config.js',
           '/miniprogram/utils/format.js',
           '/miniprogram/utils/api.js',
+          '/miniprogram/utils/session.js',
           base + '.js'
         ]).then(function () {
           return files;
