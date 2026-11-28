@@ -34,6 +34,7 @@ MAX_AGENT_MB = 100
 
 errors: list[str] = []
 warnings: list[str] = []
+submit_todos: list[str] = []
 
 
 def error(message: str) -> None:
@@ -189,8 +190,31 @@ def check_cover(cover: Path) -> None:
         print(f"cover       {width}x{height}（16:9）")
 
 
+def check_submission_readiness(materials: Path) -> None:
+    """提交前人工项：不影响结构校验，但缺了评审就无法体验/核实。"""
+    link = materials / "link.md"
+    if link.exists():
+        text = link.read_text(encoding="utf-8")
+        if re.search(r"20\d{2}x{6,}", text) or "待填" in text:
+            submit_todos.append("link.md 的 APPID 仍是占位，需替换为实际 APPID")
+        if "qr.png" in text and not any((materials / name).exists() for name in ("qr.png", "qr.jpg", "qr.jpeg")):
+            submit_todos.append("link.md 提到体验码 qr.png，但包内没有该图片")
+        if "体验版" in text:
+            submit_todos.append("作品仍是体验版：需在支付宝后台添加体验成员，或提审发布")
+    else:
+        submit_todos.append("缺少 link.md")
+
+    if not any(materials.glob("qr.*")):
+        submit_todos.append("未提供体验码图片（qr.png），评审无法扫码进入")
+    demo = materials / "demo.mp4"
+    if demo.exists() and demo.stat().st_size < 200 * 1024:
+        warnings.append("demo.mp4 体积偏小，确认是否录制完整")
+
+
 def main() -> int:
-    product = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_ZIP
+    args = [value for value in sys.argv[1:] if not value.startswith("-")]
+    strict = "--strict" in sys.argv
+    product = Path(args[0]) if args else DEFAULT_ZIP
     product = product.resolve()
     check_product(product)
 
@@ -205,15 +229,29 @@ def main() -> int:
         elif path.stat().st_size < 1024:
             warn(f"{name} 体积异常（{path.stat().st_size}B）")
 
+    check_submission_readiness(materials)
+
     print()
     for message in warnings:
         print(f"[warn] {message}")
     for message in errors:
         print(f"[error] {message}")
+    if submit_todos:
+        print()
+        print("提交前仍需人工完成：")
+        for item in submit_todos:
+            print(f"  - {item}")
     if errors:
-        print(f"\n未通过：{len(errors)} 项错误")
+        print()
+        print(f"未通过：{len(errors)} 项错误")
+        return 1
+    if strict and submit_todos:
+        print()
+        print(f"严格模式未通过：{len(submit_todos)} 项提交前待办未完成")
         return 1
     print("校验通过：结构、命名、大小、入口与 --version 均符合要求")
+    if submit_todos:
+        print("（结构合规，但尚不满足「评审可直接体验」——见上方待办）")
     return 0
 
 
