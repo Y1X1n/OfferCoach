@@ -1,5 +1,6 @@
 server {
-    listen 80;
+    # 非 root 不能监听 <1024 的特权端口；宿主机端口由 compose 映射。
+    listen 8080;
     server_name _;
 
     root /usr/share/nginx/html;

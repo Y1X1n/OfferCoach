@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.49 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.50 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,16 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.50（2026-11-28）——前端容器改非 root，PR 加依赖漏洞扫描
+
+- **前端容器以 root 运行**：镜像基于 `nginx:1.27-alpine`，没有 `USER`，master 进程跑在 root 下——容器一旦被拿下（比如某个依赖 RCE）就直接拿到容器内 root。改为 `USER nginx`：把 nginx 运行期会写的目录（`/var/cache/nginx`、`/var/run`、入口脚本 envsubst 渲染的 `/etc/nginx/conf.d`）交给它，容器内改监听 8080（非 root 不能绑 <1024），compose 映射与健康检查同步改到 8080。本机实测：进程 `uid=101(nginx)`、静态页与安全头正常、`/api/` 反代到 `oc-app:8081` 正常且 `X-Proxy-Secret` 透传正确。
+- **CI 加依赖漏洞扫描**：新增 `dependency-scan` job：每个 PR 用 `osv-scanner`（官方二进制 `v2.7.1`，下载后先校验 SHA256）扫前端 lockfile（`--lockfile=frontend/pnpm-lock.yaml`），有漏洞即失败。首次运行扫出一条真实结果：`minimatch` 9.0.9 / 10.2.6（GHSA-g3hv-75wg-m249，CVSS 6.9）——它只被 eslint / typescript-eslint / vue-tsc 这些构建期工具依赖、不进产物，已按"接受风险需留痕"的规则写进根目录 `osv-scanner.toml`（带 `reason` 与 `effectiveUntil = 2027-02-28`，到期后下一个 PR 重新报警）。
+  - 原计划用 `actions/dependency-review-action`，但它依赖仓库 Dependency Graph，本仓库 `/dependency-graph/sbom` 返回 404（public 仓库这个开关只能从设置页开启，API 改不动），接上去只会一直 `not supported`。
+  - 也试过 `google/osv-scanner-action` 的 reusable workflow 形式：在本仓库连续 `startup_failure`，排查成本高于收益，改为直接下官方二进制（参数、校验和、退出码都在本文件里可控）。
+  - 只扫前端 lockfile：Maven 的 `pom.xml` 不锁传递依赖版本，扫 pom 的结论不可信；后端留给发布前人工审计。`docs/ops/ci-cd.md` 同步登记。
+- **顺带修掉一个启动陷阱**：模板里的 `${AUTH_PROXY_SECRET}` 只在变量**已定义**时才被 envsubst 替换；裸 `docker run`（不传该变量）时模板原样留下 `${...}`，nginx 报 `unknown variable` 直接退出。compose 一直传，所以从没暴露过。现在镜像里给了空默认值，不传就是「不信任任何代理头」，容器照常启动。
+- 另记一条评估结论：`AiBudgetGuard` 在预算统计表不可用时**放行**（`catch RuntimeException → 按未超限处理`）是刻意取舍——统计故障不该阻断全站 AI。这是可用性优先的显式决策，不是缺陷，故不改。
 
 ### v2.49（2026-11-28）——支付宝同步响应也要验签
 

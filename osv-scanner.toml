@@ -1,0 +1,15 @@
+# osv-scanner 配置：**接受的风险必须写在这里**，并且带原因与复核期限。
+#
+# 规则：
+# - 只放"确认不影响线上"的条目；能升级就升级，不要往这里塞。
+# - 每条都要写 reason 与 effectiveUntil，到期后**下一次 PR** 会重新报警（这个 job 只在
+#   PR 上跑，所以不是"到点自动报"，而是"到点后第一个 PR 报"）。
+# - 本文件不会自动加载：osv-scanner 按"被扫文件所在目录"找配置，扫 frontend/ 下的 lockfile
+#   找不到仓库根目录这份，CI 里必须显式 `--config=osv-scanner.toml`。
+# - 注意 `id` 是漏洞 ID，作用是全局的：如果同一个漏洞出现在**运行时**依赖里，这条也会一并
+#   把它压掉。所以每条都写明"为什么只影响构建期"，依赖角色变了就得删掉重评。
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+effectiveUntil = 2027-02-28
+reason = "minimatch 9/10 只被 eslint@10 / @typescript-eslint/typescript-estree / @vue/language-core（vue-tsc）这些**构建期**工具依赖，不会进浏览器产物、也不会出现在运行时；升到 11.x 需要 ESLint 工具链跟着动，属于独立升级。若哪天 minimatch 进入运行时依赖，必须删掉本条重新评估。"
