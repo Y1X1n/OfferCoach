@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -120,12 +121,24 @@ public class ResumeController {
                         Long.toString(result.id()), result.parseStatus(), result.estimatedReadyInMs()));
     }
 
+    /**
+     * 下载地址：响应里带着指向简历原件的路径，同样不允许中间层缓存。
+     */
     @GetMapping("/{id}/download-url")
-    public ResumeDownloadUrlResponse downloadUrl(@PathVariable("id") String id) {
+    public ResponseEntity<ResumeDownloadUrlResponse> downloadUrl(@PathVariable("id") String id) {
         ResumeService.DownloadUrl result = resumeService.downloadUrl(currentUser.userId(), parseId(id));
-        return new ResumeDownloadUrlResponse(result.url(), result.expiresIn());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(new ResumeDownloadUrlResponse(result.url(), result.expiresIn()));
     }
 
+    /**
+     * 简历原件下载：内容是用户上传的完整简历（PII）。
+     *
+     * <p>Spring Security 的默认头已经带 {@code Cache-Control: no-cache, no-store, max-age=0,
+     * must-revalidate}，这里再显式声明 {@code no-store}：把"原件不进任何缓存"钉成这个端点的
+     * 契约，而不是依赖全局安全配置——将来谁把 headers 关掉或换掉，也不该让简历原件变成可缓存。</p>
+     */
     @GetMapping("/{id}/file")
     public ResponseEntity<Resource> file(@PathVariable("id") String id) {
         ResumeService.ResumeFile file = resumeService.file(currentUser.userId(), parseId(id));
@@ -133,6 +146,7 @@ public class ResumeController {
                 URLEncoder.encode(file.fileName(), StandardCharsets.UTF_8).replace("+", "%20");
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
+                .cacheControl(CacheControl.noStore())
                 .contentType(mediaTypeOf(file.mimeType()))
                 .contentLength(file.content().length)
                 .body(new ByteArrayResource(file.content()));

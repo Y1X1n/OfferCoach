@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.45 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.46 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,12 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.46（2026-11-28）——简历原件的"不进缓存"改成端点显式契约
+
+- **先纠一个判断**：这条原本记的是"简历原件下载没有任何 `Cache-Control`"。实际不是——`SecurityConfig` 没有定制过 headers，Spring Security 的默认头对每个走过滤器链的响应都带 `Cache-Control: no-cache, no-store, max-age=0, must-revalidate` 与 `X-Content-Type-Options: nosniff`，**原件早就是不可缓存的**。
+- 这个改动因此只做两件事：`GET /resumes/{id}/file` 与 `GET /resumes/{id}/download-url` **显式**声明 `Cache-Control: no-store`，把"原件不进任何缓存"钉成端点契约而不是依赖全局安全配置；并加 `ResumeControllerDownloadHeadersTest`（MockMvc）断言这两个端点自己带 `no-store`——将来谁把 headers 关掉或改坏这行，测试会红。
+- 顺带记一笔：其余返回 PII 的 JSON 端点（`GET /resumes`、`GET /reports/{id}`、`GET /interviews/{id}/answers/{answerId}` 等）同样只依赖 Security 默认头，本次没有逐个加显式声明——真要统一就上 `ResponseBodyAdvice`，不适合在端点里逐个堆。
 
 ### v2.45（2026-11-28）——报告详情改按会话批量取数（20 题 60 条 SQL → 3 条）
 
