@@ -2,7 +2,7 @@
 
 AI 模拟面试与简历诊断平台：上传简历与目标岗位 JD，自动出题、逐题点评，最终产出一份可复盘的面试报告。
 
-> 仓库已转为**私有**，此前的 GitHub Pages 静态展示页随之下线；本地按下方「快速开始」即可跑通全栈。
+> 仓库为公开仓库；GitHub Pages 展示页已下线，本地按下方「快速开始」即可跑通全栈。
 
 ---
 
@@ -29,10 +29,10 @@ AI 模拟面试与简历诊断平台：上传简历与目标岗位 JD，自动�
 - **目标岗位获取**：创建面试时**粘贴招聘网站链接**（优先抓取，抓不到自动改用搜索兜底）或**直接搜索岗位**；预览 JD 原文与必备技能后用于定制题目。
 - **模拟面试**：题库优先、AI / 模板兜底、按维度配额出题；暂停 / 恢复 / 跳过 / 放弃、答题草稿与刷新恢复；支持**语音作答**（录音 → 转写 → 可编辑提交）、**题目朗读**（TTS，音色可选、服务端缓存）与**基于回答的追问**（每场最多 2 次，计入题量、不额外扣额度）。
 - **逐题反馈**：异步生成后一次性展示（不做流式 token 渲染）；五维评分、证据引用、场景化优点 / 改进建议与 PRO 改写。
-- **报告**：五维雷达、亮点与风险、改进计划、逐题拆解（回答原文 + 证据）、失败重试、打印导出；新增分数趋势与弱项专项练习入口。
+- **报告**：五维雷达、亮点与风险、改进计划、逐题拆解（回答原文 + 证据）、失败重试、打印导出；报告列表带分数趋势与弱项专项练习入口。
 - **管理端**：题库 CRUD / 导入 / 发布归档、用户角色 / 解锁 / 重置密码 / 额度补偿、指标概览（含 AI Token / 估算成本 / 首字 P95）、AI 调用日志（按会话 / 模型 / 请求编号筛选）、运行诊断（报告积压与单场会话时间线）、Prompt 模板与版本、实验、平台策略、AI 运行时配置、审计日志。
 - **可观测性**：请求 / 用户 / 会话 Trace 贯通到 AI 工具与支付服务；AI 调用与报告生成写入业务指标；前端错误可按请求编号反馈。
-- **套餐与支付**：`GET /plans`、`POST /orders` 下单并生成支付二维码（微信支付 v3 / 支付宝扫码，独立服务 `oc-pay`）；渠道回调验签后幂等发放套餐与额度，支持退款与对账兜底。
+- **套餐与支付**：`GET /plans`、`POST /orders` 下单并生成支付二维码（微信支付 v3 / 支付宝扫码，独立服务 `oc-pay`）；渠道回调与**同步响应**都验签后幂等发放套餐与额度，支持退款与对账兜底。
 
 ## 技术栈
 
@@ -43,12 +43,12 @@ AI 模拟面试与简历诊断平台：上传简历与目标岗位 JD，自动�
 | 数据 | PostgreSQL 16（`pg_trgm`）、Redis 7.2、Flyway |
 | 文档处理 | PDFBox 3.0.3、Apache POI 5.3.0 |
 | AI | 对话走 OpenAI 兼容 `/chat/completions`；语音 / 识别 / 联网检索走 DeepSeek 工具接口 `/v1/tools/{asr,tts,ocr,search,fetch}`；运行时可切换 Base URL / Key / 模型；无 Key 时启发式 / 模板降级 |
-| 质量 | JUnit 5、AssertJ、Mockito、ArchUnit、Testcontainers、Vitest、ESLint、Prettier、Spotless、Checkstyle、JaCoCo、maven-enforcer |
-| 部署 | Docker Compose、Nginx、Let's Encrypt |
+| 质量 | JUnit 5、AssertJ、Mockito、ArchUnit、Testcontainers、Vitest、ESLint、Prettier、Spotless、Checkstyle、JaCoCo、maven-enforcer、osv-scanner |
+| 部署 | Docker Compose、Nginx（非 root 运行）、Let's Encrypt |
 
 ## 架构
 
-模块化单体（`oc-app` 为唯一公网入口）+ 一组仅内网可达的 AI 工具微服务。
+模块化单体（`oc-app` 为唯一公网入口）+ 一组仅内网可达的 AI 工具与支付微服务。
 
 ```text
 Browser（Vue 3 SPA）
@@ -71,17 +71,17 @@ Nginx ──▶ Spring Boot oc-app（模块化单体，端口 8081）
 
 `oc-app` 是所有业务判断的唯一归属（鉴权、会话校验、额度、去重、降级）；AI 工具服务只做「文件 ↔ 文本 / 音频」转换，`oc-pay-service` 只做「订单 ↔ 渠道」，通过共享密钥 `X-OC-Internal-Token` 鉴权。支付成功后由 `oc-pay` 回调 `oc-app` 发放套餐与额度（金额与套餐以服务端为准，见 [design/payment.md](docs/design/payment.md)）。
 
-**模块职责与规模**（`src/main/java`）
+**模块职责与规模**（`src/main/java`，2026-11-28）
 
 | 模块 | 文件 / 行数 | 职责 |
 |---|---:|---|
-| `oc-interview` | 150 / 15,870 | 简历解析与编辑、JD 匹配、题库检索、会话状态机、答题、反馈、报告生成（进程内调度） |
-| `oc-identity` | 85 / 5,906 | 注册 / 登录 / Refresh 轮换、额度与流水、邀请奖励、验证码、注册风控、平台策略 |
+| `oc-interview` | 151 / 16,242 | 简历解析与编辑、JD 匹配、题库检索、会话状态机、答题、反馈、报告生成（进程内调度） |
+| `oc-identity` | 85 / 5,909 | 注册 / 登录 / Refresh 轮换、额度与流水、邀请奖励、验证码、注册风控、平台策略 |
 | `oc-admin` | 61 / 5,354 | 题库、用户、指标、AI 日志、Prompt、实验、平台策略、审计 |
-| `oc-pay` | 52 / 4,156 | `oc-pay-core`（契约 DTO、配置、内部令牌工具、`PayGateway`）+ `oc-pay-service`（订单生命周期、微信 v3 / 支付宝渠道适配与验签、退款、对账扫描、额度发放通知） |
-| `oc-ai` | 24 / 2,288 | `oc-ai-core`（1,437 行：工具客户端、内部鉴权、并发限流、`ai_call_log` 写入、DTO）+ asr / tts / ocr / search / fetch 五个独立服务 |
-| `oc-ai-client` | 8 / 1,059 | OpenAI 兼容调用、AES-GCM 密钥、URL 安全校验、运行时配置 |
-| `oc-app` | 13 / 895 | Spring Boot 聚合启动、安全配置、管理员 / 演示账号引导 |
+| `oc-pay` | 52 / 4,398 | `oc-pay-core`（契约 DTO、配置、内部令牌工具、`PayGateway`）+ `oc-pay-service`（订单生命周期、微信 v3 / 支付宝渠道适配与**回调 + 同步响应验签**、退款、对账扫描、额度发放通知） |
+| `oc-ai` | 24 / 2,288 | `oc-ai-core`（工具客户端、内部鉴权、并发限流、`ai_call_log` 写入、DTO）+ asr / tts / ocr / search / fetch 五个独立服务 |
+| `oc-ai-client` | 9 / 1,273 | OpenAI 兼容调用、AES-GCM 密钥、URL 安全校验、运行时配置、并发闸门与熔断 |
+| `oc-app` | 13 / 920 | Spring Boot 聚合启动、安全配置、管理员 / 演示账号引导 |
 | `oc-common` | 8 / 444 | 错误码、异常、Trace、Redis Key、SHA-256 摘要 |
 | `oc-gateway` | 2 / 104 | 预留网关模块；当前生产由 Nginx 直接反代 `oc-app` |
 
@@ -102,7 +102,7 @@ Nginx ──▶ Spring Boot oc-app（模块化单体，端口 8081）
 
 ```text
 backend/
-  oc-app/            Spring Boot 启动、安全与配置
+  oc-app/            Spring Boot 启动、安全与配置（Flyway 迁移也在这里）
   oc-identity/       账号、额度、邀请、注册风控、平台策略
   oc-interview/      简历、JD、题库、会话、评分、报告、语音与朗读
   oc-admin/          管理端 API
@@ -119,12 +119,15 @@ frontend/
   src/components/    业务组件与 UI 原子件（含 admin / interview / settings 等域）
   src/composables/   会话、语音朗读、设置等组合式逻辑
   src/stores/        Pinia 会话与额度
+  docker/            Nginx 模板与安全响应头片段
 data/
   test-resumes/      虚构测试简历与 JD
   question-bank/     题库审计报告与许可证说明
 docs/                产品、架构、API、数据、部署与审查文档
 scripts/qbank/       题库构建、过滤、清洗与相关性评估
-site/                静态展示页源码（仓库转私有后 GitHub Pages 已下线）
+site/                静态展示页源码（Pages 已下线）
+.github/             CI（后端 verify + 启动冒烟、前端检查、依赖扫描、脚本语法）
+osv-scanner.toml     依赖漏洞扫描的「接受风险」清单（带原因与到期时间）
 SECURITY.md          安全策略与漏洞上报方式
 ```
 
@@ -142,10 +145,11 @@ docker compose up -d --build
 > 该 compose 用 `local` profile 与临时 JWT 密钥，前端端口默认只绑 `127.0.0.1`，仅供本机。
 > 要对局域网/公网提供服务，需切到 `prod` profile 并配齐 JWT PEM、`AUTH_PROXY_SECRET`、
 > `CORS_ORIGINS`、`STORAGE_ROOT`，同时改掉 `compose.yaml` 的端口绑定——否则
-> `ProductionSafetyValidator` 会拒绝启动（详见 [ops/deployment.md](docs/ops/deployment.md) §2.1）。
+> `ProductionSafetyValidator` 会拒绝启动（详见 [ops/deployment.md](docs/ops/deployment.md) §2）。
 
 - 停止 `docker compose down`；连数据卷一起清空 `docker compose down -v`。
 - 本地默认开启固定验证码 `123456`，可直接注册；管理端需在 `.env` 中设置 `ADMIN_*`。
+- 前端容器以 `nginx` 用户（非 root）运行，容器内监听 8080，由 compose 映射到宿主机 `8082`。
 - AI 工具服务与支付服务暂未纳入该 compose，按下方步骤在宿主机启动即可（容器默认经 `host.docker.internal` 访问）。
 
 **方式二：本地开发**（前置：JDK 21、Maven 3.9+、Node.js 20+、pnpm、Docker）
@@ -196,11 +200,21 @@ cd backend  && mvn verify        # 单测 + JaCoCo + Spotless + Checkstyle + Arc
 cd frontend && pnpm check        # typecheck + ESLint + Vitest + build
 ```
 
-CI 对每个 PR 运行 `Backend verify` 与 `Frontend check`。其中：
+CI（`.github/workflows/ci.yml`）按改动路径裁剪后跑四个作业：
 
-- **ArchUnit** 约束分层与模块无环，并强制「AI 域不得反向依赖业务模块」。
-- **maven-enforcer** 禁止 AI 工具服务之间互相依赖（它们的类不在同一 classpath，ArchUnit 无法覆盖跨模块依赖）。
-- **Spotless/Checkstyle** 统一 4 空格、120 列、UTF-8、LF。
+| 作业 | 内容 |
+|---|---|
+| `Backend verify` | `mvn verify`，随后用产出的 jar **依次启动 8 个服务**（gateway、5 个 AI 工具、pay、app）确认 Spring 上下文真能起来——「能编译 + 单测过」不等于「进程能启动」 |
+| `Frontend check` | typecheck、ESLint、Vitest、`vite build` |
+| `Dependency scan` | PR 上用 `osv-scanner` 扫前端 lockfile（`frontend/pnpm-lock.yaml`），有漏洞即失败；已接受的风险写在 `osv-scanner.toml`（带原因与到期时间） |
+| `Shell syntax` | `bash -n` 检查所有脚本 |
+
+测试结构：
+
+- **单元测试**：后端 71 个测试类（含 `oc-identity` 的登录/限流/额度/邀请、额度幂等、报告批量取数等边界）；前端 Vitest 10 个测试文件。
+- **集成测试**：两个 Testcontainers 类跑真实 PostgreSQL 16 + Redis 7——`IdentityM0IntegrationTest`（注册/登录/刷新/登出全链路）与 `MapperSqlIntegrationTest`（手写 SQL 的归属过滤、`DISTINCT ON` 取最新版本、题库排序）；本机没有 Docker 时自动跳过，CI 上真跑。
+- **架构约束**：ArchUnit 约束分层与模块无环，并强制「AI 域不得反向依赖业务模块」；maven-enforcer 禁止 AI 工具服务之间互相依赖。
+- **格式**：Spotless/Checkstyle 统一 4 空格、120 列、UTF-8、LF。
 
 ## 规模
 
@@ -208,17 +222,17 @@ CI 对每个 PR 运行 `Backend verify` 与 `Frontend check`。其中：
 
 | 范围 | 文件 | 行数 |
 |---|---:|---:|
-| 后端主代码（17 个 Maven 模块） | 403 | 36,076 |
-| 后端测试 | 58 | 5,486 |
-| 前端 Vue | 98 | 15,914 |
-| 前端 TypeScript（含 6 个单测） | 43 | 6,791 |
-| SQL 迁移 | 21 | 875 |
-| 文档 | 46 | 12,012 |
-| 脚本（题库 / 冒烟 / 验证） | 15 | 3,219 |
+| 后端主代码（17 个 Maven 模块） | 405 | 36,932 |
+| 后端测试 | 71 | 8,193 |
+| 前端 Vue | 98 | 16,257 |
+| 前端 TypeScript（含 10 个单测文件） | 49 | 7,231 |
+| SQL 迁移 | 23 | 924 |
+| 文档（README + SECURITY + `docs/**`） | 40 | 11,616 |
+| 脚本（题库 / 冒烟 / 验证 / CI） | 18 | 3,633 |
 
-其他规模：35 个 Controller、101 个 HTTP 端点、28 张业务表、22,409 条题库（MIT 来源，不在仓库内）。
+其他规模：32 个 Controller、101 个 HTTP 端点、28 张业务表、22,409 条已发布题库（MIT 来源，数据不在仓库内）。
 
-> 统计于 2026-11-27（`main`）。行数为物理行，含空行与注释。
+> 统计于 2026-11-28（`main`）。行数为物理行，含空行与注释。
 
 ## 题库
 
@@ -234,21 +248,32 @@ node scripts/qbank/clean-and-evaluate.mjs       # 清洗、质量分、相关性
 
 审计结论：22,409 条题库无重复题干、无链接题；主要问题是岗位族缺失与维度分布不均。修复后后端 JD 的 top 20 核心命中率 65% → 100%，非本域题目 50% → 0%。详见 [audit-report.md](data/question-bank/audit-report.md)。
 
+出题检索的排序（优先带参考答案）走 `has_reference_answer` 生成列 + 两个部分索引，单岗 1.2 万行从 58ms / 9,694 buffers 降到 0.22ms / 43 buffers（迁移 `V202611280002`）。
+
 ## 配置与安全
 
-- Access Token 为 RS256 JWT（15 分钟，只存前端内存）；Refresh Token 为 HttpOnly Cookie（7 天、家族轮换、重放即吊销）。
+- Access Token 为 RS256 JWT（15 分钟，只存前端内存）；Refresh Token 为 HttpOnly Cookie（7 天、家族轮换、重放即吊销）；登出在 Access 过期时也会先刷新再吊销家族，不会「看似登出、刷新又回来」。
 - 生产必须显式配置 `CORS_ORIGINS`、数据库 / Redis / JWT 密钥；仓库不保存生产凭据，文档一律使用占位符（`<PUBLIC_DOMAIN>`、`<ECS_PUBLIC_IP>`、`<ECS_INSTANCE_ID>`）。
 - AI Key 使用 AES-GCM 加密存库，根密钥来自 `OC_AI_SECRET`；接口只返回掩码。
 - AI Base URL 默认拒绝私网与回环地址，避免 SSRF；抓取链接再做一层协议 / 主机校验，避免被当作开放代理。
 - AI 工具次数上限（朗读每题、OCR / 搜索 / 抓取每日）属**防滥用限流**，走 Redis 原子计数；计费额度仍以 `quota_ledger` 流水为事实源（见 ADR-012）。
-- 上传校验扩展名、MIME、文件魔数、DOCX 解压比与 PDF 页数；语音音频额外校验 WAV / Ogg Opus 魔数。
+- 上传校验扩展名、MIME、文件魔数、DOCX 解压比与 PDF 页数；语音音频额外校验 WAV / Ogg Opus 魔数；**简历原件下载显式 `Cache-Control: no-store`**（PII 不进任何缓存）。
+- 支付：回调与同步响应都验签（同步响应验的是业务节点原始字节，只在根层匹配并拒绝重复根键），金额与套餐以服务端订单为准。
+- 前端容器以非 root 运行；入口 `index.html` 为 `no-cache` + ETag，`/assets/` 为 30 天 `immutable`（404 不带 immutable），并统一发 `nosniff` / `X-Frame-Options` / `Referrer-Policy` / `Permissions-Policy`。
 - 管理端写操作落 `admin_audit_log`，平台策略与 AI 配置变更可审计追踪。
 
 ## 已知限制
 
+完整清单（含「需要谁来做」与「刻意不做」的理由）见 [docs/CHANGELOG.md](docs/CHANGELOG.md) 的「已知待办」。用户可感知的几条：
+
 - 生产部署版本落后于 `main`：AI 工具能力与部分并发加固已完成本地 / 真实 API 验证，但尚未发布到线上。
+- **支付宝上线前必须做沙箱验证**：同步响应验签只在自签密钥下证明过自洽，尚未用真实沙箱跑过查询与退款。
+- **简历原件与语音音频没有自动过期清理**：`DataRetentionCleaner` 只清 AI 调用日志 / 审计日志 / 支付通知日志，上传文件只有注销账号时才会删。
 - 备份在单机，未接入异地 / PITR；Redis 为单实例。
 - 管理端尚未启用 MFA / IP 白名单；Prompt 注入防护仍需加强。
+- E2E 主干与压测脚本尚未落地（现有 `frontend/scripts/visual-*.mjs` 只是视觉检查）。
+- 题库向量化 / 语义检索未实现（只有 `embedding_status` 列，检索靠 trigram + 标签）。
+- 后端依赖漏洞扫描靠发布前人工审计（Maven 不锁传递依赖版本，扫 pom 结论不可信）。
 - 会话创建暂不接受 `answerMode=VOICE`（语音是逐题选择，非会话级默认）。
 - 题库少量维度标注存在语义噪声，AI-Agent 长题较多，建议继续人工抽检。
 - 历史报告中的逐题反馈是生成时快照，不随评分规则升级自动重算。
@@ -264,12 +289,14 @@ node scripts/qbank/clean-and-evaluate.mjs       # 清洗、质量分、相关性
 | 套餐与支付 | [docs/design/payment.md](docs/design/payment.md) |
 | 数据模型 | [docs/design/data-model.md](docs/design/data-model.md) |
 | API 契约 | [docs/design/api.md](docs/design/api.md) |
-| 开发规范 | [docs/dev/conventions.md](docs/dev/conventions.md) |
-| 测试与部署 | [docs/dev/testing.md](docs/dev/testing.md)、[docs/ops/deployment.md](docs/ops/deployment.md) |
-| 进度与审查 | [docs/CHANGELOG.md](docs/CHANGELOG.md)、[docs/reviews/](docs/reviews/) |
+| 开发规范 | [docs/dev/conventions.md](docs/dev/conventions.md)、[docs/dev/backend.md](docs/dev/backend.md)、[docs/dev/frontend.md](docs/dev/frontend.md) |
+| 测试与部署 | [docs/dev/testing.md](docs/dev/testing.md)、[docs/ops/deployment.md](docs/ops/deployment.md)、[docs/ops/ci-cd.md](docs/ops/ci-cd.md) |
+| 进度、待办与审查 | [docs/CHANGELOG.md](docs/CHANGELOG.md)、[docs/reviews/](docs/reviews/) |
+| 文档总索引 | [docs/README.md](docs/README.md) |
 
 ## 上游依赖与许可
 
 - 代码仅用于学习与面试练习。
 - 对话与工具能力调用第三方 AI 服务（DeepSeek 工具接口 + OpenAI 兼容对话接口），运行时可配置 Base URL / Key / 模型；仓库不保存任何真实凭据。
+- 中文字体使用 OFL 许可的 [Noto Sans SC](https://github.com/notofonts/noto-cjk)（`@fontsource-variable/noto-sans-sc`，按 `unicode-range` 分片）；许可全文随前端产物发布在 `frontend/public/fonts/`。
 - 题库来源与许可证见 [data/question-bank/LICENSES.md](data/question-bank/LICENSES.md)；仓库不包含非宽松许可来源的数据。
