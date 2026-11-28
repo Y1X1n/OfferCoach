@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ArrowLeft, Bell, FileText, Loader2, Printer, RotateCcw } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -40,8 +40,12 @@ const notificationsGranted = ref(notificationsSupported && Notification.permissi
 
 const poller = usePolling(
   async () => {
+    const id = reportId.value
     try {
-      const next = await reportsApi.getReport(reportId.value)
+      const next = await reportsApi.getReport(id)
+      // 轮询结果只在仍停留在同一份报告时生效：任务发出去之后用户可能已经切到别的报告，
+      // 迟到响应会把页面覆盖回旧报告，甚至为一份早已完成的报告弹出"已生成"提示。
+      if (id !== reportId.value) return false
       report.value = next
       if (next.status === 'GENERATING') return true
       if (next.status === 'READY') {
@@ -85,28 +89,43 @@ const scoreVerdict = computed(() => {
   return '建议先打磨结论与结构'
 })
 
+/**
+ * 加载当前路由上的报告。同一个组件实例会被复用（/reports/1 → /reports/2），
+ * 所以每轮加载取一个序号：只有最后一次加载允许写状态，避免先发的请求后回来覆盖。
+ */
+let loadSeq = 0
+
 async function loadReport(): Promise<void> {
+  const seq = ++loadSeq
+  const id = reportId.value
   loading.value = true
   error.value = null
   notFound.value = false
+  report.value = null
   try {
-    const next = await reportsApi.getReport(reportId.value)
+    const next = await reportsApi.getReport(id)
+    if (seq !== loadSeq) return
     report.value = next
     if (next.status === 'GENERATING') poller.start()
   } catch (cause) {
+    if (seq !== loadSeq) return
     if (cause instanceof ApiError && cause.status === 404) notFound.value = true
     else error.value = errorMessage(cause, '报告加载失败')
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
 async function retryGenerate(): Promise<void> {
-  if (retrying.value || !report.value) return
+  const target = report.value
+  if (retrying.value || !target) return
   retrying.value = true
   try {
-    await reportsApi.retryReport(report.value.id)
-    if (report.value) report.value.status = 'GENERATING'
+    await reportsApi.retryReport(target.id)
+    // 重试请求飞行期间用户可能已经切到别的报告：只改同一份报告的状态，否则会把新报告
+    // 标成“生成中”并起一轮错误的轮询。
+    if (report.value?.id !== target.id) return
+    report.value.status = 'GENERATING'
     poller.start()
     toast('已提交重试', 'info', '报告已回到生成中，不重复扣额度')
   } catch (cause) {
@@ -143,6 +162,13 @@ function onPrintReport(): void {
   window.print()
   window.setTimeout(restore, 1000)
 }
+
+// 路由参数变化时组件不会重建，必须显式重新加载；旧的生成轮询也要停掉，
+// 否则它会继续按新 id 轮询并抢在前面覆盖页面状态。
+watch(reportId, () => {
+  poller.stop()
+  void loadReport()
+})
 
 onMounted(() => {
   void loadReport()

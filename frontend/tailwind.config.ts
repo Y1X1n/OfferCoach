@@ -42,9 +42,13 @@ export default {
         /*
          * 字体优先级：
          * 1. Apple 系统字体（SF Pro / 苹方）——授权字体不能打包，仅 Mac/iOS 命中系统自带；
-         * 2. HarmonyOS Sans SC——自托管，仅覆盖中日韩字符（见 styles/fonts.css）；
-         * 3. 自托管 Inter——覆盖所有平台的拉丁字符与数字；
+         * 2. 自托管 Inter——拉丁字符与数字（latin 子集，约 50KB）；
+         * 3. Noto Sans SC（可变字体，OFL）——中日韩字符，按 unicode-range 分片按需加载
+         *    （见 styles/fonts.css）；
          * 4. 各平台系统无衬线兜底。
+         *
+         * 2、3 的先后由 unicode-range 决定实际归属，不能颠倒：Noto 的 latin 分片也覆盖
+         * U+0000-00FF，排在 Inter 前就会抢走全部拉丁字符，Inter 再也不会被下载。
          */
         sans: [
           '-apple-system',
@@ -53,10 +57,12 @@ export default {
           '"SF Pro Display"',
           '"Helvetica Neue"',
           '"PingFang SC"',
-          '"HarmonyOS Sans SC"',
-          '"HarmonyOS Sans"',
+          // Inter 必须排在 Noto 之前：Noto 的 latin 分片同样覆盖 U+0000-00FF，排在前面会
+          // 抢走所有拉丁字母与数字，Inter 永远不会被下载（注释与文档也就成了假话）。
           '"Inter Variable"',
           'Inter',
+          '"Noto Sans SC Variable"',
+          '"Noto Sans SC"',
           'system-ui',
           '"Segoe UI"',
           '"Microsoft YaHei"',

@@ -14,11 +14,16 @@ import { ApiError, createRequestId, errorMessage } from '@/api/client'
 import * as interviewsApi from '@/api/interviews'
 import { useToast } from '@/composables/useToast'
 import { useInterviewSpeech } from '@/composables/useInterviewSpeech'
+import {
+  DRAFT_KEY_PREFIX,
+  TIMER_DEADLINE_KEY_PREFIX,
+  TIMER_REMAINING_KEY_PREFIX,
+  removeSessionStorage,
+} from '@/utils/interviewStorage'
 
 export type StreamState = 'idle' | 'connecting' | 'streaming' | 'done' | 'error'
 
 const DRAFT_DEBOUNCE_MS = 3000
-const DRAFT_PREFIX = 'oc_draft_'
 const FEEDBACK_POLL_MS = 700
 const FEEDBACK_TIMEOUT_MS = 20000
 
@@ -180,7 +185,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   })
 
   function draftKey(questionId: string): string {
-    return `${DRAFT_PREFIX}${sessionKey()}_${questionId}`
+    return `${DRAFT_KEY_PREFIX}${sessionKey()}_${questionId}`
   }
 
   function readDraft(questionId: string): string {
@@ -208,6 +213,17 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
     }
   }
 
+  /**
+   * 清掉本场面试留在浏览器里的全部草稿与计时快照。
+   *
+   * <p>放弃或结束之后这些数据不会再被读到（`readDraft` 只在会话进行中调用），留下的只是
+   * 用户逐字敲过的答案文本与计时键——长期使用会无限堆积，共用设备上更是白留着别人的作答
+   * 内容。前缀扫描在 `utils/interviewStorage`，与登出清理共用同一套前缀。</p>
+   */
+  function clearSessionDrafts(): void {
+    removeSessionStorage(sessionKey())
+  }
+
   function clearDraftTimer(): void {
     if (draftTimer !== null) {
       window.clearTimeout(draftTimer)
@@ -216,11 +232,11 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
   }
 
   function timerDeadlineKey(questionId: string): string {
-    return `oc_timer_${sessionKey()}_${questionId}`
+    return `${TIMER_DEADLINE_KEY_PREFIX}${sessionKey()}_${questionId}`
   }
 
   function timerRemainingKey(questionId: string): string {
-    return `oc_timer_rem_${sessionKey()}_${questionId}`
+    return `${TIMER_REMAINING_KEY_PREFIX}${sessionKey()}_${questionId}`
   }
 
   function readDeadline(questionId: string): number | null {
@@ -734,6 +750,10 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
       if (session.value) session.value.status = 'ABANDONED'
       clearTimer()
       clearTimerState()
+      // 先撤掉 3 秒防抖的草稿落盘，否则它可能在 clearSessionDrafts 之后才触发，
+      // 把刚清掉的草稿又写回 localStorage。
+      clearDraftTimer()
+      clearSessionDrafts()
       abortStream()
       toast('已放弃本场面试', 'info')
       return true
@@ -762,6 +782,7 @@ export function useInterviewRoom(sessionId: MaybeRefOrGetter<string>) {
         session.value.reportId = result.reportId
       }
       clearTimerState()
+      clearSessionDrafts()
       return result
     } catch (cause) {
       toast(errorMessage(cause, '结束面试失败，请稍后重试'), 'error')

@@ -42,6 +42,11 @@ export function usePolling(
   let paused = false
   let currentInterval = baseInterval
   let startedAt = 0
+  /**
+   * 每轮 start 递增。轮询任务里通常读响应式状态（如当前路由参数），一次 start→stop→start
+   * 之后旧任务的结果仍会返回：只看 `running` 会把新轮询一并停掉。
+   */
+  let generation = 0
 
   function clearTimer(): void {
     if (timer !== null) {
@@ -55,13 +60,14 @@ export function usePolling(
       paused = true
       return
     }
+    const expected = generation
     timer = setTimeout(() => {
-      void tick()
+      void tick(expected)
     }, delay)
   }
 
-  async function tick(): Promise<void> {
-    if (!running) return
+  async function tick(expected: number): Promise<void> {
+    if (!running || expected !== generation) return
     if (pauseWhenHidden && typeof document !== 'undefined' && document.hidden) {
       paused = true
       return
@@ -72,7 +78,8 @@ export function usePolling(
     } catch {
       keepGoing = false
     }
-    if (!running) return
+    // 任务期间可能已经 stop 或重新 start：旧那一轮的结果不能再影响新一轮。
+    if (!running || expected !== generation) return
     if (!keepGoing) {
       stop()
       return
@@ -105,6 +112,7 @@ export function usePolling(
 
   function start(): void {
     stop()
+    generation += 1
     running = true
     currentInterval = baseInterval
     startedAt = Date.now()

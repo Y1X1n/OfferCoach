@@ -1,11 +1,18 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { AuthResponse, Me, Quota, UserSummary } from '@/types'
-import { ApiError, clearAccessToken, getAccessToken, setAccessToken } from '@/api/client'
+import {
+  ApiError,
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+  wasRefreshRejected,
+} from '@/api/client'
 import * as authApi from '@/api/auth'
 import * as quotaApi from '@/api/quota'
 import * as usersApi from '@/api/users'
 import { setDisplayTimezone } from '@/utils/format'
+import { removeAllInterviewStorage } from '@/utils/interviewStorage'
 
 const EMPTY_QUOTA: Quota = {
   planCode: 'FREE',
@@ -61,14 +68,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function clearDrafts(): void {
-    try {
-      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
-        const key = localStorage.key(index)
-        if (key?.startsWith('oc_draft_')) localStorage.removeItem(key)
-      }
-    } catch {
-      // 本地存储不可用时忽略
-    }
+    // 草稿之外还有 `oc_timer_*` 计时快照，前缀集中定义在 utils/interviewStorage，
+    // 这里统一清掉，避免换账号后仍留着上一个人的作答内容与计时状态。
+    removeAllInterviewStorage()
   }
 
   async function loadMe(): Promise<Me | null> {
@@ -172,9 +174,14 @@ export const useAppStore = defineStore('app', () => {
       await authApi.logout()
     } catch (cause) {
       if (cause instanceof ApiError && (cause.status === 401 || cause.status === 403)) {
-        // Access/Refresh 均已失效，本地清理即可，避免卡在无法登出的状态。
-        clearSession()
-        return true
+        // 只有"Refresh 被服务端明确拒绝（401）"时才能当已经登出：那时 Cookie 与家族都已失效，
+        // 本地清理足够。网络错误、5xx、或网关/WAF 返回的 403 都可能是暂时故障——把这些当成功
+        // 就等于什么都没做：Cookie 还活着，刷新页面又自动登入。
+        if (wasRefreshRejected()) {
+          clearSession()
+          return true
+        }
+        return false
       }
       // 服务端吊销失败时保留本地会话，避免“看似登出、刷新后自动重登”。
       return false

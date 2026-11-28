@@ -457,7 +457,7 @@ router.beforeEach(async (to) => {
 | LCP（4G） | ≤ 2.5s | Lighthouse CI |
 | INP | ≤ 200ms | 实验室 + RUM |
 | CLS | ≤ 0.1 | Lighthouse CI |
-| 字体 | 仅 2 个字重，`font-display: swap` | — |
+| 字体 | 中文用 Noto Sans SC 可变字体（单个文件覆盖 100–900），按 `unicode-range` 分片，首访只下载当前页面用到的字形；拉丁用 Inter latin 子集 | 构建产物里不再有整段 CJK 字体 |
 
 **手段**：
 
@@ -466,6 +466,7 @@ router.beforeEach(async (to) => {
 - 列表超过 100 条使用虚拟滚动（`vue-virtual-scroller`）。
 - 长文本 Markdown 渲染做缓存；流式期间用纯文本，结束后再渲染 Markdown。
 - 预取：进入面试房间前预取题目与反馈；空闲时预取报告路由 chunk。
+- 字体：不自托管整段 CJK 字体。HarmonyOS Sans 三个字重共 24.6MB，而它禁止修改字体文件，不能子集化；换用 OFL 的 `@fontsource-variable/noto-sans-sc`，CSS 里按 unicode-range 分片，浏览器按页面实际用到的字符挑选分片。
 
 ## 11. 可访问性
 

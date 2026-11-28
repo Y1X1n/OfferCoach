@@ -1,6 +1,6 @@
 # 更新日志（文档与项目里程碑）
 
-> 状态：生效 ｜ 版本：v2.42 ｜ 更新：2026-11-28
+> 状态：生效 ｜ 版本：v2.43 ｜ 更新：2026-11-28
 > 本文件只保留**跨阶段里程碑与当前待办**；逐次文档修改走 git 历史，应用内更新日志在代码落地后单独维护。
 
 ## 当前状态
@@ -38,6 +38,19 @@
 | M6 | 硬化发布 | 压测、安全、降级演练、UAT、灰度 | 未开始 |
 
 ## 文档版本
+
+### v2.43（2026-11-28）——登出真正吊销会话，中文字体从 24.6MB 降到按需几百 KB
+
+- **登出在 Access Token 过期时静默失效**：`/auth/logout` 需要有效 Access Token，而 `auth.ts` 给它传了 `refreshOnUnauthorized: false`——Access 过期时（隔夜开着的页面很常见）登出请求直接 401，`client.ts` 里为 `/auth/logout` 特意放行的刷新重试永远走不到。前端只能清掉内存 Token，**HttpOnly 的 Refresh Cookie 删不掉、服务端的 Refresh 家族也没吊销**：用户刷新页面即被静默重新登录，共用设备上等于没登出。现在登出保留 401 刷新重试，由服务端吊销家族并下发清除 Cookie。
+- **刷新失败时不能当"已登出"**：网络错误 / 5xx / 响应缺 `accessToken` 时 `performRefresh` 直接返回失败，此时登出的 401 被 `store.logout` 当成"会话已死"，又落回"什么都没做却提示已退出"；403 更常见于网关/WAF 的限流页，同样不代表 Refresh 家族被吊销。现在只有**服务端明确拒绝（401）**才算已登出（`wasRefreshRejected`），其余一律返回失败让用户重试。
+- **报告详情页不响应 `:id` 变化**：`loadReport` 只挂在 `onMounted`，而 `/reports/1 → /reports/2` 复用同一个组件实例——URL 换了页面还是旧报告。现在 `watch(reportId)` 停轮询并重载，加载带递增序号、轮询结果带发起时的 id 校验，迟到的响应直接丢弃；`retryGenerate` 也按报告 id 校验，不会把重试状态写到切过去的新报告上。
+- **轮询的迟到结果会停掉新一轮**：`usePolling` 只看 `running`，`stop()` 后立刻 `start()` 时 `running` 又为真，旧那一轮返回 `false` 就把新轮询一起停掉（切换到另一份正在生成的报告后，页面永远停在"生成中"）。改为每轮 `start` 递增 generation，旧轮次的结果直接丢弃。
+- **放弃/结束面试后仍把作答文本留在浏览器**：`localStorage` 里的 `oc_draft_*` 与 `oc_timer_*` 只按当前题目清，整场放弃后其他题的草稿和计时键永久留着，长期使用无限堆积。新增 `utils/interviewStorage`：前缀集中定义，按会话清（放弃/结束）或全清（登出），登出原来只清 `oc_draft_` 的缺口一并补上；放弃时先撤掉 3 秒防抖的落盘定时器，避免刚清完又被写回。
+- **中文字体 24.6MB → 按需几百 KB**：自托管的 HarmonyOS Sans 三个字重共 24.6MB，且许可明确禁止修改字体文件（不能子集化、不能转 WOFF2）。换成 OFL 的 `@fontsource-variable/noto-sans-sc`：可变字体一个文件覆盖 100–900，CSS 里按 `unicode-range` 切成 100 份，浏览器只下载当前页面用到的分片。实测登录页 **12 个分片 / 651 KB**（同一页面此前 24.6MB），构建产物 25MB → 5.7MB 且不再有 ttf；macOS/iOS 命中系统苹方，一个字节都不用下。
+- **入口 HTML 与被缓存的 404**：`index.html` 原先没有任何 `Cache-Control`，升级后浏览器可能继续引用已删除的旧 assets（白屏/404），现在 `no-cache` + ETag；`/assets/` 仍是 30 天 immutable，但去掉了 `always`——`try_files ... =404` 的 404 响应不该带 immutable，否则滚动发布期间被缓存成永久的白屏。另补 `gzip_vary on`，共享缓存不会把 gzip 响应发给不支持的客户端。
+- **安全响应头**：新增 `nosniff` / `X-Frame-Options: SAMEORIGIN` / `Referrer-Policy` / `Permissions-Policy`（麦克风仅同源）。nginx 的 `add_header` 不跨 location 继承，抽成 `docker/security-headers.conf` 在 server 与两个自带 `add_header` 的 location 里重复引入。
+- 字体栈顺序：Inter 必须排在 Noto 之前——Noto 的 latin 分片同样覆盖 `U+0000-00FF`，排在前面会抢走全部拉丁字符，Inter 再也不会被下载。
+- 新增测试：`app.test.ts`（4 条，登出四条分支：Refresh 401 / 暂时失败 / 403 / 正常登出）、`usePolling.test.ts`（2 条，迟到的旧轮次不停新轮次、返回 false 才停）、`auth.test.ts`（2 条，登出 401 先刷新再重试）、`interviewStorage.test.ts`（3 条，按会话清 / 前缀不误伤 / 全清保留无关键）。前两组都做过反向验证：去掉修复后用例立刻变红。
 
 ### v2.42（2026-11-28）——报告列表改批量查询，补支付扫描索引
 
