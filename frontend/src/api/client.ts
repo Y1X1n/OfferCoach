@@ -243,7 +243,20 @@ export function refreshSession(): Promise<boolean> {
   return refreshPromise
 }
 
+/**
+ * 最近一次 Refresh 的结论：只有服务端**明确拒绝**（401）才说明会话真的不在了。
+ * 403 常来自网关 / WAF（限流页、源站封禁），网络错误、5xx、响应缺字段都只是暂时失败——
+ * 这些情况下 Cookie 与服务端 Refresh 家族可能完好，不能当成"已登出"。
+ */
+let refreshRejected = false
+
+/** 供登出判断用：会话是否已被服务端明确判定失效。 */
+export function wasRefreshRejected(): boolean {
+  return refreshRejected
+}
+
 async function performRefresh(): Promise<boolean> {
+  refreshRejected = false
   let res: Response
   try {
     res = await fetch(buildUrl('/auth/refresh'), {
@@ -262,6 +275,8 @@ async function performRefresh(): Promise<boolean> {
   }
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
+      // 两种状态都要停止用当前 Token，但只有 401 代表 Refresh 家族真的被吊销了。
+      refreshRejected = res.status === 401
       clearAccessToken()
       notifySessionExpired()
     }

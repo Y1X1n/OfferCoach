@@ -16,5 +16,8 @@ FROM nginx:1.27-alpine
 # 避免把 nginx 自己的 $host / $remote_addr / $uri 之类变量也替换成空值。
 ENV NGINX_ENVSUBST_FILTER=AUTH_PROXY_SECRET
 COPY docker/default.conf.template /etc/nginx/templates/default.conf.template
+# 安全响应头片段：nginx 的 add_header 不跨 location 继承，多个 location 需要重复引入。
+# 放在 snippets/ 而不是 templates/，避免被入口脚本的 envsubst 处理。
+COPY docker/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /src/dist/ /usr/share/nginx/html/
 EXPOSE 80

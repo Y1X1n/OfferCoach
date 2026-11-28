@@ -1,39 +1,16 @@
 /*
  * 字体分两层：
- * 1. HarmonyOS Sans SC（自托管，原样分发，未做子集化）——只覆盖中日韩字符，
- *    因此拉丁字母与数字仍由体积更小的 Inter 承担，不必为 ASCII 下载 8MB 字体。
+ * 1. Noto Sans SC 可变字体（@fontsource-variable/noto-sans-sc，OFL-1.1）——覆盖中日韩字符。
+ *    它按 unicode-range 切成 100 多个小片，浏览器只下载当前页面真正用到的字形（首访通常
+ *    几百 KB），而不是一整个 8MB 的 ttf；可变字体本身一个文件覆盖 100–900 全字重。
+ *    之前自托管的 HarmonyOS Sans 三个字重共 24.6MB，而它的许可明确禁止修改字体文件，
+ *    既不能子集化也不能转成 WOFF2，只能整体换掉。
  * 2. Inter（自托管 latin 子集，约 50KB）——覆盖拉丁字符与数字。
  *
- * 许可：HarmonyOS Sans 使用「HarmonyOS Sans Fonts License Agreement」，
- * 允许随软件原样分发，但不允许修改字体文件；版权与许可全文见
- * src/assets/fonts/HarmonyOS_Sans_LICENSE.txt。
+ * 许可：Noto Sans SC 与 Inter 均为 SIL Open Font License 1.1，允许修改与再分发；OFL 要求
+ * 随分发附带许可全文，已放在 public/fonts/{NotoSansSC,Inter}-OFL.txt（随构建产物发布）。
  */
-@font-face {
-  font-family: 'HarmonyOS Sans SC';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 400;
-  src: url('../assets/fonts/HarmonyOS_Sans_SC_Regular.ttf') format('truetype');
-  unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
-}
-
-@font-face {
-  font-family: 'HarmonyOS Sans SC';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 500;
-  src: url('../assets/fonts/HarmonyOS_Sans_SC_Medium.ttf') format('truetype');
-  unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
-}
-
-@font-face {
-  font-family: 'HarmonyOS Sans SC';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 700;
-  src: url('../assets/fonts/HarmonyOS_Sans_SC_Bold.ttf') format('truetype');
-  unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
-}
+@import '@fontsource-variable/noto-sans-sc';
 
 @font-face {
   font-family: 'Inter Variable';

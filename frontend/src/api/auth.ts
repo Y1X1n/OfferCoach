@@ -125,6 +125,15 @@ export function refresh(): Promise<AuthResponse> {
   })
 }
 
+/**
+ * 登出必须能在 Access Token 过期时也走到服务端。
+ *
+ * <p>Refresh 是 HttpOnly Cookie，前端删不掉：Access 过期时若直接收到 401 就当作
+ * "已登出"，服务端的 Refresh 家族没有被吊销，Cookie 也还在——用户刷新页面即被静默
+ * 重新登录，共用设备上等于没登出。这里保留 401 刷新重试（`client.ts` 已把
+ * `/auth/logout` 列为允许刷新的 auth 路径），让服务端拿到有效 Access 后吊销家族并下发
+ * 清除 Cookie。Refresh 也失效时仍由调用方按失败处理。</p>
+ */
 export function logout(): Promise<void> {
-  return request<void>('/auth/logout', { method: 'POST', refreshOnUnauthorized: false })
+  return request<void>('/auth/logout', { method: 'POST' })
 }
