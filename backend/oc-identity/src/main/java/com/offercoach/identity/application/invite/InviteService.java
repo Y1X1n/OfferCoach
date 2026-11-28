@@ -152,10 +152,13 @@ public class InviteService {
     }
 
     private Inviter findInviter(String inviteCode) {
+        // 左侧必须保持裸列：写成 upper(invite_code) 会让 uq_app_user_invite_code 失效，
+        // 每次邀请注册都退化成全表扫描。邀请码只由 generateCode() 用大写字母表生成，
+        // 库里恒为大写，所以只需把入参规范化。
         var rows = jdbcTemplate.query(
                 """
                 SELECT id, signup_device_hash FROM app_user
-                WHERE upper(invite_code) = upper(?) AND deleted_at IS NULL AND status = 'ACTIVE'
+                WHERE invite_code = upper(?) AND deleted_at IS NULL AND status = 'ACTIVE'
                 """,
                 (resultSet, index) -> new Inviter(resultSet.getLong("id"), resultSet.getString("signup_device_hash")),
                 inviteCode);

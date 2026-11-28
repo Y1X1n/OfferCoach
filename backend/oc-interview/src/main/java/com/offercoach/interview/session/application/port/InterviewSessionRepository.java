@@ -15,6 +15,11 @@ public interface InterviewSessionRepository {
 
     Optional<InterviewSession> findAny(long id);
 
+    /**
+     * 按 id 批量取会话（归属过滤），用于报告列表一次查完，避免逐条会话查询。
+     */
+    List<InterviewSession> findByIdsOwned(long userId, java.util.Collection<Long> ids);
+
     /** 最近活跃的未结束会话（CREATED/READY/IN_PROGRESS/PAUSED）。 */
     Optional<InterviewSession> findLatestOpen(long userId);
 

@@ -77,6 +77,7 @@ CREATED ──支付成功(回调/对账)──▶ PAID ──退款──▶ RE
 - 发放：`payment_entitlement.order_no` 主键唯一；`quota_ledger` 幂等键 `order-purchase:{orderNo}:{TYPE}`；`notify_status=DEAD` 表示终态（重试耗尽或永久拒绝），不再自动重试。
 - 退款：`payment_refund(order_no, idempotency_key)` 唯一；行锁保证不超退。
 - 渠道交易号 `provider_txn_id` 建部分唯一索引，用于对账去重。
+- 兜底扫描的取批路径：额度发放重试走部分索引 `(updated_at) WHERE status='PAID' AND notify_status IN ('PENDING','FAILED')`；对账扫描用已有的 `(status, expires_at)` 并按 `expires_at` 升序取批（`expires_at = created_at + 下单时的有效期`，按到期时间取批既能走区间扫描又天然有序）。
 
 ### 6.1 异常与人工处理（payment_exception）
 

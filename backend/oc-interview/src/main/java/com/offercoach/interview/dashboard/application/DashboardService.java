@@ -74,16 +74,23 @@ public class DashboardService {
         List<InterviewReport> window = reportRepository.list(userId, 0, REPORT_WINDOW);
         BigDecimal scoreSum = BigDecimal.ZERO;
         int scoredCount = 0;
-        List<ReportView> recentReports = new ArrayList<>();
+        List<InterviewReport> recent = new ArrayList<>();
         for (InterviewReport report : window) {
             if (report.overallScore() != null) {
                 scoreSum = scoreSum.add(report.overallScore());
                 scoredCount++;
             }
-            if (recentReports.size() < RECENT_REPORT_LIMIT) {
-                recentReports.add(toReportView(userId, report));
+            if (recent.size() < RECENT_REPORT_LIMIT) {
+                recent.add(report);
             }
         }
+        // 批量解析元信息：逐份 resolve 会为每条报告各查会话/JD/简历三次。
+        Map<Long, ReportMetaResolver.Meta> metas = reportMetaResolver.resolveAll(
+                userId, recent.stream().map(InterviewReport::sessionId).toList());
+        List<ReportView> recentReports = recent.stream()
+                .map(report ->
+                        toReportView(report, metas.getOrDefault(report.sessionId(), ReportMetaResolver.unknown())))
+                .toList();
         BigDecimal averageScore =
                 scoredCount == 0 ? null : scoreSum.divide(BigDecimal.valueOf(scoredCount), 1, RoundingMode.HALF_UP);
 
@@ -115,8 +122,7 @@ public class DashboardService {
                 timestamp(session.lastActiveAt()));
     }
 
-    private ReportView toReportView(long userId, InterviewReport report) {
-        ReportMetaResolver.Meta meta = reportMetaResolver.resolve(userId, report.sessionId());
+    private ReportView toReportView(InterviewReport report, ReportMetaResolver.Meta meta) {
         return new ReportView(
                 Long.toString(report.id()),
                 Long.toString(report.sessionId()),

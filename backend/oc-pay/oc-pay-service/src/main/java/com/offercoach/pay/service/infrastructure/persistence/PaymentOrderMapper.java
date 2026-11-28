@@ -134,12 +134,19 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrderDO> {
 
     /**
      * 待核对支付状态的订单：仍待支付且已过冷却期，用于回调缺失时主动对账。
+     *
+     * <p>按 {@code expires_at} 排序而不是 {@code created_at}：真正的选择条件是
+     * "还没过期"（{@code expires_at > now()}），只有它能让 {@code idx_payment_order_status_expire}
+     * 走区间扫描并天然有序；按 {@code created_at} 排序时 {@code created_at < ?} 几乎过滤不掉
+     * 任何在单行，规划器只能先扫全部活单再排序（实测 15 buffers + top-N sort 对 7 buffers、
+     * 无排序）。{@code expires_at = created_at + 下单时的有效期}，所以两者顺序一致，
+     * 按到期时间取批反而更合理：先核对最早过期的单。</p>
      */
     @Select(
             """
             SELECT * FROM payment_order
             WHERE status = 'CREATED' AND created_at < #{createdBefore} AND expires_at > now()
-            ORDER BY created_at ASC
+            ORDER BY expires_at ASC
             LIMIT #{limit}
             """)
     List<PaymentOrderDO> findReconcileCandidates(

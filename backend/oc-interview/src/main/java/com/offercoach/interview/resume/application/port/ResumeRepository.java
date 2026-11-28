@@ -11,6 +11,11 @@ public interface ResumeRepository {
 
     Optional<Resume> findOwned(long userId, long id);
 
+    /**
+     * 按 id 批量取简历（归属过滤），用于报告列表批量解析标题。
+     */
+    List<Resume> findOwnedByIds(long userId, java.util.Collection<Long> ids);
+
     Optional<Resume> findAny(long id);
 
     Optional<Resume> findBySha256(long userId, String sha256);
