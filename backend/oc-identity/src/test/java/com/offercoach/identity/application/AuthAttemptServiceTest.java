@@ -7,15 +7,16 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.offercoach.common.cache.RedisKeys;
 import com.offercoach.common.error.BizException;
 import com.offercoach.common.error.ErrorCode;
 import com.offercoach.identity.application.settings.PlatformSettingsService;
 import com.offercoach.identity.config.RateLimitProperties;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,9 +66,23 @@ class AuthAttemptServiceTest {
         assertThat(attempt.counted()).isTrue();
         // 计数键按账号归一化（小写 + 摘要），不会把原始邮箱写进 Redis 键
         ArgumentCaptor<List<String>> keys = keysCaptor();
-        verify(redis).execute(any(RedisScript.class), keys.capture(), eq(Long.toString(properties.getFailWindow().toMillis())));
-        assertThat(keys.getValue().getFirst()).startsWith("oc:login:fail:acct:");
+        verify(redis)
+                .execute(
+                        any(RedisScript.class),
+                        keys.capture(),
+                        eq(Long.toString(properties.getFailWindow().toMillis())));
+        // 小写归一化 + 摘要：直接和 RedisKeys 生成的键比，改动其中任一环都会红
+        assertThat(keys.getValue().getFirst()).isEqualTo(RedisKeys.loginFailAccount("user@example.com"));
         assertThat(keys.getValue().getFirst()).doesNotContain("@");
+    }
+
+    /** 边界：刚好等于阈值时仍然放行，只有超过才锁。 */
+    @Test
+    void doesNotLockAtExactlyTheThreshold() {
+        when(redis.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(1L, (long) properties.getFailThreshold());
+
+        assertThat(service.reserveLoginAttempt(ACCOUNT, IP).counted()).isTrue();
     }
 
     @Test
@@ -82,23 +97,31 @@ class AuthAttemptServiceTest {
 
     @Test
     void failsOpenWhenCounterUnavailable() {
-        when(redis.execute(any(RedisScript.class), anyList(), any())).thenThrow(new IllegalStateException("redis down"));
+        when(redis.execute(any(RedisScript.class), anyList(), any()))
+                .thenThrow(new IllegalStateException("redis down"));
 
         AuthAttemptService.LoginAttempt attempt = service.reserveLoginAttempt(ACCOUNT, IP);
 
-        assertThat(attempt.counted())
-                .as("Redis 故障时放行，但标记为未计数，失败路径会再补一次")
-                .isFalse();
+        assertThat(attempt.counted()).as("Redis 故障时放行，但标记为未计数，失败路径会再补一次").isFalse();
         assertThat(attempt.key()).isNull();
     }
 
     @Test
-    void untrackedForBlankAccountWithoutTouchingRedis() {
+    void blankAccountOnlyCountsTheIpWindow() {
         AuthAttemptService.LoginAttempt attempt = service.reserveLoginAttempt("   ", IP);
 
         assertThat(attempt.counted()).isFalse();
         // IP 窗口计数仍会跑一次，但账号计数（第二次 execute）不应发生
         verify(redis).execute(any(RedisScript.class), anyList(), any());
+    }
+
+    @Test
+    void allowsExactlyThePerMinuteLimit() {
+        // 第一次 execute 是 IP 分钟窗口，第二次是账号失败计数
+        when(redis.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn((long) properties.getLoginPerMinute(), (long) properties.getFailThreshold());
+
+        assertThat(service.reserveLoginAttempt(ACCOUNT, IP).counted()).isTrue();
     }
 
     @Test
@@ -134,9 +157,13 @@ class AuthAttemptServiceTest {
 
     @Test
     void failureSwallowsRedisFailure() {
-        when(redis.execute(any(RedisScript.class), anyList(), any())).thenThrow(new IllegalStateException("redis down"));
+        when(redis.execute(any(RedisScript.class), anyList(), any()))
+                .thenThrow(new IllegalStateException("redis down"));
 
         service.onLoginFailure(new AuthAttemptService.LoginAttempt(null, false), ACCOUNT, IP);
+
+        // 确实尝试补记了一次，只是异常被吞掉
+        verify(redis).execute(any(RedisScript.class), anyList(), any());
     }
 
     @Test
@@ -176,8 +203,8 @@ class AuthAttemptServiceTest {
 
         assertThatThrownBy(() -> service.checkRegistrationDailyCaps(IP, "device-hash"))
                 .isInstanceOf(BizException.class)
-                .satisfies(exception -> assertThat(((BizException) exception).details())
-                        .containsEntry("scope", "REGISTER_IP_DAILY"));
+                .satisfies(exception ->
+                        assertThat(((BizException) exception).details()).containsEntry("scope", "REGISTER_IP_DAILY"));
     }
 
     @Test
@@ -206,6 +233,9 @@ class AuthAttemptServiceTest {
         when(values.get(any(String.class))).thenThrow(new IllegalStateException("redis down"));
 
         service.checkRegistrationDailyCaps(IP, "device-hash");
+
+        // IP 与设备各读一次，异常都被吞掉
+        verify(values, times(2)).get(any(String.class));
     }
 
     @Test
@@ -214,13 +244,20 @@ class AuthAttemptServiceTest {
         when(values.get(any(String.class))).thenReturn("not-a-number");
 
         service.checkRegistrationDailyCaps(IP, "device-hash");
+
+        // IP 与设备各读一次，异常都被吞掉
+        verify(values, times(2)).get(any(String.class));
     }
 
     @Test
     void registrationSuccessSwallowsCounterFailure() {
-        when(redis.execute(any(RedisScript.class), anyList(), any())).thenThrow(new IllegalStateException("redis down"));
+        when(redis.execute(any(RedisScript.class), anyList(), any()))
+                .thenThrow(new IllegalStateException("redis down"));
 
         service.onRegistrationSuccess(IP, "device-hash");
+
+        // IP 与设备各尝试一次，异常不阻断注册
+        verify(redis, times(2)).execute(any(RedisScript.class), anyList(), any());
     }
 
     @SuppressWarnings("unchecked")

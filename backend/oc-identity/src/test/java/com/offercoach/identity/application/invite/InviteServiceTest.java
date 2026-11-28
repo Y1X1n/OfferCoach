@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -25,6 +26,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowMapper;
@@ -89,8 +91,10 @@ class InviteServiceTest {
                     // ensureInviteCode 的读取：返回已有个人码，避免走生成重试分支
                     return sql.contains("SELECT invite_code") ? CODE : null;
                 });
-        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
-        when(jdbc.queryForObject(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(null);
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class)))
+                .thenReturn(0L);
+        when(jdbc.queryForObject(anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(null);
 
         service = new InviteService(jdbc, settingsService, quotaService);
     }
@@ -134,14 +138,32 @@ class InviteServiceTest {
         verifyNoGrant();
     }
 
+    /**
+     * 当日名额已满：必须靠 {@code todayCount < cap} 这一层拦住，而不是 cap 为 0 的短路——
+     * 后者只能证明"关闭奖励时不发"，证明不了"名额用尽时不发"。
+     */
     @Test
-    void capsExhaustedRewardsNothing() {
+    void dailyCapReachedRewardsNothing() {
+        when(settingsService.snapshot()).thenReturn(snapshot(1, 20));
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class)))
+                .thenAnswer(invocation -> {
+                    // countToday 的 SQL 带时区换算，countTotal 不带
+                    String sql = invocation.getArgument(0);
+                    return sql.contains("AT TIME ZONE") ? 1L : 5L;
+                });
+
+        service.onRegistered(INVITEE, CODE, "203.0.113.9", "another-device");
+
+        assertThat(executed).anyMatch(sql -> sql.contains("SET referred_by"));
+        verifyNoGrant();
+    }
+
+    @Test
+    void disabledCapsRewardNothing() {
         when(settingsService.snapshot()).thenReturn(snapshot(0, 20));
 
         service.onRegistered(INVITEE, CODE, "203.0.113.9", "another-device");
 
-        // 推荐关系仍要建立，但奖励额度为 0，不能调用 grant
-        assertThat(executed).anyMatch(sql -> sql.contains("SET referred_by"));
         verifyNoGrant();
     }
 
@@ -160,7 +182,14 @@ class InviteServiceTest {
         service.onRegistered(INVITEE, CODE, "203.0.113.9", "another-device");
 
         verify(quotaService)
-                .grant(eq(INVITER), eq(QuotaType.INTERVIEW), eq(1), eq("INVITE_REWARD"), anyString(), any(), anyString());
+                .grant(
+                        eq(INVITER),
+                        eq(QuotaType.INTERVIEW),
+                        eq(1),
+                        eq("INVITE_REWARD"),
+                        anyString(),
+                        any(),
+                        anyString());
         verify(quotaService)
                 .grant(eq(INVITEE), eq(QuotaType.RESUME), eq(1), eq("INVITE_REWARD"), anyString(), any(), anyString());
     }
@@ -177,9 +206,52 @@ class InviteServiceTest {
         order.verify(jdbc).query(eq("SELECT pg_advisory_xact_lock(?)"), any(ResultSetExtractor.class), eq(INVITER));
     }
 
+    /**
+     * 个人码碰撞：唯一键冲突会把整个事务置为 aborted，必须回滚到 SAVEPOINT 再重试，
+     * 否则后续语句全部失败、注册整体 500。这条是注册链路的关键分支。
+     */
+    @Test
+    void inviteCodeCollisionRollsBackToSavepointAndRetries() {
+        // 首次读取：还没有个人码
+        when(jdbc.query(anyString(), any(ResultSetExtractor.class), any(Object[].class)))
+                .thenAnswer(invocation -> {
+                    executed.add(invocation.getArgument(0));
+                    return null;
+                });
+        doAnswer(invocation -> {
+                    executed.add(invocation.getArgument(0));
+                    return null;
+                })
+                .when(jdbc)
+                .execute(anyString());
+
+        int[] codeUpdates = {0};
+        when(jdbc.update(anyString(), any(Object[].class))).thenAnswer(invocation -> {
+            String sql = invocation.getArgument(0);
+            executed.add(sql);
+            if (sql.contains("SET invite_code")) {
+                if (codeUpdates[0]++ == 0) {
+                    throw new DuplicateKeyException("invite_code 冲突");
+                }
+                return 1;
+            }
+            return 1;
+        });
+
+        // 不带邀请码：只走"生成个人码"这一段
+        service.onRegistered(INVITEE, null, "203.0.113.9", DEVICE);
+
+        assertThat(executed).contains("SAVEPOINT invite_code_gen");
+        assertThat(executed).contains("ROLLBACK TO SAVEPOINT invite_code_gen");
+        assertThat(executed.stream()
+                        .filter(sql -> sql.contains("SET invite_code"))
+                        .count())
+                .as("碰撞后必须重试一次")
+                .isEqualTo(2);
+    }
+
     private void verifyNoGrant() {
-        verify(quotaService, never())
-                .grant(anyLong(), any(), anyInt(), anyString(), anyString(), any(), anyString());
+        verify(quotaService, never()).grant(anyLong(), any(), anyInt(), anyString(), anyString(), any(), anyString());
     }
 
     private static PlatformSettingsService.Snapshot snapshot(int inviteDailyCap, int inviteTotalCap) {

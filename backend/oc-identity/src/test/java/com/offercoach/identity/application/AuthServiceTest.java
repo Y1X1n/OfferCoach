@@ -84,8 +84,8 @@ class AuthServiceTest {
                 .thenReturn(new RefreshTokenService.IssuedRefresh("refresh", 7L, "family-1", "jti-1"));
         when(refreshTokenService.issueInFamily(anyLong(), anyString()))
                 .thenReturn(new RefreshTokenService.IssuedRefresh("refresh2", 7L, "family-1", "jti-2"));
-        when(quotaService.snapshot(anyLong())).thenReturn(new QuotaSnapshot(
-                "PRO", "专业版", 1, 1, null, null, 0, 0, Map.of()));
+        when(quotaService.snapshot(anyLong()))
+                .thenReturn(new QuotaSnapshot("PRO", "专业版", 1, 1, null, null, 0, 0, Map.of()));
 
         service = new AuthService(
                 userRepository,
@@ -133,6 +133,8 @@ class AuthServiceTest {
                 .extracting(exception -> ((BizException) exception).errorCode())
                 .isEqualTo(ErrorCode.UNAUTHENTICATED);
 
+        // 禁用账号同样要对着 dummy hash 比一次，否则"被禁用"会比"不存在"更慢
+        verify(passwordEncoder).matches("correct-password", DUMMY_HASH);
         verify(authAttemptService).onLoginFailure(any(), eq(EMAIL), anyString());
         verify(userRepository, never()).updateLastLogin(anyLong(), any());
     }

@@ -105,7 +105,8 @@ class QuotaServiceTest {
                 .thenReturn(Optional.of(new QuotaLedgerEntry(
                         9L, USER_ID, "INTERVIEW", -2, 4, "SESSION_CHARGE", "SESSION", 33L, "charge-1")));
 
-        QuotaResult result = service.charge(USER_ID, QuotaType.INTERVIEW, 2, "SESSION_CHARGE", "SESSION", 33L, "charge-1");
+        QuotaResult result =
+                service.charge(USER_ID, QuotaType.INTERVIEW, 2, "SESSION_CHARGE", "SESSION", 33L, "charge-1");
 
         assertThat(result.charged()).isFalse();
         assertThat(result.replayed()).isTrue();
@@ -149,15 +150,22 @@ class QuotaServiceTest {
 
     @Test
     void chargeWritesNegativeLedgerWithBalanceAfter() {
-        when(quotaRepository.lockQuota(USER_ID)).thenReturn(Optional.of(account("PRO", 10, 10)));
+        // 两类额度给不同数值，INTERVIEW/RESUME 走反了才会被发现
+        when(quotaRepository.lockQuota(USER_ID)).thenReturn(Optional.of(account("PRO", 10, 99)));
 
-        QuotaResult result = service.charge(USER_ID, QuotaType.INTERVIEW, 3, "SESSION_CHARGE", "SESSION", 42L, "charge-42");
+        QuotaResult result =
+                service.charge(USER_ID, QuotaType.INTERVIEW, 3, "SESSION_CHARGE", "SESSION", 42L, "charge-42");
 
         assertThat(result.charged()).isTrue();
         assertThat(result.balanceAfter()).isEqualTo(7);
 
+        // 扣减必须走 decrease，不能走 increase（否则余额会越扣越多）
+        verify(quotaRepository).decrease(USER_ID, QuotaType.INTERVIEW, 3);
+        verify(quotaRepository, never()).increase(anyLong(), any(), anyInt());
+
         ArgumentCaptor<QuotaLedgerEntry> ledger = ArgumentCaptor.forClass(QuotaLedgerEntry.class);
         verify(quotaRepository).insertLedger(ledger.capture());
+        assertThat(ledger.getValue().quotaType()).isEqualTo("INTERVIEW");
         assertThat(ledger.getValue().delta()).isEqualTo(-3);
         assertThat(ledger.getValue().balanceAfter()).isEqualTo(7);
         assertThat(ledger.getValue().idempotencyKey()).isEqualTo("charge-42");
@@ -168,11 +176,17 @@ class QuotaServiceTest {
 
     @Test
     void refundWritesPositiveLedger() {
-        QuotaResult result = service.refund(USER_ID, QuotaType.INTERVIEW, 5, "RESUME_PARSE_FAILED", "RESUME", 8L, "refund-8");
+        QuotaResult result =
+                service.refund(USER_ID, QuotaType.INTERVIEW, 5, "RESUME_PARSE_FAILED", "RESUME", 8L, "refund-8");
 
         assertThat(result.balanceAfter()).isEqualTo(15);
+        // 返还走 increase：如果误走 decrease，余额会被反向扣掉，只断言 delta 看不出来
+        verify(quotaRepository).increase(USER_ID, QuotaType.INTERVIEW, 5);
+        verify(quotaRepository, never()).decrease(anyLong(), any(), anyInt());
+
         ArgumentCaptor<QuotaLedgerEntry> ledger = ArgumentCaptor.forClass(QuotaLedgerEntry.class);
         verify(quotaRepository).insertLedger(ledger.capture());
+        assertThat(ledger.getValue().quotaType()).isEqualTo("INTERVIEW");
         assertThat(ledger.getValue().delta()).isEqualTo(5);
     }
 
@@ -205,9 +219,7 @@ class QuotaServiceTest {
      */
     @Test
     void missingQuotaRowIsInitializedBeforeApplyingDelta() {
-        when(quotaRepository.findQuota(USER_ID))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.empty());
+        when(quotaRepository.findQuota(USER_ID)).thenReturn(Optional.empty()).thenReturn(Optional.empty());
         when(quotaRepository.findPlan(anyString())).thenReturn(Optional.empty());
 
         service.grant(USER_ID, QuotaType.INTERVIEW, 1, "INVITE_REWARD", "USER", 2L, "invite-2");
@@ -246,8 +258,8 @@ class QuotaServiceTest {
 
         assertThatThrownBy(() -> service.reserveDailySession(USER_ID))
                 .isInstanceOf(BizException.class)
-                .satisfies(exception -> assertThat(((BizException) exception).details())
-                        .containsEntry("type", "DAILY_SESSION"));
+                .satisfies(exception ->
+                        assertThat(((BizException) exception).details()).containsEntry("type", "DAILY_SESSION"));
     }
 
     @Test
@@ -257,12 +269,13 @@ class QuotaServiceTest {
 
         assertThatThrownBy(() -> service.reserveDailyResumeParse(USER_ID))
                 .isInstanceOf(BizException.class)
-                .satisfies(exception -> assertThat(((BizException) exception).details())
-                        .containsEntry("type", "DAILY_RESUME_PARSE"));
+                .satisfies(exception ->
+                        assertThat(((BizException) exception).details()).containsEntry("type", "DAILY_RESUME_PARSE"));
     }
 
     private static QuotaAccount account(String planCode, int interview, int resume) {
-        LocalDate today = LocalDate.now();
+        // 与生产一致用业务日期（Asia/Shanghai），避免 UTC 跨天时测试与实现不在同一天
+        LocalDate today = QuotaService.businessDate();
         return new QuotaAccount(USER_ID, planCode, interview, resume, today, today.plusMonths(1), today, 0);
     }
 
