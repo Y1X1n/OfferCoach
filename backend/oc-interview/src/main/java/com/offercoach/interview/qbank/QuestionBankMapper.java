@@ -12,6 +12,12 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface QuestionBankMapper {
 
+    /**
+     * 按岗位检索：优先带参考答案的题。
+     *
+     * <p>排序键必须是 {@code has_reference_answer}（STORED 生成列）而不是 CASE 表达式——
+     * 表达式排序走不了索引，一个岗位上万条待排序（见 V202611280002）。</p>
+     */
     @Select(
             """
             SELECT id, title, job_family, dimension, difficulty,
@@ -20,7 +26,7 @@ public interface QuestionBankMapper {
                    source_repo, company, quality_score
             FROM question_bank
             WHERE status = 'PUBLISHED' AND lower(job_family) = lower(#{jobFamily})
-            ORDER BY (CASE WHEN reference_answer IS NOT NULL AND btrim(reference_answer) <> '' THEN 0 ELSE 1 END), id
+            ORDER BY has_reference_answer DESC, id
             LIMIT #{limit}
             """)
     List<QuestionBankDO> selectPublishedByFamily(@Param("jobFamily") String jobFamily, @Param("limit") int limit);
@@ -33,7 +39,7 @@ public interface QuestionBankMapper {
                    source_repo, company, quality_score
             FROM question_bank
             WHERE status = 'PUBLISHED'
-            ORDER BY (CASE WHEN reference_answer IS NOT NULL AND btrim(reference_answer) <> '' THEN 0 ELSE 1 END), id
+            ORDER BY has_reference_answer DESC, id
             LIMIT #{limit}
             """)
     List<QuestionBankDO> selectPublished(@Param("limit") int limit);
