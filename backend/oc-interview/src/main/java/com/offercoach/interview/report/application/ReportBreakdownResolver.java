@@ -65,6 +65,11 @@ public class ReportBreakdownResolver {
     public record Sources(
             Map<Long, String> questionTexts, Map<Long, String> answerTexts, Map<Long, AnswerFeedback> feedbacks) {
 
+        /** 没有逐题拆解时的空素材：一次查询都不发。 */
+        public static Sources empty() {
+            return new Sources(Map.of(), Map.of(), Map.of());
+        }
+
         public String questionText(long questionId) {
             return questionTexts.get(questionId);
         }

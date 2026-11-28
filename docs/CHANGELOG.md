@@ -44,7 +44,8 @@
 - **问题**：`ReportController.toDetail` 对每个 breakdown 项各查三次——题目原文、回答原文、最新反馈。20 题的报告就是 **1（报告）+ 1（元信息 3 条）+ 60 条**，而这三张表都能按 `session_id` 一次取全。列表页在 #71 已经收敛，**详情页一直没改**，而报告详情正是"逐题复盘"的主页面。
 - **改法**：新增 `ReportBreakdownResolver`（与 `ReportMetaResolver` 同一套写法）——题目走 `listBySession`，回答走新增的 `listOwnedBySession(userId, sessionId)`（归属条件与 `findOwned` 一致），反馈走新增的 `listLatestBySession(userId, sessionId)`（`DISTINCT ON (answer_id) ... ORDER BY answer_id, version DESC, id DESC`，与逐题 `findLatestByAnswer` 的 `version DESC LIMIT 1` 语义一致，同版本时按 id 取最新）。控制器不再直接持有三个仓储。
 - 缺失项仍是 null（报告早于题面/回答被清理、或反馈被删）——接口继续出报告，不 500。
-- 新增 `ReportBreakdownResolverTest`（3 条）：三张表各查一次且不再逐题 `findOwned` / `findLatestByAnswer`；空会话；缺失项回退 null。反向验证：把回答查询换回不带归属过滤的 `listBySession` 用例立刻变红。
+- **生成中/失败的报告一条素材都不查**：这两类报告 `questionBreakdown` 是空的，而前端每 2-15 秒轮询一次详情——不加判断的话每次轮询都白扫三张表（还把整段回答原文读出来丢掉）。
+- 新增 `ReportBreakdownResolverTest`（3 条）：三张表各查一次且不再逐题 `findOwned` / `findLatestByAnswer`；空会话；缺失项回退 null。新增 `ReportControllerDetailTest`（2 条，MockMvc）：生成中的报告不触发素材查询；READY 报告的题面/回答/反馈正确落到响应里。反向验证：把回答查询换回不带归属过滤的 `listBySession`、去掉「空 breakdown 不查」的短路，对应用例都立刻变红。
 
 ### v2.44（2026-11-28）——补齐认证与额度的单元测试（oc-identity 36 → 92 条）
 

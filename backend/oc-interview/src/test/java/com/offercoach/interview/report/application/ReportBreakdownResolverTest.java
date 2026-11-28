@@ -66,7 +66,7 @@ class ReportBreakdownResolverTest {
     }
 
     @Test
-    void emptySessionIssuesNoQueries() {
+    void emptySessionYieldsNulls() {
         when(questionRepository.listBySession(SESSION_ID)).thenReturn(List.of());
         when(answerRepository.listOwnedBySession(USER_ID, SESSION_ID)).thenReturn(List.of());
         when(feedbackRepository.listLatestBySession(USER_ID, SESSION_ID)).thenReturn(List.of());

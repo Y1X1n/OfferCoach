@@ -99,7 +99,11 @@ public class ReportController {
     private ReportDetailResponse toDetail(long userId, InterviewReport report) {
         ReportMetaResolver.Meta meta = reportMetaResolver.resolve(userId, report.sessionId());
         // 逐题素材按会话一次取齐：逐题查时 20 题要 60 条 SQL。
-        ReportBreakdownResolver.Sources sources = reportBreakdownResolver.resolve(userId, report.sessionId());
+        // 生成中/失败的报告还没有 breakdown，前端会每 2-15 秒轮询一次详情——这时一条都不该查，
+        // 否则每次轮询都白扫三张表（还把整段回答原文读出来丢掉）。
+        ReportBreakdownResolver.Sources sources = report.questionBreakdown().isEmpty()
+                ? ReportBreakdownResolver.Sources.empty()
+                : reportBreakdownResolver.resolve(userId, report.sessionId());
         return new ReportDetailResponse(
                 Long.toString(report.id()),
                 Long.toString(report.sessionId()),

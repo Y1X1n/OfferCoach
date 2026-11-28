@@ -64,8 +64,7 @@ public interface AnswerFeedbackMapper {
      * （version 相同时按 id 取最新，避免同版本脏数据导致结果不确定）。
      */
     @Select(
-            """
-            SELECT DISTINCT ON (answer_id) """
+            "SELECT DISTINCT ON (answer_id) "
                     + COLUMNS
                     + """
             FROM answer_feedback
