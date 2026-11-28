@@ -35,8 +35,9 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * 支付宝渠道适配（{@code alipay.trade.precreate} 扫码支付为主）。
  *
- * <p>请求以应用私钥做 RSA2 签名；回调以支付宝公钥验签。网关响应依赖 TLS 通道，
- * 不做逐条响应验签（如需可再加）；商户私钥 / 支付宝公钥来自部署配置。</p>
+ * <p>请求以应用私钥做 RSA2 签名；回调与同步响应都以支付宝公钥验签（同步响应验的是
+ * 业务节点的原始字节，见 {@link #rawBusinessNode}）。商户私钥与支付宝公钥都来自部署配置，
+ * 缺任何一个渠道都不算可用。</p>
  */
 @Component
 public class AlipayChannel implements PaymentChannel {
@@ -45,6 +46,7 @@ public class AlipayChannel implements PaymentChannel {
     private static final String SUCCESS_CODE = "10000";
     private static final String PRECREATE_METHOD = "alipay.trade.precreate";
     private static final String QUERY_METHOD = "alipay.trade.query";
+    private static final String RSA2_SIGN_TYPE = "RSA2";
     private static final String CLOSE_METHOD = "alipay.trade.close";
     private static final String REFUND_METHOD = "alipay.trade.refund";
     private static final DateTimeFormatter TIMESTAMP_FORMAT =
@@ -81,7 +83,10 @@ public class AlipayChannel implements PaymentChannel {
         PayChannelProperties.Alipay alipay = properties.getAlipay();
         return alipay.isEnabled()
                 && hasText(alipay.getAppId())
-                && (hasText(alipay.getPrivateKeyPath()) || hasText(alipay.getPrivateKeyPem()));
+                && (hasText(alipay.getPrivateKeyPath()) || hasText(alipay.getPrivateKeyPem()))
+                // 没有平台公钥就无法验证回调与同步响应，这种配置只会在下单/对账时才炸，
+                // 不如在能力判定这一层就判为不可用（OrderService 会据此直接拒绝下单）。
+                && (hasText(alipay.getAlipayPublicKeyPath()) || hasText(alipay.getAlipayPublicKeyPem()));
     }
 
     @Override
@@ -211,13 +216,20 @@ public class AlipayChannel implements PaymentChannel {
         if (response.statusCode() / 100 != 2) {
             throw new PayException(PayErrorKind.UPSTREAM_FAILED, "支付宝返回 " + response.statusCode());
         }
-        return extractBusiness(response.body(), method);
+        return parseResponse(response.body(), method);
     }
 
     /**
-     * 取出 {@code alipay_<method>_response} 业务节点；非成功码抛出上游失败。
+     * 校验并取出 {@code alipay_<method>_response} 业务节点；非成功码抛出上游失败。
+     *
+     * <p>同步响应同样必须验签：HTTPS 只保护传输，如果网关地址被改错、DNS 或代理被劫持、
+     * 或者有人把 gateway 指向一个自建服务，不验签就等于完全信任对端——一条伪造的
+     * "退款成功/已支付"响应足以让订单状态与资金事实脱节。</p>
+     *
+     * <p>签名覆盖的是**响应里业务节点的原始字节**：这里不做任何重新序列化，直接从原始
+     * 返回体里按括号配对切出子串再验，避免"重新格式化后签名对不上"。</p>
      */
-    private JsonNode extractBusiness(String body, String method) {
+    JsonNode parseResponse(String body, String method) {
         JsonNode node;
         try {
             node = objectMapper.readTree(body);
@@ -226,6 +238,10 @@ public class AlipayChannel implements PaymentChannel {
         }
         String key = method.replace('.', '_') + "_response";
         JsonNode business = node.path(key);
+        if (!business.isObject()) {
+            throw new PayException(PayErrorKind.UPSTREAM_FAILED, "支付宝响应缺少业务节点：" + key);
+        }
+        verifyResponseSignature(body, key, node);
         String code = business.path("code").asText("");
         if (!SUCCESS_CODE.equals(code)) {
             String message =
@@ -233,6 +249,124 @@ public class AlipayChannel implements PaymentChannel {
             throw new PayException(PayErrorKind.UPSTREAM_FAILED, "支付宝业务失败：" + message);
         }
         return business;
+    }
+
+    private void verifyResponseSignature(String body, String responseKey, JsonNode root) {
+        PublicKey key = alipayPublicKey();
+        if (key == null) {
+            // 没有平台公钥就无法验证响应来源；这与回调验签是同一个前提，不能静默放行。
+            throw new PayException(PayErrorKind.NOT_CONFIGURED, "未配置支付宝公钥，无法验证响应签名");
+        }
+        String signType = root.path("sign_type").asText("");
+        if (!signType.isBlank() && !RSA2_SIGN_TYPE.equalsIgnoreCase(signType)) {
+            throw new PayException(PayErrorKind.UPSTREAM_FAILED, "支付宝响应签名类型不支持：" + signType);
+        }
+        String sign = root.path("sign").asText("");
+        String signed = rawBusinessNode(body, responseKey);
+        if (sign.isBlank() || signed == null || !RsaSigner.verify(key, signed, sign)) {
+            throw new PayException(PayErrorKind.UPSTREAM_FAILED, "支付宝响应验签失败");
+        }
+    }
+
+    /**
+     * 从原始返回体里切出**根对象上的**业务节点子串（含括号），供验签使用。
+     *
+     * <p>为什么不能重新序列化：签名覆盖的是支付宝下发的原始字节，字段顺序、空白、数字格式
+     * 一变签名就对不上。</p>
+     *
+     * <p>为什么不能简单 {@code indexOf}：那样会被"先塞一个签过名的旧节点、再放一个伪造的
+     * 同名根字段"绕过——{@code indexOf} 取到前面那个（验签通过），而 Jackson 取根字段时
+     * 重复键是后者优先，最终用的是伪造内容。所以这里只在根层（depth=1）匹配键，并且出现
+     * 两次同名根键就直接判为不可信。</p>
+     */
+    private static String rawBusinessNode(String body, String responseKey) {
+        String found = null;
+        String pendingKey = null;
+        int depth = 0;
+        int index = 0;
+        while (index < body.length()) {
+            char current = body.charAt(index);
+            if (current == '"') {
+                int end = stringEnd(body, index);
+                if (end < 0) {
+                    return null;
+                }
+                if (depth == 1) {
+                    pendingKey = body.substring(index + 1, end);
+                }
+                index = end + 1;
+                continue;
+            }
+            if (current == '{' || current == '[') {
+                depth++;
+                if (depth == 2 && responseKey.equals(pendingKey)) {
+                    int close = matchingClose(body, index);
+                    if (close < 0 || found != null) {
+                        // 括号不配对，或根层出现两个同名业务节点：不可信，直接失败
+                        return null;
+                    }
+                    found = body.substring(index, close + 1);
+                }
+                pendingKey = null;
+                index++;
+                continue;
+            }
+            if (current == '}' || current == ']') {
+                depth--;
+                pendingKey = null;
+                index++;
+                continue;
+            }
+            index++;
+        }
+        return found;
+    }
+
+    /** 从引号位置找到配对的收尾引号（跳过转义）；找不到返回 -1。 */
+    private static int stringEnd(String body, int quoteAt) {
+        boolean escaped = false;
+        for (int index = quoteAt + 1; index < body.length(); index++) {
+            char current = body.charAt(index);
+            if (escaped) {
+                escaped = false;
+            } else if (current == '\\') {
+                escaped = true;
+            } else if (current == '"') {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    /** 从开括号位置找到配对的收括号（跳过字符串内的括号）；找不到返回 -1。 */
+    private static int matchingClose(String body, int openAt) {
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int index = openAt; index < body.length(); index++) {
+            char current = body.charAt(index);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (current == '\\') {
+                    escaped = true;
+                } else if (current == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (current == '"') {
+                inString = true;
+            } else if (current == '{' || current == '[') {
+                depth++;
+            } else if (current == '}' || current == ']') {
+                depth--;
+                if (depth == 0) {
+                    return index;
+                }
+            }
+        }
+        return -1;
     }
 
     private String notifyUrl() {
